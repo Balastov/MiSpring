@@ -1,3 +1,19 @@
 user1
 
 sudo ss -tlnp | grep :8000
+
+# Перезагружаем VM и проверяем
+sudo reboot
+
+# После перезагрузки проверяем nginx
+sudo systemctl status task-tracker.service
+sudo systemctl status nginx
+curl http://localhost:8000
+
+# Перезагрузка сервиса для запуска приложения
+sudo systemctl daemon-reload
+sudo systemctl start task-tracker
+sudo systemctl enable task-tracker
+sudo systemctl status task-tracker
+
+
