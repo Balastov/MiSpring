@@ -1,6 +1,6 @@
 body {
     font-family: Arial, sans-serif;
-    max-width: 600px;
+    max-width: 960px;
     margin: 0 auto;
     padding: 20px;
 }
@@ -27,14 +27,135 @@ body {
     background-color: #6d28d9;
 }
 
-#task-list {
-    list-style-type: none;
-    padding: 0;
+/* "Все задачи" toggle button */
+#all-tasks-btn {
+    display: inline-block;
+    margin-top: 16px;
+    background-color: #7c3aed;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
 }
 
-.task-item {
+#all-tasks-btn:hover {
+    background-color: #6d28d9;
+}
+
+/* Task list section */
+.hidden {
+    display: none;
+}
+
+#task-list-section {
+    margin-top: 24px;
+    text-align: left;
+}
+
+.pagination-info {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+/* Table */
+.table-wrapper {
+    overflow-x: auto;
+}
+
+#tasks-table {
+    width: 100%;
+    min-width: 800px;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+#tasks-table th,
+#tasks-table td {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+}
+
+#tasks-table th {
+    background-color: #f4f4f4;
+    font-weight: 600;
+}
+
+#tasks-table tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+#tasks-table tbody tr:hover {
+    background-color: #eef0ff;
+}
+
+.col-desc {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-comment {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cell-bool {
+    text-align: center;
+}
+
+.empty-msg {
+    text-align: center !important;
+    color: #888;
+    padding: 24px 0 !important;
+}
+
+/* Pagination */
+.pagination-controls {
+    margin-top: 16px;
     display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    border-bottom: 1px solid #ccc;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn-page {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-page:hover {
+    border-color: #7c3aed;
+    color: #7c3aed;
+}
+
+.btn-page.active {
+    background-color: #7c3aed;
+    color: #fff;
+    border-color: #7c3aed;
+}
+
+/* Delete button in table */
+.btn-delete {
+    background: none;
+    border: 1px solid #e53e3e;
+    color: #e53e3e;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-delete:hover {
+    background-color: #e53e3e;
+    color: #fff;
 }
