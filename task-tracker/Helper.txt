@@ -16,4 +16,11 @@ sudo systemctl start task-tracker
 sudo systemctl enable task-tracker
 sudo systemctl status task-tracker
 
+# Или через Supervisor
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start task-tracker
+
+
+
 
