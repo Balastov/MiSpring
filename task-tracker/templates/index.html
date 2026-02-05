@@ -9,10 +9,34 @@
     <div class="container">
         <h1>Мои задачи</h1>
         <form id="task-form">
-            <input type="text" id="task-input" placeholder="Добавить задачу..." required>
+            <input type="text" id="task-input" placeholder="Описание задачи..." maxlength="100" required>
             <button type="submit">Добавить</button>
         </form>
-        <ul id="task-list"></ul>
+        <button id="all-tasks-btn">Все задачи ▼</button>
+        <div id="task-list-section" class="hidden">
+            <div id="pagination-info" class="pagination-info"></div>
+            <div class="table-wrapper">
+                <table id="tasks-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Описание</th>
+                            <th>Дата создания</th>
+                            <th>Клиент</th>
+                            <th>Оплачено</th>
+                            <th>Дата оплаты</th>
+                            <th>Домашка</th>
+                            <th>Статус</th>
+                            <th>Комментарий</th>
+                            <th>Дата закрытия</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasks-tbody"></tbody>
+                </table>
+            </div>
+            <div id="pagination-controls" class="pagination-controls"></div>
+        </div>
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
