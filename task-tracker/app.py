@@ -16,12 +16,12 @@ db = SQLAlchemy(app)
 @app.context_processor
 def inject_cache_bust():
     def cache_bust(filename):
-        # Создаем хэш на основе времени модификации файла
+        # Возвращаем только timestamp для использования с url_for
         static_path = os.path.join(app.static_folder, filename)
         if os.path.exists(static_path):
             mtime = os.path.getmtime(static_path)
-            return f"{filename}?v={int(mtime)}"
-        return filename
+            return int(mtime)
+        return None
     return dict(cache_bust=cache_bust)
 
 class Task(db.Model):
