@@ -16,6 +16,7 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    author = db.Column(db.String(100), nullable=True)
     client_id = db.Column(db.Integer, nullable=True)
     is_paid = db.Column(db.Boolean, default=False)
     payment_date = db.Column(db.DateTime, nullable=True)
@@ -29,6 +30,7 @@ class Task(db.Model):
             'id': self.id,
             'description': self.description,
             'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+            'author': self.author,
             'client_id': self.client_id,
             'is_paid': self.is_paid,
             'payment_date': self.payment_date.strftime('%d.%m.%Y %H:%M') if self.payment_date else None,
@@ -82,6 +84,7 @@ def add_task():
 
     task = Task(
         description=description,
+        author=data.get('author'),
         client_id=data.get('client_id'),
         is_paid=bool(data.get('is_paid', False)),
         payment_date=parse_datetime(data.get('payment_date')),
@@ -105,6 +108,8 @@ def update_task(task_id):
         if not description or len(description) > 100:
             return jsonify({'error': 'Описание: от 1 до 100 символов'}), 400
         task.description = description
+    if 'author' in data:
+        task.author = data['author']
     if 'client_id' in data:
         task.client_id = data['client_id']
     if 'is_paid' in data:
