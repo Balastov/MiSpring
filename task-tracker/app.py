@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
+import hashlib
+import os
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -11,6 +13,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+@app.context_processor
+def inject_cache_bust():
+    def cache_bust(filename):
+        # Создаем хэш на основе времени модификации файла
+        static_path = os.path.join(app.static_folder, filename)
+        if os.path.exists(static_path):
+            mtime = os.path.getmtime(static_path)
+            return f"{filename}?v={int(mtime)}"
+        return filename
+    return dict(cache_bust=cache_bust)
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
