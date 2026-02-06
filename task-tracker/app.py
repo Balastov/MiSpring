@@ -63,11 +63,17 @@ def get_tasks():
         db.select(Task).order_by(Task.created_at.desc()),
         page=page, per_page=per_page, error_out=False
     )
+
+    # Calculate next task ID
+    max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+
     return jsonify({
         'tasks': [t.to_dict() for t in paginator.items],
         'total': paginator.total,
         'pages': paginator.pages,
         'current_page': paginator.page,
+        'next_id': next_id,
     })
 
 

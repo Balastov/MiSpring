@@ -31,12 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
-        // Fetch total task count to determine next ID
+        // Fetch next task ID from API
         fetch('/api/tasks?page=1')
             .then(r => r.json())
             .then(data => {
-                const nextId = data.total + 1;
-                formId.value = nextId;
+                // Use next_id from API response
+                formId.value = data.next_id;
 
                 // Auto-fill current datetime
                 const now = new Date();
@@ -171,7 +171,10 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         const description = formDescription.value.trim();
-        if (!description) return;
+        if (!description) {
+            alert('Описание обязательно для заполнения');
+            return;
+        }
 
         // Collect form data
         const taskData = {
@@ -190,21 +193,33 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(taskData)
-        }).then(r => {
+        })
+        .then(r => {
             if (r.ok) {
-                closeModal();
-                // Auto-open "All tasks" list if not visible
-                if (!isListVisible) {
-                    isListVisible = true;
-                    taskListSection.classList.remove('hidden');
-                    allTasksBtn.textContent = 'Все задачи ▲';
-                }
-                // Refresh list to page 1 to show new task
-                currentPage = 1;
-                fetchTasks(1);
+                return r.json();
             } else {
-                r.json().then(err => alert(err.error || 'Ошибка при создании задачи'));
+                return r.json().then(err => {
+                    throw new Error(err.error || 'Ошибка при создании задачи');
+                });
             }
+        })
+        .then(() => {
+            // Close modal
+            closeModal();
+
+            // Auto-open "All tasks" list if not visible
+            if (!isListVisible) {
+                isListVisible = true;
+                taskListSection.classList.remove('hidden');
+                allTasksBtn.textContent = 'Все задачи ▲';
+            }
+
+            // Refresh list to page 1 to show new task
+            currentPage = 1;
+            fetchTasks(1);
+        })
+        .catch(err => {
+            alert(err.message || 'Ошибка при создании задачи');
         });
     });
 
