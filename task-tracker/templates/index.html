@@ -8,10 +8,7 @@
 <body>
     <div class="container">
         <h1>Мои задачи</h1>
-        <form id="task-form">
-            <input type="text" id="task-input" placeholder="Описание задачи..." maxlength="100" required>
-            <button type="submit">Добавить</button>
-        </form>
+        <button id="add-task-btn">Добавить</button>
         <button id="all-tasks-btn">Все задачи ▼</button>
         <div id="task-list-section" class="hidden">
             <div id="pagination-info" class="pagination-info"></div>
@@ -22,6 +19,7 @@
                             <th>№</th>
                             <th>Описание</th>
                             <th>Дата создания</th>
+                            <th>Автор</th>
                             <th>Клиент</th>
                             <th>Оплачено</th>
                             <th>Дата оплаты</th>
@@ -38,6 +36,67 @@
             <div id="pagination-controls" class="pagination-controls"></div>
         </div>
     </div>
+
+    <!-- Modal for creating task -->
+    <div id="task-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Создание задачи</h2>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <form id="task-form" class="task-form">
+                <div class="form-row">
+                    <label>№</label>
+                    <input type="text" id="form-id" value="Авто" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Описание*</label>
+                    <input type="text" id="form-description" maxlength="100" required>
+                </div>
+                <div class="form-row">
+                    <label>Дата создания</label>
+                    <input type="datetime-local" id="form-created-at" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Автор</label>
+                    <input type="text" id="form-author" maxlength="100">
+                </div>
+                <div class="form-row">
+                    <label>Клиент</label>
+                    <input type="number" id="form-client-id" placeholder="ID клиента">
+                </div>
+                <div class="form-row">
+                    <label>Урок оплачен</label>
+                    <input type="checkbox" id="form-is-paid">
+                </div>
+                <div class="form-row">
+                    <label>Дата оплаты</label>
+                    <input type="datetime-local" id="form-payment-date">
+                </div>
+                <div class="form-row">
+                    <label>Домашка</label>
+                    <input type="number" id="form-homework-id" placeholder="ID домашки">
+                </div>
+                <div class="form-row">
+                    <label>Статус</label>
+                    <input type="number" id="form-status-id" placeholder="ID статуса">
+                </div>
+                <div class="form-row">
+                    <label>Комментарий</label>
+                    <textarea id="form-comment" maxlength="500" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>Дата закрытия</label>
+                    <input type="datetime-local" id="form-closing-date">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Подтвердить и создать</button>
+                    <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
