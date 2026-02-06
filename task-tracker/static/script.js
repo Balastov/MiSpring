@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskForm = document.getElementById('task-form');
 
     // Form fields
+    const formId = document.getElementById('form-id');
     const formDescription = document.getElementById('form-description');
     const formCreatedAt = document.getElementById('form-created-at');
     const formAuthor = document.getElementById('form-author');
@@ -30,29 +31,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
-        // Auto-fill current datetime
-        const now = new Date();
-        const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-            .toISOString()
-            .slice(0, 16);
-        formCreatedAt.value = localDateTime;
+        // Fetch total task count to determine next ID
+        fetch('/api/tasks?page=1')
+            .then(r => r.json())
+            .then(data => {
+                const nextId = data.total + 1;
+                formId.value = nextId;
 
-        // Set default status to 1 ("Created")
-        formStatusId.value = '1';
+                // Auto-fill current datetime
+                const now = new Date();
+                const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                formCreatedAt.value = localDateTime;
 
-        // Set default author (you can change this to a username if you have authentication)
-        formAuthor.value = 'Система';
+                // Set default status to 1 ("Created")
+                formStatusId.value = '1';
 
-        // Clear other fields
-        formDescription.value = '';
-        formClientId.value = '';
-        formIsPaid.checked = false;
-        formPaymentDate.value = '';
-        formHomeworkId.value = '';
-        formComment.value = '';
-        formClosingDate.value = '';
+                // Set default author
+                formAuthor.value = 'Система';
 
-        modal.classList.remove('hidden');
+                // Clear other fields
+                formDescription.value = '';
+                formClientId.value = '';
+                formIsPaid.checked = false;
+                formPaymentDate.value = '';
+                formHomeworkId.value = '';
+                formComment.value = '';
+                formClosingDate.value = '';
+
+                modal.classList.remove('hidden');
+            })
+            .catch(() => {
+                // If fetch fails, still open modal with "Авто"
+                formId.value = 'Авто';
+                modal.classList.remove('hidden');
+            });
     });
 
     // Close modal
@@ -179,7 +193,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(r => {
             if (r.ok) {
                 closeModal();
-                if (isListVisible) fetchTasks(1);
+                // Auto-open "All tasks" list if not visible
+                if (!isListVisible) {
+                    isListVisible = true;
+                    taskListSection.classList.remove('hidden');
+                    allTasksBtn.textContent = 'Все задачи ▲';
+                }
+                // Refresh list to page 1 to show new task
+                currentPage = 1;
+                fetchTasks(1);
             } else {
                 r.json().then(err => alert(err.error || 'Ошибка при создании задачи'));
             }
