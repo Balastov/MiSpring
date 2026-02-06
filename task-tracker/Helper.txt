@@ -2,7 +2,27 @@ user1
 
 sudo ss -tlnp | grep :8000
 
-cd ~/projects/MiSpring
+user1@vm-c-quazar:~$ cd ~/projects/MiSpring
+user1@vm-c-quazar:~/projects/MiSpring$ git pull origin main
+From https://github.com/Balastov/MiSpring
+ * branch            main       -> FETCH_HEAD
+Updating c43afb5..6dd348e
+error: The following untracked working tree files would be overwritten by merge:
+	task-tracker/tasks.db
+	task-tracker/venv/bin/Activate.ps1
+	task-tracker/venv/bin/activate
+	task-tracker/venv/bin/activate.csh
+	task-tracker/venv/bin/activate.fish
+	task-tracker/venv/bin/flask
+	task-tracker/venv/bin/gunicorn
+	task-tracker/venv/bin/pip
+	task-tracker/venv/bin/pip3
+	task-tracker/venv/bin/python
+	task-tracker/venv/bin/python3
+	task-tracker/venv/pyvenv.cfg
+Please move or remove them before you merge.
+Aborting
+
 cd ~/projects/MiSpring/task-tracker
 
 # Перезагружаем VM и проверяем
