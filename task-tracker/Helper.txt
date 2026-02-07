@@ -71,6 +71,34 @@ sudo certbot renew --dry-run               # Тест обновления SSL
 cd ~/projects/MiSpring
 git pull origin main
 sudo systemctl restart task-tracker
+
+----------------------------------------------
+
+# Альтернативные обновления в обход db
+
+cd ~/projects/MiSpring
+
+# Option 1: Stash the database changes (preserves your data)
+git stash push task-tracker/tasks.db
+
+# Now pull the latest code
+git pull origin main
+
+# Restart the service
+sudo systemctl restart task-tracker
+Alternative (simpler) approach:
+
+
+cd ~/projects/MiSpring
+
+# Discard changes to tasks.db (your data is safe, only schema might update)
+git checkout -- task-tracker/tasks.db
+
+# Pull the latest code
+git pull origin main
+
+# Restart the service  
+sudo systemctl restart task-tracker
 ----------------------------------------------
 
 📝 Что было сделано в этом чате:
