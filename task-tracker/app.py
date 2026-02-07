@@ -53,6 +53,21 @@ class Task(db.Model):
         }
 
 
+class Client(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    status_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'status_id': self.status_id,
+            'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+        }
+
+
 def parse_datetime(value):
     if not value:
         return None
@@ -154,6 +169,79 @@ def update_task(task_id):
 def delete_task(task_id):
     task = db.get_or_404(Task, task_id)
     db.session.delete(task)
+    db.session.commit()
+    return '', 204
+
+
+@app.route('/api/clients', methods=['GET'])
+def get_clients():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(Client).order_by(Client.created_at.desc()),
+        page=page, per_page=per_page, error_out=False
+    )
+
+    # Calculate next client ID
+    max_id_result = db.session.execute(db.select(db.func.max(Client.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+
+    return jsonify({
+        'clients': [c.to_dict() for c in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@app.route('/api/clients/all', methods=['GET'])
+def get_all_clients():
+    clients = db.session.execute(
+        db.select(Client).order_by(Client.name)
+    ).scalars().all()
+    return jsonify({
+        'clients': [c.to_dict() for c in clients]
+    })
+
+
+@app.route('/api/clients', methods=['POST'])
+def add_client():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name or len(name) > 100:
+        return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+
+    client = Client(
+        name=name,
+        status_id=data.get('status_id'),
+    )
+    db.session.add(client)
+    db.session.commit()
+    return jsonify(client.to_dict()), 201
+
+
+@app.route('/api/clients/<int:client_id>', methods=['PUT'])
+def update_client(client_id):
+    client = db.get_or_404(Client, client_id)
+    data = request.get_json()
+
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name or len(name) > 100:
+            return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+        client.name = name
+    if 'status_id' in data:
+        client.status_id = data['status_id']
+
+    db.session.commit()
+    return jsonify(client.to_dict())
+
+
+@app.route('/api/clients/<int:client_id>', methods=['DELETE'])
+def delete_client(client_id):
+    client = db.get_or_404(Client, client_id)
+    db.session.delete(client)
     db.session.commit()
     return '', 204
 
