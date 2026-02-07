@@ -28,6 +28,8 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    start_date = db.Column(db.DateTime, nullable=True)
+    end_date = db.Column(db.DateTime, nullable=True)
     author = db.Column(db.String(100), nullable=True)
     client_id = db.Column(db.Integer, nullable=True)
     is_paid = db.Column(db.Boolean, default=False)
@@ -42,6 +44,8 @@ class Task(db.Model):
             'id': self.id,
             'description': self.description,
             'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+            'start_date': self.start_date.strftime('%d.%m.%Y %H:%M') if self.start_date else None,
+            'end_date': self.end_date.strftime('%d.%m.%Y %H:%M') if self.end_date else None,
             'author': self.author,
             'client_id': self.client_id,
             'is_paid': self.is_paid,
@@ -117,6 +121,8 @@ def add_task():
 
     task = Task(
         description=description,
+        start_date=parse_datetime(data.get('start_date')),
+        end_date=parse_datetime(data.get('end_date')),
         author=data.get('author'),
         client_id=data.get('client_id'),
         is_paid=bool(data.get('is_paid', False)),
@@ -141,6 +147,10 @@ def update_task(task_id):
         if not description or len(description) > 100:
             return jsonify({'error': 'Описание: от 1 до 100 символов'}), 400
         task.description = description
+    if 'start_date' in data:
+        task.start_date = parse_datetime(data['start_date'])
+    if 'end_date' in data:
+        task.end_date = parse_datetime(data['end_date'])
     if 'author' in data:
         task.author = data['author']
     if 'client_id' in data:
@@ -248,6 +258,17 @@ def delete_client(client_id):
 
 with app.app_context():
     db.create_all()
+    # Add new columns to existing tables if they don't exist
+    import sqlite3
+    conn = sqlite3.connect(os.path.join(basedir, 'tasks.db'))
+    cursor = conn.cursor()
+    existing_columns = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
+    if 'start_date' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN start_date DATETIME')
+    if 'end_date' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN end_date DATETIME')
+    conn.commit()
+    conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

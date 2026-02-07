@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const formId = document.getElementById('form-id');
     const formDescription = document.getElementById('form-description');
     const formCreatedAt = document.getElementById('form-created-at');
+    const formStartDate = document.getElementById('form-start-date');
+    const formEndDate = document.getElementById('form-end-date');
     const formAuthor = document.getElementById('form-author');
     const formClientId = document.getElementById('form-client-id');
     const formIsPaid = document.getElementById('form-is-paid');
@@ -84,6 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Clear other fields
                 formDescription.value = '';
+                formStartDate.value = '';
+                formEndDate.value = '';
                 formClientId.value = '';
                 formIsPaid.checked = false;
                 formPaymentDate.value = '';
@@ -153,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks(tasks) {
         tasksTbody.innerHTML = '';
         if (tasks.length === 0) {
-            tasksTbody.innerHTML = '<tr><td colspan="12" class="empty-msg">Задач нет</td></tr>';
+            tasksTbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Задач нет</td></tr>';
             return;
         }
         tasks.forEach(task => {
@@ -162,6 +166,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${task.id}</td>
                 <td class="col-desc" title="${escapeAttr(task.description)}">${escapeHtml(task.description)}</td>
                 <td>${task.created_at || '—'}</td>
+                <td>${task.start_date || '—'}</td>
+                <td>${task.end_date || '—'}</td>
                 <td>${escapeHtml(task.author || '—')}</td>
                 <td>${task.client_id ?? '—'}</td>
                 <td class="cell-bool">${task.is_paid ? '✓' : '✗'}</td>
@@ -223,6 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Collect form data
         const taskData = {
             description: description,
+            start_date: formStartDate.value || null,
+            end_date: formEndDate.value || null,
             author: formAuthor.value.trim() || null,
             client_id: formClientId.value ? parseInt(formClientId.value) : null,
             is_paid: formIsPaid.checked,
