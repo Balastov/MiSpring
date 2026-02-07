@@ -91,23 +91,20 @@ sudo systemctl restart task-tracker
 
 # !!!!
 Чтобы не затереть данные (актуальный вариант)
-Alternative (simpler) approach:
+cd ~/projects/MiSpring
 
+# 1. Stash the local database so git pull doesn't conflict
+git stash push task-tracker/tasks.db
 
-Saved working directory and index state WIP on main: db79c94 Кнопка "Изменить" в списке задач
-From https://github.com/Balastov/MiSpring
- * branch            main       -> FETCH_HEAD
-Already up to date.
-On branch main
-Your branch is up to date with 'origin/main'.
+# 2. Pull the latest code
+git pull origin main
 
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-	modified:   task-tracker/tasks.db
+# 3. Restore your database with the real data
+git stash pop
 
-no changes added to commit (use "git add" and/or "git commit -a")
-Dropped refs/stash@{0} (9da1dd4ba2def9e3427be3e48328a3fd24459da7)
+# 4. Restart the service
+sudo systemctl restart task-tracker
+
 ----------------------------------------------
 
 📝 Что было сделано в этом чате:

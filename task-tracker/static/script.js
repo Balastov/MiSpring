@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formAuthor.value = 'Система';
 
                 // Clear other fields
-                formDescription.value = '';
+                if (formDescription) formDescription.value = '';
                 formStartDate.value = '';
                 formEndDate.value = '';
                 formClientId.value = '';
@@ -247,20 +247,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks(tasks) {
         tasksTbody.innerHTML = '';
         if (tasks.length === 0) {
-            tasksTbody.innerHTML = '<tr><td colspan="16" class="empty-msg">Задач нет</td></tr>';
+            tasksTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Задач нет</td></tr>';
             return;
         }
         tasks.forEach(task => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${task.id}</td>
-                <td class="col-desc" title="${escapeAttr(task.description)}">${escapeHtml(task.description)}</td>
+                <td>${escapeHtml(task.client_name || '—')}</td>
                 <td>${escapeHtml(task.task_type_name || '—')}</td>
+                <!-- <td class="col-desc" title="${escapeAttr(task.description)}">${escapeHtml(task.description)}</td> -->
                 <td>${task.created_at || '—'}</td>
                 <td>${task.start_date || '—'}</td>
                 <td>${task.end_date || '—'}</td>
                 <td>${escapeHtml(task.author || '—')}</td>
-                <td>${escapeHtml(task.client_name || '—')}</td>
                 <td class="cell-bool">${task.is_paid ? '✓' : '✗'}</td>
                 <td>${task.payment_date || '—'}</td>
                 <td>${task.homework_id ?? '—'}</td>
@@ -312,15 +312,23 @@ document.addEventListener('DOMContentLoaded', () => {
     taskForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
-        const description = formDescription.value.trim();
-        if (!description) {
-            alert('Описание обязательно для заполнения');
+        // Validate required fields
+        if (!formClientId.value) {
+            alert('Клиент обязателен для заполнения');
+            return;
+        }
+        if (!formTaskTypeId.value) {
+            alert('Тип задачи обязателен для заполнения');
+            return;
+        }
+        if (!formStartDate.value) {
+            alert('Дата начала обязательна для заполнения');
             return;
         }
 
         // Collect form data
         const taskData = {
-            description: description,
+            description: formDescription ? formDescription.value.trim() : '',
             start_date: formStartDate.value || null,
             end_date: formEndDate.value || null,
             author: formAuthor.value.trim() || null,
@@ -398,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     taskSubmitBtn.textContent = 'Подтвердить изменения';
 
                     formId.value = task.id;
-                    formDescription.value = task.description || '';
+                    if (formDescription) formDescription.value = task.description || '';
                     formCreatedAt.value = task.created_at_iso || '';
                     formStartDate.value = task.start_date_iso || '';
                     formEndDate.value = task.end_date_iso || '';

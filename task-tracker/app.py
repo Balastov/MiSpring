@@ -26,7 +26,7 @@ def inject_cache_bust():
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    description = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     start_date = db.Column(db.DateTime, nullable=True)
     end_date = db.Column(db.DateTime, nullable=True)
@@ -178,8 +178,8 @@ def get_tasks():
 def add_task():
     data = request.get_json()
     description = (data.get('description') or '').strip()
-    if not description or len(description) > 100:
-        return jsonify({'error': 'Описание: от 1 до 100 символов'}), 400
+    if len(description) > 100:
+        return jsonify({'error': 'Описание: не более 100 символов'}), 400
 
     comment = (data.get('comment') or '').strip() or None
     if comment and len(comment) > 500:
@@ -211,8 +211,8 @@ def update_task(task_id):
 
     if 'description' in data:
         description = (data['description'] or '').strip()
-        if not description or len(description) > 100:
-            return jsonify({'error': 'Описание: от 1 до 100 символов'}), 400
+        if len(description) > 100:
+            return jsonify({'error': 'Описание: не более 100 символов'}), 400
         task.description = description
     if 'start_date' in data:
         task.start_date = parse_datetime(data['start_date'])
