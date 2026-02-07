@@ -297,3 +297,131 @@ body {
 .btn-secondary:hover {
     background-color: #f5f5f5;
 }
+
+/* ========== Settings Button ========== */
+#settings-btn {
+    display: inline-block;
+    margin-right: 10px;
+    background-color: #7c3aed;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+#settings-btn:hover {
+    background-color: #6d28d9;
+}
+
+/* ========== Settings Modal ========== */
+.settings-modal-content {
+    max-width: 400px;
+}
+
+.settings-options {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.settings-option-btn {
+    background-color: #7c3aed;
+    color: #fff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
+    text-align: center;
+}
+
+.settings-option-btn:hover {
+    background-color: #6d28d9;
+}
+
+/* ========== Placeholder Modal ========== */
+.placeholder-modal-content {
+    max-width: 400px;
+}
+
+.placeholder-message {
+    padding: 40px 20px;
+    text-align: center;
+    font-size: 16px;
+    color: #666;
+}
+
+/* ========== Clients Page ========== */
+.page {
+    display: block;
+}
+
+.page.hidden {
+    display: none !important;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #7c3aed;
+}
+
+.page-header h2 {
+    margin: 0;
+    color: #333;
+}
+
+.page-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* ========== Edit Button ========== */
+.btn-edit {
+    background: none;
+    border: 1px solid #7c3aed;
+    color: #7c3aed;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-edit:hover {
+    background-color: #7c3aed;
+    color: #fff;
+}
+
+/* ========== Form Select ========== */
+.form-row select.form-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    background-color: #fff;
+    cursor: pointer;
+}
+
+.form-row select.form-select:focus {
+    outline: none;
+    border-color: #7c3aed;
+}
+
+/* ========== Empty Message ========== */
+.empty-msg {
+    text-align: center;
+    color: #999;
+    padding: 40px 20px;
+    font-style: italic;
+}

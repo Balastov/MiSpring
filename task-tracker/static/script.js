@@ -26,8 +26,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const formComment = document.getElementById('form-comment');
     const formClosingDate = document.getElementById('form-closing-date');
 
+    // Settings elements
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsModalClose = document.getElementById('settings-modal-close');
+
+    // Clients page elements
+    const clientsPage = document.getElementById('clients-page');
+    const backToMainBtn = document.getElementById('back-to-main-btn');
+    const addClientBtn = document.getElementById('add-client-btn');
+    const clientsTbody = document.getElementById('clients-tbody');
+    const clientsPaginationInfo = document.getElementById('clients-pagination-info');
+    const clientsPaginationControls = document.getElementById('clients-pagination-controls');
+
+    // Client modal elements
+    const clientModal = document.getElementById('client-modal');
+    const clientModalTitle = document.getElementById('client-modal-title');
+    const clientModalClose = document.getElementById('client-modal-close');
+    const clientModalCancel = document.getElementById('client-modal-cancel');
+    const clientForm = document.getElementById('client-form');
+    const formClientIdDisplay = document.getElementById('form-client-id-display');
+    const formClientName = document.getElementById('form-client-name');
+    const formClientStatusId = document.getElementById('form-client-status-id');
+    const clientSubmitBtn = document.getElementById('client-submit-btn');
+
+    // Placeholder modal
+    const placeholderModal = document.getElementById('placeholder-modal');
+    const placeholderModalTitle = document.getElementById('placeholder-modal-title');
+    const placeholderModalClose = document.getElementById('placeholder-modal-close');
+
     let currentPage = 1;
     let isListVisible = false;
+    let currentClientsPage = 1;
+    let editingClientId = null;
 
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
@@ -59,6 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 formHomeworkId.value = '';
                 formComment.value = '';
                 formClosingDate.value = '';
+
+                // Fetch and populate client dropdown
+                return fetch('/api/clients/all');
+            })
+            .then(r => r.json())
+            .then(clientData => {
+                formClientId.innerHTML = '<option value="">-- Выберите клиента --</option>';
+                clientData.clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = `${client.id} - ${client.name}`;
+                    formClientId.appendChild(option);
+                });
 
                 modal.classList.remove('hidden');
             })
@@ -244,4 +288,242 @@ document.addEventListener('DOMContentLoaded', () => {
     function escapeAttr(str) {
         return escapeHtml(str).replace(/"/g, '&quot;');
     }
+
+    // ========== Settings Modal Logic ==========
+
+    // Open settings modal
+    settingsBtn.addEventListener('click', () => {
+        settingsModal.classList.remove('hidden');
+    });
+
+    // Close settings modal
+    settingsModalClose.addEventListener('click', () => {
+        settingsModal.classList.add('hidden');
+    });
+
+    settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) settingsModal.classList.add('hidden');
+    });
+
+    // Handle settings options
+    document.querySelectorAll('.settings-option-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const option = e.target.dataset.option;
+            settingsModal.classList.add('hidden');
+
+            if (option === 'clients') {
+                showClientsPage();
+            } else if (option === 'statuses') {
+                showPlaceholder('Статусы');
+            } else if (option === 'homework') {
+                showPlaceholder('Домашки');
+            }
+        });
+    });
+
+    // ========== Placeholder Modal ==========
+
+    function showPlaceholder(title) {
+        placeholderModalTitle.textContent = title;
+        placeholderModal.classList.remove('hidden');
+    }
+
+    placeholderModalClose.addEventListener('click', () => {
+        placeholderModal.classList.add('hidden');
+    });
+
+    placeholderModal.addEventListener('click', (e) => {
+        if (e.target === placeholderModal) placeholderModal.classList.add('hidden');
+    });
+
+    // ========== Page Navigation ==========
+
+    function showClientsPage() {
+        document.querySelector('.container').classList.add('hidden');
+        clientsPage.classList.remove('hidden');
+        currentClientsPage = 1;
+        fetchClients();
+    }
+
+    backToMainBtn.addEventListener('click', () => {
+        clientsPage.classList.add('hidden');
+        document.querySelector('.container').classList.remove('hidden');
+    });
+
+    // ========== Clients CRUD Logic ==========
+
+    // Fetch paginated clients
+    function fetchClients(page) {
+        if (page !== undefined) currentClientsPage = page;
+        fetch(`/api/clients?page=${currentClientsPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderClients(data.clients);
+                renderClientsPagination(data);
+            });
+    }
+
+    // Render clients table
+    function renderClients(clients) {
+        clientsTbody.innerHTML = '';
+        if (clients.length === 0) {
+            clientsTbody.innerHTML = '<tr><td colspan="6" class="empty-msg">Клиентов нет</td></tr>';
+            return;
+        }
+        clients.forEach(client => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${client.id}</td>
+                <td>${escapeHtml(client.name)}</td>
+                <td>${client.status_id ?? '—'}</td>
+                <td>${client.created_at || '—'}</td>
+                <td><button class="btn-edit" data-id="${client.id}">Изменить</button></td>
+                <td><button class="btn-delete" data-id="${client.id}">Удалить</button></td>
+            `;
+            clientsTbody.appendChild(tr);
+        });
+    }
+
+    // Render pagination for clients
+    function renderClientsPagination(data) {
+        clientsPaginationControls.innerHTML = '';
+
+        if (data.total === 0) {
+            clientsPaginationInfo.textContent = '';
+            return;
+        }
+
+        clientsPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} клиентов)`;
+
+        if (data.current_page > 1) {
+            addClientPageBtn('← Пред', data.current_page - 1);
+        }
+
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) {
+            addClientPageBtn(String(i), i, i === data.current_page);
+        }
+
+        if (data.current_page < data.pages) {
+            addClientPageBtn('След →', data.current_page + 1);
+        }
+    }
+
+    function addClientPageBtn(label, page, isActive = false) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-page' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => fetchClients(page));
+        clientsPaginationControls.appendChild(btn);
+    }
+
+    // ========== Client Modal Logic ==========
+
+    // Open client modal for adding
+    addClientBtn.addEventListener('click', () => {
+        fetch('/api/clients?page=1')
+            .then(r => r.json())
+            .then(data => {
+                editingClientId = null;
+                clientModalTitle.textContent = 'Создание клиента';
+                clientSubmitBtn.textContent = 'Подтвердить и создать';
+                formClientIdDisplay.value = data.next_id;
+                formClientName.value = '';
+                formClientStatusId.value = '';
+                clientModal.classList.remove('hidden');
+            })
+            .catch(() => {
+                formClientIdDisplay.value = 'Авто';
+                clientModal.classList.remove('hidden');
+            });
+    });
+
+    // Close client modal
+    function closeClientModal() {
+        clientModal.classList.add('hidden');
+        clientForm.reset();
+        editingClientId = null;
+    }
+
+    clientModalClose.addEventListener('click', closeClientModal);
+    clientModalCancel.addEventListener('click', closeClientModal);
+
+    clientModal.addEventListener('click', (e) => {
+        if (e.target === clientModal) closeClientModal();
+    });
+
+    // Submit client form
+    clientForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const name = formClientName.value.trim();
+        if (!name) {
+            alert('Имя обязательно для заполнения');
+            return;
+        }
+
+        const clientData = {
+            name: name,
+            status_id: formClientStatusId.value ? parseInt(formClientStatusId.value) : null,
+        };
+
+        const method = editingClientId ? 'PUT' : 'POST';
+        const url = editingClientId ? `/api/clients/${editingClientId}` : '/api/clients';
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(clientData)
+        })
+        .then(r => {
+            if (r.ok) {
+                return r.json();
+            } else {
+                return r.json().then(err => {
+                    throw new Error(err.error || 'Ошибка при сохранении клиента');
+                });
+            }
+        })
+        .then(() => {
+            closeClientModal();
+            fetchClients(currentClientsPage);
+        })
+        .catch(err => {
+            alert(err.message || 'Ошибка при сохранении клиента');
+        });
+    });
+
+    // Edit and delete client (event delegation)
+    clientsTbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            fetch(`/api/clients?page=${currentClientsPage}`)
+                .then(r => r.json())
+                .then(data => {
+                    const client = data.clients.find(c => c.id === id);
+                    if (!client) {
+                        alert('Клиент не найден');
+                        return;
+                    }
+                    editingClientId = client.id;
+                    clientModalTitle.textContent = 'Изменение клиента';
+                    clientSubmitBtn.textContent = 'Подтвердить изменения';
+                    formClientIdDisplay.value = client.id;
+                    formClientName.value = client.name;
+                    formClientStatusId.value = client.status_id || '';
+                    clientModal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить этого клиента?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`/api/clients/${id}`, { method: 'DELETE' })
+                .then(() => fetchClients(currentClientsPage));
+        }
+    });
 });

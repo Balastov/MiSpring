@@ -8,6 +8,7 @@
 <body>
     <div class="container">
         <h1>Мои задачи</h1>
+        <button id="settings-btn">Настройки</button>
         <button id="add-task-btn">Добавить</button>
         <button id="all-tasks-btn">Все задачи ▼</button>
         <div id="task-list-section" class="hidden">
@@ -63,7 +64,9 @@
                 </div>
                 <div class="form-row">
                     <label>Клиент</label>
-                    <input type="number" id="form-client-id" placeholder="ID клиента">
+                    <select id="form-client-id" class="form-select">
+                        <option value="">-- Выберите клиента --</option>
+                    </select>
                 </div>
                 <div class="form-row">
                     <label>Урок оплачен</label>
@@ -92,6 +95,92 @@
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Подтвердить и создать</button>
                     <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h2>Настройки</h2>
+                <button class="modal-close" id="settings-modal-close">&times;</button>
+            </div>
+            <div class="settings-options">
+                <button class="settings-option-btn" data-option="statuses">Статусы</button>
+                <button class="settings-option-btn" data-option="clients">Клиенты</button>
+                <button class="settings-option-btn" data-option="homework">Домашки</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Placeholder Modal -->
+    <div id="placeholder-modal" class="modal hidden">
+        <div class="modal-content placeholder-modal-content">
+            <div class="modal-header">
+                <h2 id="placeholder-modal-title">Раздел</h2>
+                <button class="modal-close" id="placeholder-modal-close">&times;</button>
+            </div>
+            <div class="placeholder-message">
+                <p>Этот раздел еще не готов</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clients Page (hidden by default) -->
+    <div id="clients-page" class="page hidden">
+        <div class="page-header">
+            <h2>Справочник клиентов</h2>
+            <div class="page-actions">
+                <button id="add-client-btn" class="btn-primary">Добавить клиента</button>
+                <button id="back-to-main-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div id="clients-list-section">
+            <div id="clients-pagination-info" class="pagination-info"></div>
+            <div class="table-wrapper">
+                <table id="clients-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя</th>
+                            <th>Статус</th>
+                            <th>Дата создания</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-tbody"></tbody>
+                </table>
+            </div>
+            <div id="clients-pagination-controls" class="pagination-controls"></div>
+        </div>
+    </div>
+
+    <!-- Client Modal (for add/edit) -->
+    <div id="client-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="client-modal-title">Создание клиента</h2>
+                <button class="modal-close" id="client-modal-close">&times;</button>
+            </div>
+            <form id="client-form" class="task-form">
+                <div class="form-row">
+                    <label>ID</label>
+                    <input type="text" id="form-client-id-display" value="Авто" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Имя*</label>
+                    <input type="text" id="form-client-name" maxlength="100" required>
+                </div>
+                <div class="form-row">
+                    <label>Статус клиента</label>
+                    <input type="number" id="form-client-status-id" placeholder="ID статуса">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="client-submit-btn">Подтвердить и создать</button>
+                    <button type="button" class="btn-secondary" id="client-modal-cancel">Отмена</button>
                 </div>
             </form>
         </div>
