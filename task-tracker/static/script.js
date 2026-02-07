@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalCancel = document.getElementById('modal-cancel');
     const taskForm = document.getElementById('task-form');
 
+    // Task modal title and submit button
+    const taskModalTitle = document.getElementById('task-modal-title');
+    const taskSubmitBtn = document.getElementById('task-submit-btn');
+
     // Form fields
     const formId = document.getElementById('form-id');
     const formDescription = document.getElementById('form-description');
@@ -82,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let isListVisible = false;
     let currentClientsPage = 1;
+    let editingTaskId = null;
     let editingClientId = null;
     let currentTaskStatusesPage = 1;
     let currentClientStatusesPage = 1;
@@ -90,6 +95,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
+        editingTaskId = null;
+        taskModalTitle.textContent = 'Создание задачи';
+        taskSubmitBtn.textContent = 'Подтвердить и создать';
+
         // Fetch next task ID from API
         fetch('/api/tasks?page=1')
             .then(r => r.json())
@@ -155,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeModal() {
         modal.classList.add('hidden');
         taskForm.reset();
+        editingTaskId = null;
     }
 
     modalClose.addEventListener('click', closeModal);
@@ -191,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks(tasks) {
         tasksTbody.innerHTML = '';
         if (tasks.length === 0) {
-            tasksTbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Задач нет</td></tr>';
+            tasksTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Задач нет</td></tr>';
             return;
         }
         tasks.forEach(task => {
@@ -210,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${escapeHtml(task.status_name || '—')}</td>
                 <td class="col-comment" title="${escapeAttr(task.comment || '')}">${escapeHtml(task.comment || '—')}</td>
                 <td>${task.closing_date || '—'}</td>
+                <td><button class="btn-edit" data-id="${task.id}">Изменить</button></td>
                 <td><button class="btn-delete" data-id="${task.id}">Удалить</button></td>
             `;
             tasksTbody.appendChild(tr);
@@ -275,8 +286,12 @@ document.addEventListener('DOMContentLoaded', () => {
             closing_date: formClosingDate.value || null
         };
 
-        fetch('/api/tasks', {
-            method: 'POST',
+        const isEditing = !!editingTaskId;
+        const method = isEditing ? 'PUT' : 'POST';
+        const url = isEditing ? `/api/tasks/${editingTaskId}` : '/api/tasks';
+
+        fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(taskData)
         })
@@ -285,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return r.json();
             } else {
                 return r.json().then(err => {
-                    throw new Error(err.error || 'Ошибка при создании задачи');
+                    throw new Error(err.error || 'Ошибка при сохранении задачи');
                 });
             }
         })
@@ -300,23 +315,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 allTasksBtn.textContent = 'Все задачи ▲';
             }
 
-            // Refresh list to page 1 to show new task
-            currentPage = 1;
-            fetchTasks(1);
+            // Refresh list - stay on current page when editing, go to page 1 for new
+            if (!isEditing) {
+                currentPage = 1;
+            }
+            fetchTasks(currentPage);
         })
         .catch(err => {
-            alert(err.message || 'Ошибка при создании задачи');
+            alert(err.message || 'Ошибка при сохранении задачи');
         });
     });
 
-    // Delete task (event delegation)
+    // Edit and delete task (event delegation)
     tasksTbody.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-delete');
-        if (!btn) return;
-        if (!confirm('Удалить эту задачу?')) return;
-        const id = btn.dataset.id;
-        fetch(`/api/tasks/${id}`, { method: 'DELETE' })
-            .then(() => { if (isListVisible) fetchTasks(); });
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            Promise.all([
+                fetch(`/api/tasks?page=${currentPage}`).then(r => r.json()),
+                fetch('/api/clients/all').then(r => r.json()),
+                fetch('/api/task-statuses/all').then(r => r.json())
+            ])
+                .then(([data, clientData, statusData]) => {
+                    const task = data.tasks.find(t => t.id === id);
+                    if (!task) {
+                        alert('Задача не найдена');
+                        return;
+                    }
+                    editingTaskId = task.id;
+                    taskModalTitle.textContent = 'Редактирование задачи';
+                    taskSubmitBtn.textContent = 'Подтвердить изменения';
+
+                    formId.value = task.id;
+                    formDescription.value = task.description || '';
+                    formCreatedAt.value = task.created_at_iso || '';
+                    formStartDate.value = task.start_date_iso || '';
+                    formEndDate.value = task.end_date_iso || '';
+                    formAuthor.value = task.author || '';
+                    formIsPaid.checked = task.is_paid || false;
+                    formPaymentDate.value = task.payment_date_iso || '';
+                    formHomeworkId.value = task.homework_id ?? '';
+                    formComment.value = task.comment || '';
+                    formClosingDate.value = task.closing_date_iso || '';
+
+                    // Populate client dropdown
+                    formClientId.innerHTML = '<option value="">-- Выберите клиента --</option>';
+                    clientData.clients.forEach(client => {
+                        const option = document.createElement('option');
+                        option.value = client.id;
+                        option.textContent = `${client.id} - ${client.name}`;
+                        formClientId.appendChild(option);
+                    });
+                    formClientId.value = task.client_id || '';
+
+                    // Populate status dropdown
+                    formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
+                    statusData.statuses.forEach(status => {
+                        const option = document.createElement('option');
+                        option.value = status.id;
+                        option.textContent = status.name;
+                        formStatusId.appendChild(option);
+                    });
+                    formStatusId.value = task.status_id || '';
+
+                    modal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить эту задачу?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+                .then(() => { if (isListVisible) fetchTasks(); });
+        }
     });
 
     // Escape for HTML content

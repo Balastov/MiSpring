@@ -31,6 +31,7 @@
                             <th>Комментарий</th>
                             <th>Дата закрытия</th>
                             <th></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="tasks-tbody"></tbody>
@@ -44,7 +45,7 @@
     <div id="task-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Создание задачи</h2>
+                <h2 id="task-modal-title">Создание задачи</h2>
                 <button class="modal-close" id="modal-close">&times;</button>
             </div>
             <form id="task-form" class="task-form">
@@ -105,7 +106,7 @@
                     <input type="datetime-local" id="form-closing-date">
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn-primary">Подтвердить и создать</button>
+                    <button type="submit" class="btn-primary" id="task-submit-btn">Подтвердить и создать</button>
                     <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
                 </div>
             </form>

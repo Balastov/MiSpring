@@ -44,16 +44,21 @@ class Task(db.Model):
             'id': self.id,
             'description': self.description,
             'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+            'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M') if self.created_at else None,
             'start_date': self.start_date.strftime('%d.%m.%Y %H:%M') if self.start_date else None,
+            'start_date_iso': self.start_date.strftime('%Y-%m-%dT%H:%M') if self.start_date else None,
             'end_date': self.end_date.strftime('%d.%m.%Y %H:%M') if self.end_date else None,
+            'end_date_iso': self.end_date.strftime('%Y-%m-%dT%H:%M') if self.end_date else None,
             'author': self.author,
             'client_id': self.client_id,
             'is_paid': self.is_paid,
             'payment_date': self.payment_date.strftime('%d.%m.%Y %H:%M') if self.payment_date else None,
+            'payment_date_iso': self.payment_date.strftime('%Y-%m-%dT%H:%M') if self.payment_date else None,
             'homework_id': self.homework_id,
             'status_id': self.status_id,
             'comment': self.comment,
             'closing_date': self.closing_date.strftime('%d.%m.%Y %H:%M') if self.closing_date else None,
+            'closing_date_iso': self.closing_date.strftime('%Y-%m-%dT%H:%M') if self.closing_date else None,
         }
 
 
