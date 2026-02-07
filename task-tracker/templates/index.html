@@ -19,6 +19,7 @@
                         <tr>
                             <th>№</th>
                             <th>Описание</th>
+                            <th>Тип задачи</th>
                             <th>Дата создания</th>
                             <th>Дата начала</th>
                             <th>Дата окончания</th>
@@ -56,6 +57,12 @@
                 <div class="form-row">
                     <label>Описание*</label>
                     <input type="text" id="form-description" maxlength="100" required>
+                </div>
+                <div class="form-row">
+                    <label>Тип задачи</label>
+                    <select id="form-task-type-id" class="form-select">
+                        <option value="">-- Выберите тип --</option>
+                    </select>
                 </div>
                 <div class="form-row">
                     <label>Дата создания</label>
@@ -123,6 +130,7 @@
             <div class="settings-options">
                 <button class="settings-option-btn" data-option="statuses">Статусы</button>
                 <button class="settings-option-btn" data-option="clients">Клиенты</button>
+                <button class="settings-option-btn" data-option="task-types">Типы задач</button>
                 <button class="settings-option-btn" data-option="homework">Домашки</button>
             </div>
         </div>
@@ -251,6 +259,58 @@
                 </table>
             </div>
             <div id="client-statuses-pagination-controls" class="pagination-controls"></div>
+        </div>
+    </div>
+
+    <!-- Task Types Page (hidden by default) -->
+    <div id="task-types-page" class="page hidden">
+        <div class="page-header">
+            <h2>Справочник типов задач</h2>
+            <div class="page-actions">
+                <button id="add-task-type-btn" class="btn-primary">Добавить тип</button>
+                <button id="back-to-main-from-task-types-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div id="task-types-list-section">
+            <div id="task-types-pagination-info" class="pagination-info"></div>
+            <div class="table-wrapper">
+                <table id="task-types-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Наименование</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="task-types-tbody"></tbody>
+                </table>
+            </div>
+            <div id="task-types-pagination-controls" class="pagination-controls"></div>
+        </div>
+    </div>
+
+    <!-- Task Type Modal (for add/edit) -->
+    <div id="task-type-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="task-type-modal-title">Создание типа задачи</h2>
+                <button class="modal-close" id="task-type-modal-close">&times;</button>
+            </div>
+            <form id="task-type-form" class="task-form">
+                <div class="form-row">
+                    <label>ID</label>
+                    <input type="text" id="form-task-type-id-display" value="Авто" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Наименование*</label>
+                    <input type="text" id="form-task-type-name" maxlength="100" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="task-type-submit-btn">Подтвердить и создать</button>
+                    <button type="button" class="btn-secondary" id="task-type-modal-cancel">Отмена</button>
+                </div>
+            </form>
         </div>
     </div>
 

@@ -29,8 +29,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
     const formStatusId = document.getElementById('form-status-id');
+    const formTaskTypeId = document.getElementById('form-task-type-id');
     const formComment = document.getElementById('form-comment');
     const formClosingDate = document.getElementById('form-closing-date');
+
+    // Task types page elements
+    const taskTypesPage = document.getElementById('task-types-page');
+    const backToMainFromTaskTypesBtn = document.getElementById('back-to-main-from-task-types-btn');
+    const addTaskTypeBtn = document.getElementById('add-task-type-btn');
+    const taskTypesTbody = document.getElementById('task-types-tbody');
+    const taskTypesPaginationInfo = document.getElementById('task-types-pagination-info');
+    const taskTypesPaginationControls = document.getElementById('task-types-pagination-controls');
+
+    // Task type modal elements
+    const taskTypeModal = document.getElementById('task-type-modal');
+    const taskTypeModalTitle = document.getElementById('task-type-modal-title');
+    const taskTypeModalClose = document.getElementById('task-type-modal-close');
+    const taskTypeModalCancel = document.getElementById('task-type-modal-cancel');
+    const taskTypeForm = document.getElementById('task-type-form');
+    const formTaskTypeIdDisplay = document.getElementById('form-task-type-id-display');
+    const formTaskTypeName = document.getElementById('form-task-type-name');
+    const taskTypeSubmitBtn = document.getElementById('task-type-submit-btn');
 
     // Settings elements
     const settingsBtn = document.getElementById('settings-btn');
@@ -92,6 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentClientStatusesPage = 1;
     let currentStatusType = 'task'; // 'task' or 'client'
     let editingStatusId = null;
+    let currentTaskTypesPage = 1;
+    let editingTaskTypeId = null;
 
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
@@ -122,19 +143,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 formEndDate.value = '';
                 formClientId.value = '';
                 formStatusId.value = '';
+                formTaskTypeId.value = '';
                 formIsPaid.checked = false;
                 formPaymentDate.value = '';
                 formHomeworkId.value = '';
                 formComment.value = '';
                 formClosingDate.value = '';
 
-                // Fetch and populate client and status dropdowns
+                // Fetch and populate client, status, and task type dropdowns
                 return Promise.all([
                     fetch('/api/clients/all').then(r => r.json()),
-                    fetch('/api/task-statuses/all').then(r => r.json())
+                    fetch('/api/task-statuses/all').then(r => r.json()),
+                    fetch('/api/task-types/all').then(r => r.json())
                 ]);
             })
-            .then(([clientData, statusData]) => {
+            .then(([clientData, statusData, typeData]) => {
                 formClientId.innerHTML = '<option value="">-- Выберите клиента --</option>';
                 clientData.clients.forEach(client => {
                     const option = document.createElement('option');
@@ -150,6 +173,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     option.textContent = status.name;
                     formStatusId.appendChild(option);
                 });
+
+                formTaskTypeId.innerHTML = '<option value="">-- Выберите тип --</option>';
+                typeData.task_types.forEach(tt => {
+                    const option = document.createElement('option');
+                    option.value = tt.id;
+                    option.textContent = tt.name;
+                    formTaskTypeId.appendChild(option);
+                });
+                // Default to "Урок"
+                const lessonType = typeData.task_types.find(tt => tt.name === 'Урок');
+                if (lessonType) formTaskTypeId.value = lessonType.id;
 
                 modal.classList.remove('hidden');
             })
@@ -213,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks(tasks) {
         tasksTbody.innerHTML = '';
         if (tasks.length === 0) {
-            tasksTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Задач нет</td></tr>';
+            tasksTbody.innerHTML = '<tr><td colspan="16" class="empty-msg">Задач нет</td></tr>';
             return;
         }
         tasks.forEach(task => {
@@ -221,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = `
                 <td>${task.id}</td>
                 <td class="col-desc" title="${escapeAttr(task.description)}">${escapeHtml(task.description)}</td>
+                <td>${escapeHtml(task.task_type_name || '—')}</td>
                 <td>${task.created_at || '—'}</td>
                 <td>${task.start_date || '—'}</td>
                 <td>${task.end_date || '—'}</td>
@@ -294,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
             payment_date: formPaymentDate.value || null,
             homework_id: formHomeworkId.value ? parseInt(formHomeworkId.value) : null,
             status_id: formStatusId.value ? parseInt(formStatusId.value) : null,
+            task_type_id: formTaskTypeId.value ? parseInt(formTaskTypeId.value) : null,
             comment: formComment.value.trim() || null,
             closing_date: formClosingDate.value || null
         };
@@ -348,9 +384,10 @@ document.addEventListener('DOMContentLoaded', () => {
             Promise.all([
                 fetch(`/api/tasks?page=${currentPage}`).then(r => r.json()),
                 fetch('/api/clients/all').then(r => r.json()),
-                fetch('/api/task-statuses/all').then(r => r.json())
+                fetch('/api/task-statuses/all').then(r => r.json()),
+                fetch('/api/task-types/all').then(r => r.json())
             ])
-                .then(([data, clientData, statusData]) => {
+                .then(([data, clientData, statusData, typeData]) => {
                     const task = data.tasks.find(t => t.id === id);
                     if (!task) {
                         alert('Задача не найдена');
@@ -391,6 +428,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         formStatusId.appendChild(option);
                     });
                     formStatusId.value = task.status_id || '';
+
+                    // Populate task type dropdown
+                    formTaskTypeId.innerHTML = '<option value="">-- Выберите тип --</option>';
+                    typeData.task_types.forEach(tt => {
+                        const option = document.createElement('option');
+                        option.value = tt.id;
+                        option.textContent = tt.name;
+                        formTaskTypeId.appendChild(option);
+                    });
+                    formTaskTypeId.value = task.task_type_id || '';
 
                     modal.classList.remove('hidden');
                 });
@@ -442,6 +489,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showClientsPage();
             } else if (option === 'statuses') {
                 showStatusesPage();
+            } else if (option === 'task-types') {
+                showTaskTypesPage();
             } else if (option === 'homework') {
                 showPlaceholder('Домашки');
             }
@@ -857,6 +906,159 @@ document.addEventListener('DOMContentLoaded', () => {
     // Edit/delete client statuses (event delegation)
     clientStatusesTbody.addEventListener('click', (e) => {
         handleStatusTableClick(e, 'client', '/api/client-statuses', currentClientStatusesPage, fetchClientStatuses);
+    });
+
+    // ========== Task Types Page Logic ==========
+
+    function showTaskTypesPage() {
+        document.querySelector('.container').classList.add('hidden');
+        taskTypesPage.classList.remove('hidden');
+        currentTaskTypesPage = 1;
+        fetchTaskTypes();
+    }
+
+    backToMainFromTaskTypesBtn.addEventListener('click', () => {
+        taskTypesPage.classList.add('hidden');
+        document.querySelector('.container').classList.remove('hidden');
+    });
+
+    function fetchTaskTypes(page) {
+        if (page !== undefined) currentTaskTypesPage = page;
+        fetch(`/api/task-types?page=${currentTaskTypesPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderTaskTypes(data.task_types);
+                renderTaskTypesPagination(data);
+            });
+    }
+
+    function renderTaskTypes(taskTypes) {
+        taskTypesTbody.innerHTML = '';
+        if (taskTypes.length === 0) {
+            taskTypesTbody.innerHTML = '<tr><td colspan="4" class="empty-msg">Типов задач нет</td></tr>';
+            return;
+        }
+        taskTypes.forEach(tt => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${tt.id}</td>
+                <td>${escapeHtml(tt.name)}</td>
+                <td><button class="btn-edit" data-id="${tt.id}">Изменить</button></td>
+                <td><button class="btn-delete" data-id="${tt.id}">Удалить</button></td>
+            `;
+            taskTypesTbody.appendChild(tr);
+        });
+    }
+
+    function renderTaskTypesPagination(data) {
+        taskTypesPaginationControls.innerHTML = '';
+        if (data.total === 0) {
+            taskTypesPaginationInfo.textContent = '';
+            return;
+        }
+        taskTypesPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} типов)`;
+        if (data.current_page > 1) {
+            addTaskTypePageBtn('← Пред', data.current_page - 1);
+        }
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) {
+            addTaskTypePageBtn(String(i), i, i === data.current_page);
+        }
+        if (data.current_page < data.pages) {
+            addTaskTypePageBtn('След →', data.current_page + 1);
+        }
+    }
+
+    function addTaskTypePageBtn(label, page, isActive = false) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-page' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => fetchTaskTypes(page));
+        taskTypesPaginationControls.appendChild(btn);
+    }
+
+    // ========== Task Type Modal Logic ==========
+
+    addTaskTypeBtn.addEventListener('click', () => {
+        fetch('/api/task-types?page=1')
+            .then(r => r.json())
+            .then(data => {
+                editingTaskTypeId = null;
+                taskTypeModalTitle.textContent = 'Создание типа задачи';
+                taskTypeSubmitBtn.textContent = 'Подтвердить и создать';
+                formTaskTypeIdDisplay.value = data.next_id;
+                formTaskTypeName.value = '';
+                taskTypeModal.classList.remove('hidden');
+            });
+    });
+
+    function closeTaskTypeModal() {
+        taskTypeModal.classList.add('hidden');
+        taskTypeForm.reset();
+        editingTaskTypeId = null;
+    }
+
+    taskTypeModalClose.addEventListener('click', closeTaskTypeModal);
+    taskTypeModalCancel.addEventListener('click', closeTaskTypeModal);
+    taskTypeModal.addEventListener('click', (e) => {
+        if (e.target === taskTypeModal) closeTaskTypeModal();
+    });
+
+    taskTypeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = formTaskTypeName.value.trim();
+        if (!name) {
+            alert('Наименование обязательно для заполнения');
+            return;
+        }
+
+        const method = editingTaskTypeId ? 'PUT' : 'POST';
+        const url = editingTaskTypeId ? `/api/task-types/${editingTaskTypeId}` : '/api/task-types';
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        })
+        .then(r => {
+            if (r.ok) return r.json();
+            return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+        })
+        .then(() => {
+            closeTaskTypeModal();
+            fetchTaskTypes(currentTaskTypesPage);
+        })
+        .catch(err => alert(err.message));
+    });
+
+    // Edit/delete task types (event delegation)
+    taskTypesTbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            fetch(`/api/task-types?page=${currentTaskTypesPage}`)
+                .then(r => r.json())
+                .then(data => {
+                    const tt = data.task_types.find(t => t.id === id);
+                    if (!tt) { alert('Тип задачи не найден'); return; }
+                    editingTaskTypeId = tt.id;
+                    taskTypeModalTitle.textContent = 'Изменение типа задачи';
+                    taskTypeSubmitBtn.textContent = 'Подтвердить изменения';
+                    formTaskTypeIdDisplay.value = tt.id;
+                    formTaskTypeName.value = tt.name;
+                    taskTypeModal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить этот тип задачи?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`/api/task-types/${id}`, { method: 'DELETE' })
+                .then(() => fetchTaskTypes(currentTaskTypesPage));
+        }
     });
 
     function handleStatusTableClick(e, type, apiBase, currentPageVal, fetchFn) {
