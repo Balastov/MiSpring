@@ -37,6 +37,7 @@ class Task(db.Model):
     homework_id = db.Column(db.Integer, nullable=True)
     status_id = db.Column(db.Integer, nullable=True)
     task_type_id = db.Column(db.Integer, nullable=True)
+    duration = db.Column(db.Integer, nullable=True)
     comment = db.Column(db.String(500), nullable=True)
     closing_date = db.Column(db.DateTime, nullable=True)
 
@@ -58,6 +59,7 @@ class Task(db.Model):
             'homework_id': self.homework_id,
             'status_id': self.status_id,
             'task_type_id': self.task_type_id,
+            'duration': self.duration,
             'comment': self.comment,
             'closing_date': self.closing_date.strftime('%d.%m.%Y %H:%M') if self.closing_date else None,
             'closing_date_iso': self.closing_date.strftime('%Y-%m-%dT%H:%M') if self.closing_date else None,
@@ -196,6 +198,7 @@ def add_task():
         homework_id=data.get('homework_id'),
         status_id=data.get('status_id'),
         task_type_id=data.get('task_type_id'),
+        duration=data.get('duration'),
         comment=comment,
         closing_date=parse_datetime(data.get('closing_date')),
     )
@@ -232,6 +235,8 @@ def update_task(task_id):
         task.status_id = data['status_id']
     if 'task_type_id' in data:
         task.task_type_id = data['task_type_id']
+    if 'duration' in data:
+        task.duration = data['duration']
     if 'comment' in data:
         comment = (data['comment'] or '').strip() or None
         if comment and len(comment) > 500:
@@ -546,6 +551,8 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN end_date DATETIME')
     if 'task_type_id' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN task_type_id INTEGER')
+    if 'duration' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN duration INTEGER')
     conn.commit()
     conn.close()
 
