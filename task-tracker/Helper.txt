@@ -74,7 +74,7 @@ sudo systemctl restart task-tracker
 
 ----------------------------------------------
 
-# Альтернативные обновления в обход db
+# Альтернативные обновления в обход db (странно работает, пока не надо)
 
 cd ~/projects/MiSpring
 
@@ -86,19 +86,28 @@ git pull origin main
 
 # Restart the service
 sudo systemctl restart task-tracker
+
+-----------------------------------------------
+
+# !!!!
+Чтобы не затереть данные (актуальный вариант)
 Alternative (simpler) approach:
 
 
-cd ~/projects/MiSpring
+Saved working directory and index state WIP on main: db79c94 Кнопка "Изменить" в списке задач
+From https://github.com/Balastov/MiSpring
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+On branch main
+Your branch is up to date with 'origin/main'.
 
-# Discard changes to tasks.db (your data is safe, only schema might update)
-git checkout -- task-tracker/tasks.db
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   task-tracker/tasks.db
 
-# Pull the latest code
-git pull origin main
-
-# Restart the service  
-sudo systemctl restart task-tracker
+no changes added to commit (use "git add" and/or "git commit -a")
+Dropped refs/stash@{0} (9da1dd4ba2def9e3427be3e48328a3fd24459da7)
 ----------------------------------------------
 
 📝 Что было сделано в этом чате:
