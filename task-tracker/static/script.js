@@ -170,6 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
     modalClose.addEventListener('click', closeModal);
     modalCancel.addEventListener('click', closeModal);
 
+    // Auto-fill payment date when "is paid" checkbox changes
+    formIsPaid.addEventListener('change', () => {
+        if (formIsPaid.checked) {
+            const now = new Date();
+            formPaymentDate.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                .toISOString().slice(0, 16);
+        } else {
+            formPaymentDate.value = '';
+        }
+    });
+
     // Close modal on outside click
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
