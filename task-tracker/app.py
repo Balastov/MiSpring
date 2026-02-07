@@ -72,6 +72,32 @@ class Client(db.Model):
         }
 
 
+class TaskStatus(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    group = db.Column(db.String(100), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'group': self.group,
+        }
+
+
+class ClientStatus(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    group = db.Column(db.String(100), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'group': self.group,
+        }
+
+
 def parse_datetime(value):
     if not value:
         return None
@@ -99,8 +125,25 @@ def get_tasks():
     max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
     next_id = (max_id_result or 0) + 1
 
+    # Batch lookup names for status_id and client_id
+    status_ids = {t.status_id for t in paginator.items if t.status_id}
+    client_ids = {t.client_id for t in paginator.items if t.client_id}
+    status_map = {}
+    client_map = {}
+    if status_ids:
+        status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+    if client_ids:
+        client_map = {c.id: c.name for c in Client.query.filter(Client.id.in_(client_ids)).all()}
+
+    tasks = []
+    for t in paginator.items:
+        d = t.to_dict()
+        d['status_name'] = status_map.get(t.status_id)
+        d['client_name'] = client_map.get(t.client_id)
+        tasks.append(d)
+
     return jsonify({
-        'tasks': [t.to_dict() for t in paginator.items],
+        'tasks': tasks,
         'total': paginator.total,
         'pages': paginator.pages,
         'current_page': paginator.page,
@@ -196,8 +239,20 @@ def get_clients():
     max_id_result = db.session.execute(db.select(db.func.max(Client.id))).scalar()
     next_id = (max_id_result or 0) + 1
 
+    # Batch lookup client status names
+    status_ids = {c.status_id for c in paginator.items if c.status_id}
+    status_map = {}
+    if status_ids:
+        status_map = {s.id: s.name for s in ClientStatus.query.filter(ClientStatus.id.in_(status_ids)).all()}
+
+    clients = []
+    for c in paginator.items:
+        d = c.to_dict()
+        d['status_name'] = status_map.get(c.status_id)
+        clients.append(d)
+
     return jsonify({
-        'clients': [c.to_dict() for c in paginator.items],
+        'clients': clients,
         'total': paginator.total,
         'pages': paginator.pages,
         'current_page': paginator.page,
@@ -252,6 +307,140 @@ def update_client(client_id):
 def delete_client(client_id):
     client = db.get_or_404(Client, client_id)
     db.session.delete(client)
+    db.session.commit()
+    return '', 204
+
+
+# ========== Task Status Endpoints ==========
+
+@app.route('/api/task-statuses', methods=['GET'])
+def get_task_statuses():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(TaskStatus).order_by(TaskStatus.id),
+        page=page, per_page=per_page, error_out=False
+    )
+    max_id_result = db.session.execute(db.select(db.func.max(TaskStatus.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+    return jsonify({
+        'statuses': [s.to_dict() for s in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@app.route('/api/task-statuses/all', methods=['GET'])
+def get_all_task_statuses():
+    statuses = db.session.execute(
+        db.select(TaskStatus).order_by(TaskStatus.name)
+    ).scalars().all()
+    return jsonify({'statuses': [s.to_dict() for s in statuses]})
+
+
+@app.route('/api/task-statuses', methods=['POST'])
+def add_task_status():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name or len(name) > 100:
+        return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+    status = TaskStatus(
+        name=name,
+        group=(data.get('group') or '').strip() or None,
+    )
+    db.session.add(status)
+    db.session.commit()
+    return jsonify(status.to_dict()), 201
+
+
+@app.route('/api/task-statuses/<int:status_id>', methods=['PUT'])
+def update_task_status(status_id):
+    status = db.get_or_404(TaskStatus, status_id)
+    data = request.get_json()
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name or len(name) > 100:
+            return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+        status.name = name
+    if 'group' in data:
+        status.group = (data['group'] or '').strip() or None
+    db.session.commit()
+    return jsonify(status.to_dict())
+
+
+@app.route('/api/task-statuses/<int:status_id>', methods=['DELETE'])
+def delete_task_status(status_id):
+    status = db.get_or_404(TaskStatus, status_id)
+    db.session.delete(status)
+    db.session.commit()
+    return '', 204
+
+
+# ========== Client Status Endpoints ==========
+
+@app.route('/api/client-statuses', methods=['GET'])
+def get_client_statuses():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(ClientStatus).order_by(ClientStatus.id),
+        page=page, per_page=per_page, error_out=False
+    )
+    max_id_result = db.session.execute(db.select(db.func.max(ClientStatus.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+    return jsonify({
+        'statuses': [s.to_dict() for s in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@app.route('/api/client-statuses/all', methods=['GET'])
+def get_all_client_statuses():
+    statuses = db.session.execute(
+        db.select(ClientStatus).order_by(ClientStatus.name)
+    ).scalars().all()
+    return jsonify({'statuses': [s.to_dict() for s in statuses]})
+
+
+@app.route('/api/client-statuses', methods=['POST'])
+def add_client_status():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name or len(name) > 100:
+        return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+    status = ClientStatus(
+        name=name,
+        group=(data.get('group') or '').strip() or None,
+    )
+    db.session.add(status)
+    db.session.commit()
+    return jsonify(status.to_dict()), 201
+
+
+@app.route('/api/client-statuses/<int:status_id>', methods=['PUT'])
+def update_client_status(status_id):
+    status = db.get_or_404(ClientStatus, status_id)
+    data = request.get_json()
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name or len(name) > 100:
+            return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+        status.name = name
+    if 'group' in data:
+        status.group = (data['group'] or '').strip() or None
+    db.session.commit()
+    return jsonify(status.to_dict())
+
+
+@app.route('/api/client-statuses/<int:status_id>', methods=['DELETE'])
+def delete_client_status(status_id):
+    status = db.get_or_404(ClientStatus, status_id)
+    db.session.delete(status)
     db.session.commit()
     return '', 204
 

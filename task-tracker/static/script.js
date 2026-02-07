@@ -57,10 +57,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const placeholderModalTitle = document.getElementById('placeholder-modal-title');
     const placeholderModalClose = document.getElementById('placeholder-modal-close');
 
+    // Statuses page elements
+    const statusesPage = document.getElementById('statuses-page');
+    const backToMainFromStatusesBtn = document.getElementById('back-to-main-from-statuses-btn');
+    const addStatusBtn = document.getElementById('add-status-btn');
+    const taskStatusesTbody = document.getElementById('task-statuses-tbody');
+    const taskStatusesPaginationInfo = document.getElementById('task-statuses-pagination-info');
+    const taskStatusesPaginationControls = document.getElementById('task-statuses-pagination-controls');
+    const clientStatusesTbody = document.getElementById('client-statuses-tbody');
+    const clientStatusesPaginationInfo = document.getElementById('client-statuses-pagination-info');
+    const clientStatusesPaginationControls = document.getElementById('client-statuses-pagination-controls');
+
+    // Status modal elements
+    const statusModal = document.getElementById('status-modal');
+    const statusModalTitle = document.getElementById('status-modal-title');
+    const statusModalClose = document.getElementById('status-modal-close');
+    const statusModalCancel = document.getElementById('status-modal-cancel');
+    const statusForm = document.getElementById('status-form');
+    const formStatusIdDisplay = document.getElementById('form-status-id-display');
+    const formStatusName = document.getElementById('form-status-name');
+    const formStatusGroup = document.getElementById('form-status-group');
+    const statusSubmitBtn = document.getElementById('status-submit-btn');
+
     let currentPage = 1;
     let isListVisible = false;
     let currentClientsPage = 1;
     let editingClientId = null;
+    let currentTaskStatusesPage = 1;
+    let currentClientStatusesPage = 1;
+    let currentStatusType = 'task'; // 'task' or 'client'
+    let editingStatusId = null;
 
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
@@ -78,9 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     .slice(0, 16);
                 formCreatedAt.value = localDateTime;
 
-                // Set default status to 1 ("Created")
-                formStatusId.value = '1';
-
                 // Set default author
                 formAuthor.value = 'Система';
 
@@ -89,23 +112,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 formStartDate.value = '';
                 formEndDate.value = '';
                 formClientId.value = '';
+                formStatusId.value = '';
                 formIsPaid.checked = false;
                 formPaymentDate.value = '';
                 formHomeworkId.value = '';
                 formComment.value = '';
                 formClosingDate.value = '';
 
-                // Fetch and populate client dropdown
-                return fetch('/api/clients/all');
+                // Fetch and populate client and status dropdowns
+                return Promise.all([
+                    fetch('/api/clients/all').then(r => r.json()),
+                    fetch('/api/task-statuses/all').then(r => r.json())
+                ]);
             })
-            .then(r => r.json())
-            .then(clientData => {
+            .then(([clientData, statusData]) => {
                 formClientId.innerHTML = '<option value="">-- Выберите клиента --</option>';
                 clientData.clients.forEach(client => {
                     const option = document.createElement('option');
                     option.value = client.id;
                     option.textContent = `${client.id} - ${client.name}`;
                     formClientId.appendChild(option);
+                });
+
+                formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
+                statusData.statuses.forEach(status => {
+                    const option = document.createElement('option');
+                    option.value = status.id;
+                    option.textContent = status.name;
+                    formStatusId.appendChild(option);
                 });
 
                 modal.classList.remove('hidden');
@@ -169,11 +203,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${task.start_date || '—'}</td>
                 <td>${task.end_date || '—'}</td>
                 <td>${escapeHtml(task.author || '—')}</td>
-                <td>${task.client_id ?? '—'}</td>
+                <td>${escapeHtml(task.client_name || '—')}</td>
                 <td class="cell-bool">${task.is_paid ? '✓' : '✗'}</td>
                 <td>${task.payment_date || '—'}</td>
                 <td>${task.homework_id ?? '—'}</td>
-                <td>${task.status_id ?? '—'}</td>
+                <td>${escapeHtml(task.status_name || '—')}</td>
                 <td class="col-comment" title="${escapeAttr(task.comment || '')}">${escapeHtml(task.comment || '—')}</td>
                 <td>${task.closing_date || '—'}</td>
                 <td><button class="btn-delete" data-id="${task.id}">Удалить</button></td>
@@ -322,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (option === 'clients') {
                 showClientsPage();
             } else if (option === 'statuses') {
-                showPlaceholder('Статусы');
+                showStatusesPage();
             } else if (option === 'homework') {
                 showPlaceholder('Домашки');
             }
@@ -383,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = `
                 <td>${client.id}</td>
                 <td>${escapeHtml(client.name)}</td>
-                <td>${client.status_id ?? '—'}</td>
+                <td>${escapeHtml(client.status_name || '—')}</td>
                 <td>${client.created_at || '—'}</td>
                 <td><button class="btn-edit" data-id="${client.id}">Изменить</button></td>
                 <td><button class="btn-delete" data-id="${client.id}">Удалить</button></td>
@@ -430,15 +464,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open client modal for adding
     addClientBtn.addEventListener('click', () => {
-        fetch('/api/clients?page=1')
-            .then(r => r.json())
-            .then(data => {
+        Promise.all([
+            fetch('/api/clients?page=1').then(r => r.json()),
+            fetch('/api/client-statuses/all').then(r => r.json())
+        ])
+            .then(([data, statusData]) => {
                 editingClientId = null;
                 clientModalTitle.textContent = 'Создание клиента';
                 clientSubmitBtn.textContent = 'Подтвердить и создать';
                 formClientIdDisplay.value = data.next_id;
                 formClientName.value = '';
+
+                // Populate client status dropdown
+                formClientStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
+                statusData.statuses.forEach(status => {
+                    const option = document.createElement('option');
+                    option.value = status.id;
+                    option.textContent = status.name;
+                    formClientStatusId.appendChild(option);
+                });
                 formClientStatusId.value = '';
+
                 clientModal.classList.remove('hidden');
             })
             .catch(() => {
@@ -509,9 +555,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (editBtn) {
             const id = parseInt(editBtn.dataset.id);
-            fetch(`/api/clients?page=${currentClientsPage}`)
-                .then(r => r.json())
-                .then(data => {
+            Promise.all([
+                fetch(`/api/clients?page=${currentClientsPage}`).then(r => r.json()),
+                fetch('/api/client-statuses/all').then(r => r.json())
+            ])
+                .then(([data, statusData]) => {
                     const client = data.clients.find(c => c.id === id);
                     if (!client) {
                         alert('Клиент не найден');
@@ -522,7 +570,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     clientSubmitBtn.textContent = 'Подтвердить изменения';
                     formClientIdDisplay.value = client.id;
                     formClientName.value = client.name;
+
+                    // Populate client status dropdown
+                    formClientStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
+                    statusData.statuses.forEach(status => {
+                        const option = document.createElement('option');
+                        option.value = status.id;
+                        option.textContent = status.name;
+                        formClientStatusId.appendChild(option);
+                    });
                     formClientStatusId.value = client.status_id || '';
+
                     clientModal.classList.remove('hidden');
                 });
         }
@@ -534,4 +592,215 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(() => fetchClients(currentClientsPage));
         }
     });
+
+    // ========== Statuses Page Logic ==========
+
+    function showStatusesPage() {
+        document.querySelector('.container').classList.add('hidden');
+        statusesPage.classList.remove('hidden');
+        currentTaskStatusesPage = 1;
+        currentClientStatusesPage = 1;
+        fetchTaskStatuses();
+    }
+
+    backToMainFromStatusesBtn.addEventListener('click', () => {
+        statusesPage.classList.add('hidden');
+        document.querySelector('.container').classList.remove('hidden');
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+
+            const tab = e.target.dataset.tab;
+            document.getElementById('task-statuses-tab').classList.toggle('hidden', tab !== 'task-statuses');
+            document.getElementById('client-statuses-tab').classList.toggle('hidden', tab !== 'client-statuses');
+
+            if (tab === 'task-statuses') {
+                currentStatusType = 'task';
+                fetchTaskStatuses();
+            } else {
+                currentStatusType = 'client';
+                fetchClientStatuses();
+            }
+        });
+    });
+
+    // Fetch task statuses
+    function fetchTaskStatuses(page) {
+        if (page !== undefined) currentTaskStatusesPage = page;
+        fetch(`/api/task-statuses?page=${currentTaskStatusesPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderStatuses(data.statuses, taskStatusesTbody);
+                renderStatusesPagination(data, taskStatusesPaginationInfo, taskStatusesPaginationControls, fetchTaskStatuses);
+            });
+    }
+
+    // Fetch client statuses
+    function fetchClientStatuses(page) {
+        if (page !== undefined) currentClientStatusesPage = page;
+        fetch(`/api/client-statuses?page=${currentClientStatusesPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderStatuses(data.statuses, clientStatusesTbody);
+                renderStatusesPagination(data, clientStatusesPaginationInfo, clientStatusesPaginationControls, fetchClientStatuses);
+            });
+    }
+
+    // Shared render for both status types
+    function renderStatuses(statuses, tbody) {
+        tbody.innerHTML = '';
+        if (statuses.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Статусов нет</td></tr>';
+            return;
+        }
+        statuses.forEach(status => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${status.id}</td>
+                <td>${escapeHtml(status.name)}</td>
+                <td>${escapeHtml(status.group || '—')}</td>
+                <td><button class="btn-edit" data-id="${status.id}">Изменить</button></td>
+                <td><button class="btn-delete" data-id="${status.id}">Удалить</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Shared pagination for statuses
+    function renderStatusesPagination(data, infoEl, controlsEl, fetchFn) {
+        controlsEl.innerHTML = '';
+        if (data.total === 0) {
+            infoEl.textContent = '';
+            return;
+        }
+        infoEl.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} статусов)`;
+
+        if (data.current_page > 1) {
+            addStatusPageBtn('← Пред', data.current_page - 1, controlsEl, fetchFn);
+        }
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) {
+            addStatusPageBtn(String(i), i, controlsEl, fetchFn, i === data.current_page);
+        }
+        if (data.current_page < data.pages) {
+            addStatusPageBtn('След →', data.current_page + 1, controlsEl, fetchFn);
+        }
+    }
+
+    function addStatusPageBtn(label, page, controlsEl, fetchFn, isActive = false) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-page' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => fetchFn(page));
+        controlsEl.appendChild(btn);
+    }
+
+    // ========== Status Modal Logic ==========
+
+    addStatusBtn.addEventListener('click', () => {
+        const apiUrl = currentStatusType === 'task' ? '/api/task-statuses?page=1' : '/api/client-statuses?page=1';
+        fetch(apiUrl)
+            .then(r => r.json())
+            .then(data => {
+                editingStatusId = null;
+                statusModalTitle.textContent = currentStatusType === 'task' ? 'Создание статуса задачи' : 'Создание статуса клиента';
+                statusSubmitBtn.textContent = 'Подтвердить и создать';
+                formStatusIdDisplay.value = data.next_id;
+                formStatusName.value = '';
+                formStatusGroup.value = '';
+                statusModal.classList.remove('hidden');
+            });
+    });
+
+    function closeStatusModal() {
+        statusModal.classList.add('hidden');
+        statusForm.reset();
+        editingStatusId = null;
+    }
+
+    statusModalClose.addEventListener('click', closeStatusModal);
+    statusModalCancel.addEventListener('click', closeStatusModal);
+    statusModal.addEventListener('click', (e) => {
+        if (e.target === statusModal) closeStatusModal();
+    });
+
+    // Submit status form
+    statusForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = formStatusName.value.trim();
+        if (!name) {
+            alert('Имя обязательно для заполнения');
+            return;
+        }
+
+        const statusData = {
+            name: name,
+            group: formStatusGroup.value.trim() || null,
+        };
+
+        const baseUrl = currentStatusType === 'task' ? '/api/task-statuses' : '/api/client-statuses';
+        const method = editingStatusId ? 'PUT' : 'POST';
+        const url = editingStatusId ? `${baseUrl}/${editingStatusId}` : baseUrl;
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(statusData)
+        })
+        .then(r => {
+            if (r.ok) return r.json();
+            return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+        })
+        .then(() => {
+            closeStatusModal();
+            if (currentStatusType === 'task') fetchTaskStatuses(currentTaskStatusesPage);
+            else fetchClientStatuses(currentClientStatusesPage);
+        })
+        .catch(err => alert(err.message));
+    });
+
+    // Edit/delete task statuses (event delegation)
+    taskStatusesTbody.addEventListener('click', (e) => {
+        handleStatusTableClick(e, 'task', '/api/task-statuses', currentTaskStatusesPage, fetchTaskStatuses);
+    });
+
+    // Edit/delete client statuses (event delegation)
+    clientStatusesTbody.addEventListener('click', (e) => {
+        handleStatusTableClick(e, 'client', '/api/client-statuses', currentClientStatusesPage, fetchClientStatuses);
+    });
+
+    function handleStatusTableClick(e, type, apiBase, currentPageVal, fetchFn) {
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            fetch(`${apiBase}?page=${currentPageVal}`)
+                .then(r => r.json())
+                .then(data => {
+                    const status = data.statuses.find(s => s.id === id);
+                    if (!status) { alert('Статус не найден'); return; }
+                    currentStatusType = type;
+                    editingStatusId = status.id;
+                    statusModalTitle.textContent = type === 'task' ? 'Изменение статуса задачи' : 'Изменение статуса клиента';
+                    statusSubmitBtn.textContent = 'Подтвердить изменения';
+                    formStatusIdDisplay.value = status.id;
+                    formStatusName.value = status.name;
+                    formStatusGroup.value = status.group || '';
+                    statusModal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить этот статус?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`${apiBase}/${id}`, { method: 'DELETE' })
+                .then(() => fetchFn(currentPageVal));
+        }
+    }
 });
