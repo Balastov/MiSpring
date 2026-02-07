@@ -219,6 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     option.textContent = status.name;
                     formStatusId.appendChild(option);
                 });
+                // Default to "Новый"
+                const newStatus = statusData.statuses.find(s => s.name === 'Новый');
+                if (newStatus) formStatusId.value = newStatus.id;
 
                 formTaskTypeId.innerHTML = '<option value="">-- Выберите тип --</option>';
                 typeData.task_types.forEach(tt => {
