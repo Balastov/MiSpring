@@ -18,13 +18,13 @@
                     <thead>
                         <tr>
                             <th>№</th>
-                            <th>Описание</th>
+                            <th>Клиент</th>
                             <th>Тип задачи</th>
+                            <!-- <th>Описание</th> -->
                             <th>Дата создания</th>
                             <th>Дата начала</th>
                             <th>Дата окончания</th>
                             <th>Автор</th>
-                            <th>Клиент</th>
                             <th>Оплачено</th>
                             <th>Дата оплаты</th>
                             <th>Домашка</th>
@@ -54,13 +54,19 @@
                     <label>№</label>
                     <input type="text" id="form-id" value="Авто" readonly>
                 </div>
+                <!-- <div class="form-row">
+                    <label>Описание</label>
+                    <input type="text" id="form-description" maxlength="100">
+                </div> -->
                 <div class="form-row">
-                    <label>Описание*</label>
-                    <input type="text" id="form-description" maxlength="100" required>
+                    <label>Клиент*</label>
+                    <select id="form-client-id" class="form-select" required>
+                        <option value="">-- Выберите клиента --</option>
+                    </select>
                 </div>
                 <div class="form-row">
-                    <label>Тип задачи</label>
-                    <select id="form-task-type-id" class="form-select">
+                    <label>Тип задачи*</label>
+                    <select id="form-task-type-id" class="form-select" required>
                         <option value="">-- Выберите тип --</option>
                     </select>
                 </div>
@@ -69,8 +75,8 @@
                     <input type="datetime-local" id="form-created-at" readonly>
                 </div>
                 <div class="form-row">
-                    <label>Дата начала</label>
-                    <input type="datetime-local" id="form-start-date">
+                    <label>Дата начала*</label>
+                    <input type="datetime-local" id="form-start-date" required>
                 </div>
                 <div class="form-row">
                     <label>Дата окончания</label>
@@ -79,12 +85,6 @@
                 <div class="form-row">
                     <label>Автор</label>
                     <input type="text" id="form-author" maxlength="100" value="Система" readonly>
-                </div>
-                <div class="form-row">
-                    <label>Клиент</label>
-                    <select id="form-client-id" class="form-select">
-                        <option value="">-- Выберите клиента --</option>
-                    </select>
                 </div>
                 <div class="form-row">
                     <label>Оплачено</label>
