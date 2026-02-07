@@ -178,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .toISOString().slice(0, 16);
         } else {
             formPaymentDate.value = '';
+            formPaymentDate.defaultValue = '';
         }
     });
 
