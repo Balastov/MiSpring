@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formHomeworkId = document.getElementById('form-homework-id');
     const formStatusId = document.getElementById('form-status-id');
     const formTaskTypeId = document.getElementById('form-task-type-id');
+    const formDuration = document.getElementById('form-duration');
     const formComment = document.getElementById('form-comment');
     const formClosingDate = document.getElementById('form-closing-date');
 
@@ -114,6 +115,49 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTaskTypesPage = 1;
     let editingTaskTypeId = null;
 
+    // Duration display helper
+    function formatDuration(minutes) {
+        if (!minutes) return '—';
+        if (minutes === 30) return '30 мин';
+        if (minutes === 60) return '1 час';
+        if (minutes === 90) return '1 час 30 мин';
+        if (minutes === 120) return '2 часа';
+        return minutes + ' мин';
+    }
+
+    // Recalculate end_date from start_date + duration
+    function recalcEndDate() {
+        if (formStartDate.value && formDuration.value) {
+            const start = new Date(formStartDate.value);
+            start.setMinutes(start.getMinutes() + parseInt(formDuration.value));
+            const iso = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+                .toISOString().slice(0, 16);
+            formEndDate.value = iso;
+        } else {
+            formEndDate.value = '';
+        }
+    }
+
+    // Enable/disable duration based on start_date
+    function updateDurationState() {
+        if (formStartDate.value) {
+            formDuration.disabled = false;
+        } else {
+            formDuration.disabled = true;
+            formDuration.value = '';
+            formEndDate.value = '';
+        }
+    }
+
+    formStartDate.addEventListener('change', () => {
+        updateDurationState();
+        recalcEndDate();
+    });
+
+    formDuration.addEventListener('change', () => {
+        recalcEndDate();
+    });
+
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
         editingTaskId = null;
@@ -140,6 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Clear other fields
                 if (formDescription) formDescription.value = '';
                 formStartDate.value = '';
+                formDuration.value = '';
+                formDuration.disabled = true;
                 formEndDate.value = '';
                 formClientId.value = '';
                 formStatusId.value = '';
@@ -247,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks(tasks) {
         tasksTbody.innerHTML = '';
         if (tasks.length === 0) {
-            tasksTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Задач нет</td></tr>';
+            tasksTbody.innerHTML = '<tr><td colspan="16" class="empty-msg">Задач нет</td></tr>';
             return;
         }
         tasks.forEach(task => {
@@ -260,6 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${task.created_at || '—'}</td>
                 <td>${task.start_date || '—'}</td>
                 <td>${task.end_date || '—'}</td>
+                <td>${formatDuration(task.duration)}</td>
                 <td>${escapeHtml(task.author || '—')}</td>
                 <td class="cell-bool">${task.is_paid ? '✓' : '✗'}</td>
                 <td>${task.payment_date || '—'}</td>
@@ -326,11 +373,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Duration is required when task type is "Урок"
+        const selectedTypeOption = formTaskTypeId.options[formTaskTypeId.selectedIndex];
+        if (selectedTypeOption && selectedTypeOption.textContent === 'Урок' && !formDuration.value) {
+            alert('Продолжительность обязательна для типа задачи "Урок"');
+            return;
+        }
+
         // Collect form data
         const taskData = {
             description: formDescription ? formDescription.value.trim() : '',
             start_date: formStartDate.value || null,
             end_date: formEndDate.value || null,
+            duration: formDuration.value ? parseInt(formDuration.value) : null,
             author: formAuthor.value.trim() || null,
             client_id: formClientId.value ? parseInt(formClientId.value) : null,
             is_paid: formIsPaid.checked,
@@ -409,6 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (formDescription) formDescription.value = task.description || '';
                     formCreatedAt.value = task.created_at_iso || '';
                     formStartDate.value = task.start_date_iso || '';
+                    formDuration.value = task.duration || '';
+                    updateDurationState();
                     formEndDate.value = task.end_date_iso || '';
                     formAuthor.value = task.author || '';
                     formIsPaid.checked = task.is_paid || false;

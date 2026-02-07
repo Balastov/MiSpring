@@ -24,6 +24,7 @@
                             <th>Дата создания</th>
                             <th>Дата начала</th>
                             <th>Дата окончания</th>
+                            <th>Продолжительность</th>
                             <th>Автор</th>
                             <th>Оплачено</th>
                             <th>Дата оплаты</th>
@@ -79,8 +80,18 @@
                     <input type="datetime-local" id="form-start-date" required>
                 </div>
                 <div class="form-row">
+                    <label>Продолжительность</label>
+                    <select id="form-duration" class="form-select" disabled>
+                        <option value="">-- Выберите --</option>
+                        <option value="30">30 мин</option>
+                        <option value="60">1 час</option>
+                        <option value="90">1 час 30 мин</option>
+                        <option value="120">2 часа</option>
+                    </select>
+                </div>
+                <div class="form-row">
                     <label>Дата окончания</label>
-                    <input type="datetime-local" id="form-end-date">
+                    <input type="datetime-local" id="form-end-date" readonly>
                 </div>
                 <div class="form-row">
                     <label>Автор</label>
