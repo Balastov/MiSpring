@@ -36,6 +36,7 @@ class Task(db.Model):
     payment_date = db.Column(db.DateTime, nullable=True)
     homework_id = db.Column(db.Integer, nullable=True)
     status_id = db.Column(db.Integer, nullable=True)
+    task_type_id = db.Column(db.Integer, nullable=True)
     comment = db.Column(db.String(500), nullable=True)
     closing_date = db.Column(db.DateTime, nullable=True)
 
@@ -56,6 +57,7 @@ class Task(db.Model):
             'payment_date_iso': self.payment_date.strftime('%Y-%m-%dT%H:%M') if self.payment_date else None,
             'homework_id': self.homework_id,
             'status_id': self.status_id,
+            'task_type_id': self.task_type_id,
             'comment': self.comment,
             'closing_date': self.closing_date.strftime('%d.%m.%Y %H:%M') if self.closing_date else None,
             'closing_date_iso': self.closing_date.strftime('%Y-%m-%dT%H:%M') if self.closing_date else None,
@@ -103,6 +105,17 @@ class ClientStatus(db.Model):
         }
 
 
+class TaskType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+        }
+
+
 def parse_datetime(value):
     if not value:
         return None
@@ -130,21 +143,26 @@ def get_tasks():
     max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
     next_id = (max_id_result or 0) + 1
 
-    # Batch lookup names for status_id and client_id
+    # Batch lookup names for status_id, client_id, task_type_id
     status_ids = {t.status_id for t in paginator.items if t.status_id}
     client_ids = {t.client_id for t in paginator.items if t.client_id}
+    type_ids = {t.task_type_id for t in paginator.items if t.task_type_id}
     status_map = {}
     client_map = {}
+    type_map = {}
     if status_ids:
         status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
     if client_ids:
         client_map = {c.id: c.name for c in Client.query.filter(Client.id.in_(client_ids)).all()}
+    if type_ids:
+        type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
 
     tasks = []
     for t in paginator.items:
         d = t.to_dict()
         d['status_name'] = status_map.get(t.status_id)
         d['client_name'] = client_map.get(t.client_id)
+        d['task_type_name'] = type_map.get(t.task_type_id)
         tasks.append(d)
 
     return jsonify({
@@ -177,6 +195,7 @@ def add_task():
         payment_date=parse_datetime(data.get('payment_date')),
         homework_id=data.get('homework_id'),
         status_id=data.get('status_id'),
+        task_type_id=data.get('task_type_id'),
         comment=comment,
         closing_date=parse_datetime(data.get('closing_date')),
     )
@@ -211,6 +230,8 @@ def update_task(task_id):
         task.homework_id = data['homework_id']
     if 'status_id' in data:
         task.status_id = data['status_id']
+    if 'task_type_id' in data:
+        task.task_type_id = data['task_type_id']
     if 'comment' in data:
         comment = (data['comment'] or '').strip() or None
         if comment and len(comment) > 500:
@@ -450,6 +471,68 @@ def delete_client_status(status_id):
     return '', 204
 
 
+# ========== Task Type Endpoints ==========
+
+@app.route('/api/task-types', methods=['GET'])
+def get_task_types():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(TaskType).order_by(TaskType.id),
+        page=page, per_page=per_page, error_out=False
+    )
+    max_id_result = db.session.execute(db.select(db.func.max(TaskType.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+    return jsonify({
+        'task_types': [tt.to_dict() for tt in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@app.route('/api/task-types/all', methods=['GET'])
+def get_all_task_types():
+    task_types = db.session.execute(
+        db.select(TaskType).order_by(TaskType.name)
+    ).scalars().all()
+    return jsonify({'task_types': [tt.to_dict() for tt in task_types]})
+
+
+@app.route('/api/task-types', methods=['POST'])
+def add_task_type():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name or len(name) > 100:
+        return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
+    task_type = TaskType(name=name)
+    db.session.add(task_type)
+    db.session.commit()
+    return jsonify(task_type.to_dict()), 201
+
+
+@app.route('/api/task-types/<int:type_id>', methods=['PUT'])
+def update_task_type(type_id):
+    task_type = db.get_or_404(TaskType, type_id)
+    data = request.get_json()
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name or len(name) > 100:
+            return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
+        task_type.name = name
+    db.session.commit()
+    return jsonify(task_type.to_dict())
+
+
+@app.route('/api/task-types/<int:type_id>', methods=['DELETE'])
+def delete_task_type(type_id):
+    task_type = db.get_or_404(TaskType, type_id)
+    db.session.delete(task_type)
+    db.session.commit()
+    return '', 204
+
+
 with app.app_context():
     db.create_all()
     # Add new columns to existing tables if they don't exist
@@ -461,8 +544,16 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN start_date DATETIME')
     if 'end_date' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN end_date DATETIME')
+    if 'task_type_id' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN task_type_id INTEGER')
     conn.commit()
     conn.close()
+
+    # Seed task types if table is empty
+    if TaskType.query.count() == 0:
+        for name in ['Урок', 'Ошибка', 'Запрос на доработку']:
+            db.session.add(TaskType(name=name))
+        db.session.commit()
 
 if __name__ == '__main__':
     app.run(debug=True)
