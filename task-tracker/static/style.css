@@ -1,7 +1,55 @@
 body {
     font-family: Arial, sans-serif;
     margin: 0;
-    padding: 20px 40px;
+    padding: 50px 40px 20px 40px;
+}
+
+/* ========== User Bar ========== */
+.user-bar {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #7c3aed;
+    color: #fff;
+    padding: 8px 20px;
+    z-index: 900;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    font-size: 14px;
+}
+
+.user-bar[style*="display"] {
+    display: flex !important;
+}
+
+#user-display-name {
+    font-weight: 600;
+}
+
+.btn-user-bar {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.4);
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-user-bar:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.btn-logout {
+    background: rgba(229,62,62,0.7);
+    border-color: rgba(229,62,62,0.9);
+}
+
+.btn-logout:hover {
+    background: rgba(229,62,62,0.9);
 }
 
 .container {
@@ -321,7 +369,7 @@ body {
     cursor: pointer;
     font-size: 15px;
     position: absolute;
-    top: 20px;
+    top: 50px;
     right: 20px;
 }
 
@@ -469,4 +517,41 @@ body {
 
 .tab-content.hidden {
     display: none;
+}
+
+/* ========== Checkbox Group (for roles in user modal) ========== */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* ========== Reset Password Button ========== */
+.btn-reset-password {
+    background: none;
+    border: 1px solid #d97706;
+    color: #d97706;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-reset-password:hover {
+    background-color: #d97706;
+    color: #fff;
 }

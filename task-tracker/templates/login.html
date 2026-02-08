@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>EngSpring — Вход</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .login-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-container h1 {
+            text-align: center;
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 24px;
+        }
+        .login-subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 28px;
+        }
+        .login-form .form-group {
+            margin-bottom: 16px;
+        }
+        .login-form label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 14px;
+        }
+        .login-form input[type="text"],
+        .login-form input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .login-form input:focus {
+            outline: none;
+            border-color: #7c3aed;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background-color: #7c3aed;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .btn-login:hover {
+            background-color: #6d28d9;
+        }
+        .btn-login:disabled {
+            background-color: #a78bfa;
+            cursor: not-allowed;
+        }
+        .login-error {
+            color: #e53e3e;
+            font-size: 14px;
+            margin-top: 12px;
+            text-align: center;
+            display: none;
+        }
+        .login-divider {
+            display: flex;
+            align-items: center;
+            margin: 24px 0;
+            color: #aaa;
+            font-size: 13px;
+        }
+        .login-divider::before,
+        .login-divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #ddd;
+        }
+        .login-divider span {
+            padding: 0 12px;
+        }
+        .oauth-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .btn-oauth {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
+            background: #fff;
+            box-sizing: border-box;
+        }
+        .btn-oauth:hover {
+            background-color: #f5f5f5;
+            border-color: #999;
+        }
+        .btn-oauth-yandex {
+            border-color: #fc3f1d;
+            color: #fc3f1d;
+        }
+        .btn-oauth-yandex:hover {
+            background-color: #fff5f3;
+        }
+        .btn-oauth-vk {
+            border-color: #0077ff;
+            color: #0077ff;
+        }
+        .btn-oauth-vk:hover {
+            background-color: #f0f7ff;
+        }
+        .forgot-password {
+            text-align: center;
+            margin-top: 16px;
+        }
+        .forgot-password a {
+            color: #7c3aed;
+            text-decoration: none;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+        .forgot-message {
+            display: none;
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            margin-top: 8px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>EngSpring</h1>
+        <p class="login-subtitle">Войдите в систему</p>
+
+        <form class="login-form" id="login-form">
+            <div class="form-group">
+                <label for="login-username">Логин</label>
+                <input type="text" id="login-username" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="login-password">Пароль</label>
+                <input type="password" id="login-password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn-login" id="login-btn">Войти</button>
+            <div class="login-error" id="login-error"></div>
+        </form>
+
+        <div class="forgot-password">
+            <a id="forgot-link">Забыли пароль?</a>
+            <div class="forgot-message" id="forgot-message">
+                Обратитесь к администратору для сброса пароля
+            </div>
+        </div>
+
+        <div class="login-divider"><span>или</span></div>
+
+        <div class="oauth-buttons">
+            <a href="/auth/yandex" class="btn-oauth btn-oauth-yandex">Войти через Яндекс</a>
+            <a href="/auth/vk" class="btn-oauth btn-oauth-vk">Войти через ВКонтакте</a>
+        </div>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const loginBtn = document.getElementById('login-btn');
+        const forgotLink = document.getElementById('forgot-link');
+        const forgotMessage = document.getElementById('forgot-message');
+
+        forgotLink.addEventListener('click', () => {
+            forgotMessage.style.display = forgotMessage.style.display === 'block' ? 'none' : 'block';
+        });
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            loginError.style.display = 'none';
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Вход...';
+
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(r => {
+                if (r.ok) return r.json();
+                return r.json().then(err => { throw new Error(err.error || 'Ошибка входа'); });
+            })
+            .then(() => {
+                window.location.href = '/';
+            })
+            .catch(err => {
+                loginError.textContent = err.message;
+                loginError.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Войти';
+            });
+        });
+    </script>
+</body>
+</html>
