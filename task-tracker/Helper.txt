@@ -69,13 +69,7 @@ sudo certbot renew --dry-run               # Тест обновления SSL
 
 # 5. Обновление кода (деплой)
 cd ~/projects/MiSpring
-git stash drop
-git reset HEAD
-git checkout -- .
-mv task-tracker/tasks.db /tmp/tasks.db.bak
-rm -f "task-tracker/tasks.db~Stashed changes"
-git pull origin dev
-mv /tmp/tasks.db.bak task-tracker/tasks.db
+git pull origin main
 sudo systemctl restart task-tracker
 
 
