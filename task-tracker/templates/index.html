@@ -6,16 +6,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=cache_bust('style.css')) }}">
 </head>
 <body>
-    <!-- User Bar -->
-    <div id="user-bar" class="user-bar">
+    <div class="top-right-bar" id="top-right-bar">
         <span id="user-display-name"></span>
-        <button id="change-password-btn" class="btn-user-bar">Сменить пароль</button>
-        <button id="logout-btn" class="btn-user-bar btn-logout">Выйти</button>
+        <button id="settings-btn">Настройки</button>
+        <button id="change-password-btn" class="btn-change-password">Сменить пароль</button>
+        <button id="logout-btn" class="btn-logout-small">Выйти</button>
     </div>
 
     <div class="container">
         <h1>Мои задачи</h1>
-        <button id="settings-btn">Настройки</button>
         <button id="add-task-btn">Добавить</button>
         <button id="all-tasks-btn">Все задачи ▼</button>
         <div id="task-list-section" class="hidden">

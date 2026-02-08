@@ -1,55 +1,57 @@
 body {
     font-family: Arial, sans-serif;
     margin: 0;
-    padding: 50px 40px 20px 40px;
+    padding: 20px 40px;
 }
 
-/* ========== User Bar ========== */
-.user-bar {
+/* ========== Top Right Bar ========== */
+.top-right-bar {
     display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: #1A515F;
-    color: #fff;
-    padding: 8px 20px;
-    z-index: 900;
+    position: absolute;
+    top: 16px;
+    right: 20px;
     align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
     font-size: 14px;
 }
 
-.user-bar[style*="display"] {
-    display: flex !important;
+.top-right-bar.visible {
+    display: flex;
 }
 
 #user-display-name {
     font-weight: 600;
+    color: #333;
 }
 
-.btn-user-bar {
-    background: rgba(255,255,255,0.2);
-    color: #fff;
-    border: 1px solid rgba(255,255,255,0.4);
-    padding: 4px 12px;
+.btn-change-password {
+    background: none;
+    border: 1px solid #1A515F;
+    color: #1A515F;
+    padding: 6px 14px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 13px;
 }
 
-.btn-user-bar:hover {
-    background: rgba(255,255,255,0.3);
+.btn-change-password:hover {
+    background-color: #1A515F;
+    color: #fff;
 }
 
-.btn-logout {
-    background: rgba(229,62,62,0.7);
-    border-color: rgba(229,62,62,0.9);
+.btn-logout-small {
+    background: none;
+    border: 1px solid #e53e3e;
+    color: #e53e3e;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
 }
 
-.btn-logout:hover {
-    background: rgba(229,62,62,0.9);
+.btn-logout-small:hover {
+    background-color: #e53e3e;
+    color: #fff;
 }
 
 .container {
@@ -359,18 +361,13 @@ body {
 
 /* ========== Settings Button ========== */
 #settings-btn {
-    display: inline-block;
-    margin-right: 10px;
     background-color: #1A515F;
     color: #fff;
     border: none;
-    padding: 8px 20px;
+    padding: 6px 14px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 15px;
-    position: absolute;
-    top: 50px;
-    right: 20px;
+    font-size: 13px;
 }
 
 #settings-btn:hover {

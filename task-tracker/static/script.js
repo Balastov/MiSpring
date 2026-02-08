@@ -124,8 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const formRoleName = document.getElementById('form-role-name');
     const roleSubmitBtn = document.getElementById('role-submit-btn');
 
-    // User bar elements
-    const userBar = document.getElementById('user-bar');
+    // Top right bar elements
+    const topRightBar = document.getElementById('top-right-bar');
     const userDisplayName = document.getElementById('user-display-name');
     const changePasswordBtn = document.getElementById('change-password-btn');
     const logoutBtn = document.getElementById('logout-btn');
@@ -185,15 +185,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyRBAC() {
         if (!currentUserData) return;
 
-        // User bar
+        // Top right bar
         userDisplayName.textContent = currentUserData.display_name;
+        topRightBar.classList.add('visible');
+
         // Show change password only for local users
         if (currentUserData.auth_source === 'local') {
             changePasswordBtn.style.display = '';
         } else {
             changePasswordBtn.style.display = 'none';
         }
-        userBar.style.display = '';
 
         // Settings button: only admin/owner
         if (hasRole('admin', 'owner')) {
@@ -208,9 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             allTasksBtn.style.display = 'none';
         }
-
-        // "Пользователи" button in settings: controlled by API access (admin/owner only)
-        // The settings modal button is always shown, but the API will reject non-admin/owner
     }
 
     fetch('/api/auth/me')
