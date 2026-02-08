@@ -11,7 +11,7 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    background: #7c3aed;
+    background: #1A515F;
     color: #fff;
     padding: 8px 20px;
     z-index: 900;
@@ -60,7 +60,7 @@ body {
 #add-task-btn {
     display: inline-block;
     margin-right: 10px;
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
     border: none;
     padding: 8px 20px;
@@ -70,14 +70,14 @@ body {
 }
 
 #add-task-btn:hover {
-    background-color: #6d28d9;
+    background-color: #14404C;
 }
 
 /* "Все задачи" toggle button */
 #all-tasks-btn {
     display: inline-block;
     margin-top: 16px;
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
     border: none;
     padding: 8px 20px;
@@ -87,7 +87,7 @@ body {
 }
 
 #all-tasks-btn:hover {
-    background-color: #6d28d9;
+    background-color: #14404C;
 }
 
 /* Task list section */
@@ -192,14 +192,14 @@ body {
 }
 
 .btn-page:hover {
-    border-color: #7c3aed;
-    color: #7c3aed;
+    border-color: #1A515F;
+    color: #1A515F;
 }
 
 .btn-page.active {
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
-    border-color: #7c3aed;
+    border-color: #1A515F;
 }
 
 /* Delete button in table */
@@ -330,7 +330,7 @@ body {
 }
 
 .btn-primary {
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
     border: none;
     padding: 10px 20px;
@@ -340,7 +340,7 @@ body {
 }
 
 .btn-primary:hover {
-    background-color: #6d28d9;
+    background-color: #14404C;
 }
 
 .btn-secondary {
@@ -361,7 +361,7 @@ body {
 #settings-btn {
     display: inline-block;
     margin-right: 10px;
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
     border: none;
     padding: 8px 20px;
@@ -374,7 +374,7 @@ body {
 }
 
 #settings-btn:hover {
-    background-color: #6d28d9;
+    background-color: #14404C;
 }
 
 /* ========== Settings Modal ========== */
@@ -390,7 +390,7 @@ body {
 }
 
 .settings-option-btn {
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
     border: none;
     padding: 12px 20px;
@@ -401,7 +401,7 @@ body {
 }
 
 .settings-option-btn:hover {
-    background-color: #6d28d9;
+    background-color: #14404C;
 }
 
 /* ========== Placeholder Modal ========== */
@@ -431,7 +431,7 @@ body {
     align-items: center;
     margin-bottom: 24px;
     padding-bottom: 16px;
-    border-bottom: 2px solid #7c3aed;
+    border-bottom: 2px solid #1A515F;
 }
 
 .page-header h2 {
@@ -447,8 +447,8 @@ body {
 /* ========== Edit Button ========== */
 .btn-edit {
     background: none;
-    border: 1px solid #7c3aed;
-    color: #7c3aed;
+    border: 1px solid #1A515F;
+    color: #1A515F;
     padding: 4px 10px;
     border-radius: 3px;
     cursor: pointer;
@@ -456,7 +456,7 @@ body {
 }
 
 .btn-edit:hover {
-    background-color: #7c3aed;
+    background-color: #1A515F;
     color: #fff;
 }
 
@@ -474,7 +474,7 @@ body {
 
 .form-row select.form-select:focus {
     outline: none;
-    border-color: #7c3aed;
+    border-color: #1A515F;
 }
 
 /* ========== Empty Message ========== */
@@ -506,12 +506,12 @@ body {
 }
 
 .tab-btn:hover {
-    color: #7c3aed;
+    color: #1A515F;
 }
 
 .tab-btn.active {
-    color: #7c3aed;
-    border-bottom-color: #7c3aed;
+    color: #1A515F;
+    border-bottom-color: #1A515F;
     font-weight: 600;
 }
 
