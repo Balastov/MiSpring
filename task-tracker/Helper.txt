@@ -67,43 +67,17 @@ sudo journalctl -u task-tracker -f          # Логи приложения
 sudo tail -f /var/log/nginx/error.log      # Логи ошибок Nginx
 sudo certbot renew --dry-run               # Тест обновления SSL
 
-# 5. Обновление кода (пример deploy.sh)
+# 5. Обновление кода (деплой)
 cd ~/projects/MiSpring
-git pull origin main
+git stash drop
+git reset HEAD
+git checkout -- .
+mv task-tracker/tasks.db /tmp/tasks.db.bak
+rm -f "task-tracker/tasks.db~Stashed changes"
+git pull origin dev
+mv /tmp/tasks.db.bak task-tracker/tasks.db
 sudo systemctl restart task-tracker
 
-----------------------------------------------
-
-# Альтернативные обновления в обход db (странно работает, пока не надо)
-
-cd ~/projects/MiSpring
-
-# Option 1: Stash the database changes (preserves your data)
-git stash push task-tracker/tasks.db
-
-# Now pull the latest code
-git pull origin main
-
-# Restart the service
-sudo systemctl restart task-tracker
-
------------------------------------------------
-
-# !!!!
-Чтобы не затереть данные (актуальный вариант)
-cd ~/projects/MiSpring
-
-# 1. Stash the local database so git pull doesn't conflict
-git stash push task-tracker/tasks.db
-
-# 2. Pull the latest code
-git pull origin main
-
-# 3. Restore your database with the real data
-git stash pop
-
-# 4. Restart the service
-sudo systemctl restart task-tracker
 
 ----------------------------------------------
 
