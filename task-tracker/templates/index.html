@@ -142,6 +142,7 @@
                 <button class="settings-option-btn" data-option="statuses">Статусы</button>
                 <button class="settings-option-btn" data-option="clients">Клиенты</button>
                 <button class="settings-option-btn" data-option="task-types">Типы задач</button>
+                <button class="settings-option-btn" data-option="roles">Роли</button>
                 <button class="settings-option-btn" data-option="homework">Домашки</button>
             </div>
         </div>
@@ -348,6 +349,58 @@
                 <div class="form-actions">
                     <button type="submit" class="btn-primary" id="status-submit-btn">Подтвердить и создать</button>
                     <button type="button" class="btn-secondary" id="status-modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Roles Page (hidden by default) -->
+    <div id="roles-page" class="page hidden">
+        <div class="page-header">
+            <h2>Справочник ролей</h2>
+            <div class="page-actions">
+                <button id="add-role-btn" class="btn-primary">Добавить роль</button>
+                <button id="back-to-main-from-roles-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div id="roles-list-section">
+            <div id="roles-pagination-info" class="pagination-info"></div>
+            <div class="table-wrapper">
+                <table id="roles-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Наименование</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="roles-tbody"></tbody>
+                </table>
+            </div>
+            <div id="roles-pagination-controls" class="pagination-controls"></div>
+        </div>
+    </div>
+
+    <!-- Role Modal (for add/edit) -->
+    <div id="role-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="role-modal-title">Создание роли</h2>
+                <button class="modal-close" id="role-modal-close">&times;</button>
+            </div>
+            <form id="role-form" class="task-form">
+                <div class="form-row">
+                    <label>ID</label>
+                    <input type="text" id="form-role-id-display" value="Авто" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Наименование*</label>
+                    <input type="text" id="form-role-name" maxlength="100" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="role-submit-btn">Подтвердить и создать</button>
+                    <button type="button" class="btn-secondary" id="role-modal-cancel">Отмена</button>
                 </div>
             </form>
         </div>

@@ -103,6 +103,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const formStatusGroup = document.getElementById('form-status-group');
     const statusSubmitBtn = document.getElementById('status-submit-btn');
 
+    // Roles page elements
+    const rolesPage = document.getElementById('roles-page');
+    const backToMainFromRolesBtn = document.getElementById('back-to-main-from-roles-btn');
+    const addRoleBtn = document.getElementById('add-role-btn');
+    const rolesTbody = document.getElementById('roles-tbody');
+    const rolesPaginationInfo = document.getElementById('roles-pagination-info');
+    const rolesPaginationControls = document.getElementById('roles-pagination-controls');
+
+    // Role modal elements
+    const roleModal = document.getElementById('role-modal');
+    const roleModalTitle = document.getElementById('role-modal-title');
+    const roleModalClose = document.getElementById('role-modal-close');
+    const roleModalCancel = document.getElementById('role-modal-cancel');
+    const roleForm = document.getElementById('role-form');
+    const formRoleIdDisplay = document.getElementById('form-role-id-display');
+    const formRoleName = document.getElementById('form-role-name');
+    const roleSubmitBtn = document.getElementById('role-submit-btn');
+
     let currentPage = 1;
     let isListVisible = false;
     let currentClientsPage = 1;
@@ -114,6 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingStatusId = null;
     let currentTaskTypesPage = 1;
     let editingTaskTypeId = null;
+    let currentRolesPage = 1;
+    let editingRoleId = null;
 
     // Duration display helper
     function formatDuration(minutes) {
@@ -559,6 +579,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showStatusesPage();
             } else if (option === 'task-types') {
                 showTaskTypesPage();
+            } else if (option === 'roles') {
+                showRolesPage();
             } else if (option === 'homework') {
                 showPlaceholder('Домашки');
             }
@@ -1126,6 +1148,159 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = deleteBtn.dataset.id;
             fetch(`/api/task-types/${id}`, { method: 'DELETE' })
                 .then(() => fetchTaskTypes(currentTaskTypesPage));
+        }
+    });
+
+    // ========== Roles Page Logic ==========
+
+    function showRolesPage() {
+        document.querySelector('.container').classList.add('hidden');
+        rolesPage.classList.remove('hidden');
+        currentRolesPage = 1;
+        fetchRoles();
+    }
+
+    backToMainFromRolesBtn.addEventListener('click', () => {
+        rolesPage.classList.add('hidden');
+        document.querySelector('.container').classList.remove('hidden');
+    });
+
+    function fetchRoles(page) {
+        if (page !== undefined) currentRolesPage = page;
+        fetch(`/api/roles?page=${currentRolesPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderRoles(data.roles);
+                renderRolesPagination(data);
+            });
+    }
+
+    function renderRoles(roles) {
+        rolesTbody.innerHTML = '';
+        if (roles.length === 0) {
+            rolesTbody.innerHTML = '<tr><td colspan="4" class="empty-msg">Ролей нет</td></tr>';
+            return;
+        }
+        roles.forEach(role => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${role.id}</td>
+                <td>${escapeHtml(role.name)}</td>
+                <td><button class="btn-edit" data-id="${role.id}">Изменить</button></td>
+                <td><button class="btn-delete" data-id="${role.id}">Удалить</button></td>
+            `;
+            rolesTbody.appendChild(tr);
+        });
+    }
+
+    function renderRolesPagination(data) {
+        rolesPaginationControls.innerHTML = '';
+        if (data.total === 0) {
+            rolesPaginationInfo.textContent = '';
+            return;
+        }
+        rolesPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} ролей)`;
+        if (data.current_page > 1) {
+            addRolePageBtn('← Пред', data.current_page - 1);
+        }
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) {
+            addRolePageBtn(String(i), i, i === data.current_page);
+        }
+        if (data.current_page < data.pages) {
+            addRolePageBtn('След →', data.current_page + 1);
+        }
+    }
+
+    function addRolePageBtn(label, page, isActive = false) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-page' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => fetchRoles(page));
+        rolesPaginationControls.appendChild(btn);
+    }
+
+    // ========== Role Modal Logic ==========
+
+    addRoleBtn.addEventListener('click', () => {
+        fetch('/api/roles?page=1')
+            .then(r => r.json())
+            .then(data => {
+                editingRoleId = null;
+                roleModalTitle.textContent = 'Создание роли';
+                roleSubmitBtn.textContent = 'Подтвердить и создать';
+                formRoleIdDisplay.value = data.next_id;
+                formRoleName.value = '';
+                roleModal.classList.remove('hidden');
+            });
+    });
+
+    function closeRoleModal() {
+        roleModal.classList.add('hidden');
+        roleForm.reset();
+        editingRoleId = null;
+    }
+
+    roleModalClose.addEventListener('click', closeRoleModal);
+    roleModalCancel.addEventListener('click', closeRoleModal);
+    roleModal.addEventListener('click', (e) => {
+        if (e.target === roleModal) closeRoleModal();
+    });
+
+    roleForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = formRoleName.value.trim();
+        if (!name) {
+            alert('Наименование обязательно для заполнения');
+            return;
+        }
+
+        const method = editingRoleId ? 'PUT' : 'POST';
+        const url = editingRoleId ? `/api/roles/${editingRoleId}` : '/api/roles';
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        })
+        .then(r => {
+            if (r.ok) return r.json();
+            return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+        })
+        .then(() => {
+            closeRoleModal();
+            fetchRoles(currentRolesPage);
+        })
+        .catch(err => alert(err.message));
+    });
+
+    // Edit/delete roles (event delegation)
+    rolesTbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            fetch(`/api/roles?page=${currentRolesPage}`)
+                .then(r => r.json())
+                .then(data => {
+                    const role = data.roles.find(r => r.id === id);
+                    if (!role) { alert('Роль не найдена'); return; }
+                    editingRoleId = role.id;
+                    roleModalTitle.textContent = 'Изменение роли';
+                    roleSubmitBtn.textContent = 'Подтвердить изменения';
+                    formRoleIdDisplay.value = role.id;
+                    formRoleName.value = role.name;
+                    roleModal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить эту роль?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`/api/roles/${id}`, { method: 'DELETE' })
+                .then(() => fetchRoles(currentRolesPage));
         }
     });
 

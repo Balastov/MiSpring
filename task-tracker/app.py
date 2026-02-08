@@ -118,6 +118,17 @@ class TaskType(db.Model):
         }
 
 
+class Role(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+        }
+
+
 def parse_datetime(value):
     if not value:
         return None
@@ -538,6 +549,68 @@ def delete_task_type(type_id):
     return '', 204
 
 
+# ========== Role Endpoints ==========
+
+@app.route('/api/roles', methods=['GET'])
+def get_roles():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(Role).order_by(Role.id),
+        page=page, per_page=per_page, error_out=False
+    )
+    max_id_result = db.session.execute(db.select(db.func.max(Role.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+    return jsonify({
+        'roles': [r.to_dict() for r in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@app.route('/api/roles/all', methods=['GET'])
+def get_all_roles():
+    roles = db.session.execute(
+        db.select(Role).order_by(Role.name)
+    ).scalars().all()
+    return jsonify({'roles': [r.to_dict() for r in roles]})
+
+
+@app.route('/api/roles', methods=['POST'])
+def add_role():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name or len(name) > 100:
+        return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
+    role = Role(name=name)
+    db.session.add(role)
+    db.session.commit()
+    return jsonify(role.to_dict()), 201
+
+
+@app.route('/api/roles/<int:role_id>', methods=['PUT'])
+def update_role(role_id):
+    role = db.get_or_404(Role, role_id)
+    data = request.get_json()
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name or len(name) > 100:
+            return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
+        role.name = name
+    db.session.commit()
+    return jsonify(role.to_dict())
+
+
+@app.route('/api/roles/<int:role_id>', methods=['DELETE'])
+def delete_role(role_id):
+    role = db.get_or_404(Role, role_id)
+    db.session.delete(role)
+    db.session.commit()
+    return '', 204
+
+
 with app.app_context():
     db.create_all()
     # Add new columns to existing tables if they don't exist
@@ -560,6 +633,12 @@ with app.app_context():
     if TaskType.query.count() == 0:
         for name in ['Урок', 'Ошибка', 'Запрос на доработку']:
             db.session.add(TaskType(name=name))
+        db.session.commit()
+
+    # Seed roles if table is empty
+    if Role.query.count() == 0:
+        for name in ['admin', 'owner', 'teacher', 'student', 'guest']:
+            db.session.add(Role(name=name))
         db.session.commit()
 
 if __name__ == '__main__':
