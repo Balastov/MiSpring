@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ========== Auth State ==========
+    let currentUserData = null;
+
     // Main elements
     const addTaskBtn = document.getElementById('add-task-btn');
     const allTasksBtn = document.getElementById('all-tasks-btn');
@@ -121,6 +124,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const formRoleName = document.getElementById('form-role-name');
     const roleSubmitBtn = document.getElementById('role-submit-btn');
 
+    // User bar elements
+    const userBar = document.getElementById('user-bar');
+    const userDisplayName = document.getElementById('user-display-name');
+    const changePasswordBtn = document.getElementById('change-password-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    // Users page elements
+    const usersPage = document.getElementById('users-page');
+    const backToMainFromUsersBtn = document.getElementById('back-to-main-from-users-btn');
+    const addUserBtn = document.getElementById('add-user-btn');
+    const usersTbody = document.getElementById('users-tbody');
+    const usersPaginationInfo = document.getElementById('users-pagination-info');
+    const usersPaginationControls = document.getElementById('users-pagination-controls');
+
+    // User modal elements
+    const userModal = document.getElementById('user-modal');
+    const userModalTitle = document.getElementById('user-modal-title');
+    const userModalClose = document.getElementById('user-modal-close');
+    const userModalCancel = document.getElementById('user-modal-cancel');
+    const userForm = document.getElementById('user-form');
+    const formUserIdDisplay = document.getElementById('form-user-id-display');
+    const formUserUsername = document.getElementById('form-user-username');
+    const formUserDisplayName = document.getElementById('form-user-display-name');
+    const formUserPassword = document.getElementById('form-user-password');
+    const formUserPasswordRow = document.getElementById('form-user-password-row');
+    const formUserIsActive = document.getElementById('form-user-is-active');
+    const formUserRoles = document.getElementById('form-user-roles');
+    const userSubmitBtn = document.getElementById('user-submit-btn');
+
+    // Change password modal elements
+    const changePasswordModal = document.getElementById('change-password-modal');
+    const changePasswordModalClose = document.getElementById('change-password-modal-close');
+    const changePasswordModalCancel = document.getElementById('change-password-modal-cancel');
+    const changePasswordForm = document.getElementById('change-password-form');
+
     let currentPage = 1;
     let isListVisible = false;
     let currentClientsPage = 1;
@@ -134,6 +172,117 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingTaskTypeId = null;
     let currentRolesPage = 1;
     let editingRoleId = null;
+    let currentUsersPage = 1;
+    let editingUserId = null;
+
+    // ========== Auth: Fetch Current User ==========
+
+    function hasRole(...roleNames) {
+        if (!currentUserData || !currentUserData.roles) return false;
+        return roleNames.some(r => currentUserData.roles.includes(r));
+    }
+
+    function applyRBAC() {
+        if (!currentUserData) return;
+
+        // User bar
+        userDisplayName.textContent = currentUserData.display_name;
+        // Show change password only for local users
+        if (currentUserData.auth_source === 'local') {
+            changePasswordBtn.style.display = '';
+        } else {
+            changePasswordBtn.style.display = 'none';
+        }
+        userBar.style.display = '';
+
+        // Settings button: only admin/owner
+        if (hasRole('admin', 'owner')) {
+            settingsBtn.style.display = '';
+        } else {
+            settingsBtn.style.display = 'none';
+        }
+
+        // All tasks button: admin/owner/teacher/student (not guest)
+        if (hasRole('admin', 'owner', 'teacher', 'student')) {
+            allTasksBtn.style.display = '';
+        } else {
+            allTasksBtn.style.display = 'none';
+        }
+
+        // "Пользователи" button in settings: controlled by API access (admin/owner only)
+        // The settings modal button is always shown, but the API will reject non-admin/owner
+    }
+
+    fetch('/api/auth/me')
+        .then(r => {
+            if (!r.ok) throw new Error('Not authenticated');
+            return r.json();
+        })
+        .then(user => {
+            currentUserData = user;
+            applyRBAC();
+        })
+        .catch(() => {
+            window.location.href = '/login';
+        });
+
+    // ========== User Bar Logic ==========
+
+    logoutBtn.addEventListener('click', () => {
+        fetch('/api/auth/logout', { method: 'POST' })
+            .then(() => {
+                window.location.href = '/login';
+            });
+    });
+
+    changePasswordBtn.addEventListener('click', () => {
+        changePasswordModal.classList.remove('hidden');
+        changePasswordForm.reset();
+    });
+
+    // ========== Change Password Modal ==========
+
+    function closeChangePasswordModal() {
+        changePasswordModal.classList.add('hidden');
+        changePasswordForm.reset();
+    }
+
+    changePasswordModalClose.addEventListener('click', closeChangePasswordModal);
+    changePasswordModalCancel.addEventListener('click', closeChangePasswordModal);
+    changePasswordModal.addEventListener('click', (e) => {
+        if (e.target === changePasswordModal) closeChangePasswordModal();
+    });
+
+    changePasswordForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const oldPassword = document.getElementById('form-old-password').value;
+        const newPassword = document.getElementById('form-new-password').value;
+        const confirmPassword = document.getElementById('form-confirm-password').value;
+
+        if (newPassword !== confirmPassword) {
+            alert('Пароли не совпадают');
+            return;
+        }
+        if (newPassword.length < 6) {
+            alert('Минимум 6 символов');
+            return;
+        }
+
+        fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+        })
+        .then(r => {
+            if (r.ok) return r.json();
+            return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+        })
+        .then(() => {
+            alert('Пароль успешно изменён');
+            closeChangePasswordModal();
+        })
+        .catch(err => alert(err.message));
+    });
 
     // Duration display helper
     function formatDuration(minutes) {
@@ -198,8 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     .slice(0, 16);
                 formCreatedAt.value = localDateTime;
 
-                // Set default author
-                formAuthor.value = 'Система';
+                // Author from current user
+                formAuthor.value = currentUserData ? currentUserData.display_name : '';
 
                 // Clear other fields
                 if (formDescription) formDescription.value = '';
@@ -409,7 +558,6 @@ document.addEventListener('DOMContentLoaded', () => {
             start_date: formStartDate.value || null,
             end_date: formEndDate.value || null,
             duration: formDuration.value ? parseInt(formDuration.value) : null,
-            author: formAuthor.value.trim() || null,
             client_id: formClientId.value ? parseInt(formClientId.value) : null,
             is_paid: formIsPaid.checked,
             payment_date: formPaymentDate.value || null,
@@ -581,6 +729,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showTaskTypesPage();
             } else if (option === 'roles') {
                 showRolesPage();
+            } else if (option === 'users') {
+                showUsersPage();
             } else if (option === 'homework') {
                 showPlaceholder('Домашки');
             }
@@ -604,17 +754,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Page Navigation ==========
 
-    function showClientsPage() {
+    function hideAllPages() {
         document.querySelector('.container').classList.add('hidden');
+        clientsPage.classList.add('hidden');
+        statusesPage.classList.add('hidden');
+        taskTypesPage.classList.add('hidden');
+        rolesPage.classList.add('hidden');
+        usersPage.classList.add('hidden');
+    }
+
+    function showMainPage() {
+        hideAllPages();
+        document.querySelector('.container').classList.remove('hidden');
+    }
+
+    function showClientsPage() {
+        hideAllPages();
         clientsPage.classList.remove('hidden');
         currentClientsPage = 1;
         fetchClients();
     }
 
-    backToMainBtn.addEventListener('click', () => {
-        clientsPage.classList.add('hidden');
-        document.querySelector('.container').classList.remove('hidden');
-    });
+    backToMainBtn.addEventListener('click', showMainPage);
 
     // ========== Clients CRUD Logic ==========
 
@@ -820,17 +981,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== Statuses Page Logic ==========
 
     function showStatusesPage() {
-        document.querySelector('.container').classList.add('hidden');
+        hideAllPages();
         statusesPage.classList.remove('hidden');
         currentTaskStatusesPage = 1;
         currentClientStatusesPage = 1;
         fetchTaskStatuses();
     }
 
-    backToMainFromStatusesBtn.addEventListener('click', () => {
-        statusesPage.classList.add('hidden');
-        document.querySelector('.container').classList.remove('hidden');
-    });
+    backToMainFromStatusesBtn.addEventListener('click', showMainPage);
 
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1001,16 +1159,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== Task Types Page Logic ==========
 
     function showTaskTypesPage() {
-        document.querySelector('.container').classList.add('hidden');
+        hideAllPages();
         taskTypesPage.classList.remove('hidden');
         currentTaskTypesPage = 1;
         fetchTaskTypes();
     }
 
-    backToMainFromTaskTypesBtn.addEventListener('click', () => {
-        taskTypesPage.classList.add('hidden');
-        document.querySelector('.container').classList.remove('hidden');
-    });
+    backToMainFromTaskTypesBtn.addEventListener('click', showMainPage);
 
     function fetchTaskTypes(page) {
         if (page !== undefined) currentTaskTypesPage = page;
@@ -1154,16 +1309,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== Roles Page Logic ==========
 
     function showRolesPage() {
-        document.querySelector('.container').classList.add('hidden');
+        hideAllPages();
         rolesPage.classList.remove('hidden');
         currentRolesPage = 1;
         fetchRoles();
     }
 
-    backToMainFromRolesBtn.addEventListener('click', () => {
-        rolesPage.classList.add('hidden');
-        document.querySelector('.container').classList.remove('hidden');
-    });
+    backToMainFromRolesBtn.addEventListener('click', showMainPage);
 
     function fetchRoles(page) {
         if (page !== undefined) currentRolesPage = page;
@@ -1333,4 +1485,260 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(() => fetchFn(currentPageVal));
         }
     }
+
+    // ========== Users Page Logic ==========
+
+    function showUsersPage() {
+        hideAllPages();
+        usersPage.classList.remove('hidden');
+        currentUsersPage = 1;
+        fetchUsers();
+    }
+
+    backToMainFromUsersBtn.addEventListener('click', showMainPage);
+
+    function fetchUsers(page) {
+        if (page !== undefined) currentUsersPage = page;
+        fetch(`/api/users?page=${currentUsersPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderUsers(data.users);
+                renderUsersPagination(data);
+            });
+    }
+
+    function renderUsers(users) {
+        usersTbody.innerHTML = '';
+        if (users.length === 0) {
+            usersTbody.innerHTML = '<tr><td colspan="10" class="empty-msg">Пользователей нет</td></tr>';
+            return;
+        }
+
+        const sourceLabels = { local: 'Локальный', yandex: 'Яндекс', vk: 'ВКонтакте' };
+
+        users.forEach(user => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${user.id}</td>
+                <td>${escapeHtml(user.username)}</td>
+                <td>${escapeHtml(user.display_name)}</td>
+                <td>${escapeHtml(user.roles.join(', ') || '—')}</td>
+                <td>${escapeHtml(sourceLabels[user.auth_source] || user.auth_source)}</td>
+                <td class="cell-bool">${user.is_active ? '✓' : '✗'}</td>
+                <td>${user.created_at || '—'}</td>
+                <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
+                <td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>
+                <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
+            `;
+            usersTbody.appendChild(tr);
+        });
+    }
+
+    function renderUsersPagination(data) {
+        usersPaginationControls.innerHTML = '';
+        if (data.total === 0) {
+            usersPaginationInfo.textContent = '';
+            return;
+        }
+        usersPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} пользователей)`;
+        if (data.current_page > 1) {
+            addUserPageBtn('← Пред', data.current_page - 1);
+        }
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) {
+            addUserPageBtn(String(i), i, i === data.current_page);
+        }
+        if (data.current_page < data.pages) {
+            addUserPageBtn('След →', data.current_page + 1);
+        }
+    }
+
+    function addUserPageBtn(label, page, isActive = false) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-page' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => fetchUsers(page));
+        usersPaginationControls.appendChild(btn);
+    }
+
+    // ========== User Modal Logic ==========
+
+    addUserBtn.addEventListener('click', () => {
+        Promise.all([
+            fetch('/api/users?page=1').then(r => r.json()),
+            fetch('/api/roles/all').then(r => r.json())
+        ])
+            .then(([data, rolesData]) => {
+                editingUserId = null;
+                userModalTitle.textContent = 'Создание пользователя';
+                userSubmitBtn.textContent = 'Подтвердить и создать';
+                formUserIdDisplay.value = data.next_id;
+                formUserUsername.value = '';
+                formUserUsername.readOnly = false;
+                formUserDisplayName.value = '';
+                formUserPassword.value = '';
+                formUserPasswordRow.style.display = '';
+                formUserIsActive.checked = true;
+
+                // Render role checkboxes
+                renderRoleCheckboxes(rolesData.roles, []);
+
+                userModal.classList.remove('hidden');
+            });
+    });
+
+    function renderRoleCheckboxes(allRoles, selectedRoleNames) {
+        formUserRoles.innerHTML = '';
+        allRoles.forEach(role => {
+            const label = document.createElement('label');
+            label.className = 'checkbox-label';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = role.id;
+            cb.name = 'user-role';
+            if (selectedRoleNames.includes(role.name)) {
+                cb.checked = true;
+            }
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(' ' + role.name));
+            formUserRoles.appendChild(label);
+        });
+    }
+
+    function closeUserModal() {
+        userModal.classList.add('hidden');
+        userForm.reset();
+        editingUserId = null;
+    }
+
+    userModalClose.addEventListener('click', closeUserModal);
+    userModalCancel.addEventListener('click', closeUserModal);
+    userModal.addEventListener('click', (e) => {
+        if (e.target === userModal) closeUserModal();
+    });
+
+    userForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = formUserUsername.value.trim();
+        const displayName = formUserDisplayName.value.trim();
+        const password = formUserPassword.value;
+        const isActive = formUserIsActive.checked;
+
+        if (!username) { alert('Логин обязателен'); return; }
+        if (!displayName) { alert('Имя обязательно'); return; }
+
+        // Collect selected roles
+        const roleIds = [];
+        formUserRoles.querySelectorAll('input[name="user-role"]:checked').forEach(cb => {
+            roleIds.push(parseInt(cb.value));
+        });
+
+        const userData = {
+            display_name: displayName,
+            is_active: isActive,
+            role_ids: roleIds,
+        };
+
+        if (editingUserId) {
+            // Update
+            fetch(`/api/users/${editingUserId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            })
+            .then(r => {
+                if (r.ok) return r.json();
+                return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+            })
+            .then(() => {
+                closeUserModal();
+                fetchUsers(currentUsersPage);
+            })
+            .catch(err => alert(err.message));
+        } else {
+            // Create
+            if (!password || password.length < 6) {
+                alert('Пароль: минимум 6 символов');
+                return;
+            }
+            userData.username = username;
+            userData.password = password;
+
+            fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            })
+            .then(r => {
+                if (r.ok) return r.json();
+                return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+            })
+            .then(() => {
+                closeUserModal();
+                fetchUsers(currentUsersPage);
+            })
+            .catch(err => alert(err.message));
+        }
+    });
+
+    // Edit, delete, reset password for users (event delegation)
+    usersTbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+        const resetBtn = e.target.closest('.btn-reset-password');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            Promise.all([
+                fetch(`/api/users?page=${currentUsersPage}`).then(r => r.json()),
+                fetch('/api/roles/all').then(r => r.json())
+            ])
+                .then(([data, rolesData]) => {
+                    const user = data.users.find(u => u.id === id);
+                    if (!user) { alert('Пользователь не найден'); return; }
+                    editingUserId = user.id;
+                    userModalTitle.textContent = 'Изменение пользователя';
+                    userSubmitBtn.textContent = 'Подтвердить изменения';
+                    formUserIdDisplay.value = user.id;
+                    formUserUsername.value = user.username;
+                    formUserUsername.readOnly = true;
+                    formUserDisplayName.value = user.display_name;
+                    formUserPassword.value = '';
+                    formUserPasswordRow.style.display = 'none';
+                    formUserIsActive.checked = user.is_active;
+
+                    renderRoleCheckboxes(rolesData.roles, user.roles);
+
+                    userModal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить этого пользователя?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`/api/users/${id}`, { method: 'DELETE' })
+                .then(r => {
+                    if (r.ok) {
+                        fetchUsers(currentUsersPage);
+                    } else {
+                        return r.json().then(err => { alert(err.error || 'Ошибка'); });
+                    }
+                });
+        }
+
+        if (resetBtn) {
+            if (!confirm('Сбросить пароль этого пользователя?')) return;
+            const id = resetBtn.dataset.id;
+            fetch(`/api/users/${id}/reset-password`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.new_password) {
+                        alert(`Новый пароль: ${data.new_password}\n\nСообщите его пользователю.`);
+                    } else if (data.error) {
+                        alert(data.error);
+                    }
+                });
+        }
+    });
 });

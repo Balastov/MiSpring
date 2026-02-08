@@ -6,6 +6,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=cache_bust('style.css')) }}">
 </head>
 <body>
+    <!-- User Bar -->
+    <div id="user-bar" class="user-bar">
+        <span id="user-display-name"></span>
+        <button id="change-password-btn" class="btn-user-bar">Сменить пароль</button>
+        <button id="logout-btn" class="btn-user-bar btn-logout">Выйти</button>
+    </div>
+
     <div class="container">
         <h1>Мои задачи</h1>
         <button id="settings-btn">Настройки</button>
@@ -144,6 +151,7 @@
                 <button class="settings-option-btn" data-option="task-types">Типы задач</button>
                 <button class="settings-option-btn" data-option="roles">Роли</button>
                 <button class="settings-option-btn" data-option="homework">Домашки</button>
+                <button class="settings-option-btn" data-option="users">Пользователи</button>
             </div>
         </div>
     </div>
@@ -401,6 +409,108 @@
                 <div class="form-actions">
                     <button type="submit" class="btn-primary" id="role-submit-btn">Подтвердить и создать</button>
                     <button type="button" class="btn-secondary" id="role-modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Users Page (hidden by default) -->
+    <div id="users-page" class="page hidden">
+        <div class="page-header">
+            <h2>Справочник пользователей</h2>
+            <div class="page-actions">
+                <button id="add-user-btn" class="btn-primary">Добавить пользователя</button>
+                <button id="back-to-main-from-users-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div id="users-list-section">
+            <div id="users-pagination-info" class="pagination-info"></div>
+            <div class="table-wrapper">
+                <table id="users-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Логин</th>
+                            <th>Имя</th>
+                            <th>Роли</th>
+                            <th>Источник</th>
+                            <th>Активен</th>
+                            <th>Дата создания</th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+            <div id="users-pagination-controls" class="pagination-controls"></div>
+        </div>
+    </div>
+
+    <!-- User Modal (for add/edit) -->
+    <div id="user-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="user-modal-title">Создание пользователя</h2>
+                <button class="modal-close" id="user-modal-close">&times;</button>
+            </div>
+            <form id="user-form" class="task-form">
+                <div class="form-row">
+                    <label>ID</label>
+                    <input type="text" id="form-user-id-display" value="Авто" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Логин*</label>
+                    <input type="text" id="form-user-username" maxlength="80" required>
+                </div>
+                <div class="form-row">
+                    <label>Имя*</label>
+                    <input type="text" id="form-user-display-name" maxlength="100" required>
+                </div>
+                <div class="form-row" id="form-user-password-row">
+                    <label>Пароль*</label>
+                    <input type="text" id="form-user-password" maxlength="100">
+                </div>
+                <div class="form-row">
+                    <label>Активен</label>
+                    <input type="checkbox" id="form-user-is-active" checked>
+                </div>
+                <div class="form-row">
+                    <label>Роли</label>
+                    <div id="form-user-roles" class="checkbox-group"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="user-submit-btn">Подтвердить и создать</button>
+                    <button type="button" class="btn-secondary" id="user-modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-password-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Сменить пароль</h2>
+                <button class="modal-close" id="change-password-modal-close">&times;</button>
+            </div>
+            <form id="change-password-form" class="task-form">
+                <div class="form-row">
+                    <label>Текущий пароль</label>
+                    <input type="password" id="form-old-password" required>
+                </div>
+                <div class="form-row">
+                    <label>Новый пароль</label>
+                    <input type="password" id="form-new-password" required minlength="6">
+                </div>
+                <div class="form-row">
+                    <label>Подтвердите</label>
+                    <input type="password" id="form-confirm-password" required minlength="6">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Сменить пароль</button>
+                    <button type="button" class="btn-secondary" id="change-password-modal-cancel">Отмена</button>
                 </div>
             </form>
         </div>

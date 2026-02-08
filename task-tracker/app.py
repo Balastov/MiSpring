@@ -1,28 +1,112 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from functools import wraps
 import os
-import hashlib
-import os
+import secrets
+import requests as http_requests
+
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "tasks.db")}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 db = SQLAlchemy(app)
+
+# ========== Flask-Login Setup ==========
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login_page'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Требуется авторизация'}), 401
+    return redirect(url_for('login_page'))
+
 
 @app.context_processor
 def inject_cache_bust():
     def cache_bust(filename):
-        # Возвращаем только timestamp для использования с url_for
         static_path = os.path.join(app.static_folder, filename)
         if os.path.exists(static_path):
             mtime = os.path.getmtime(static_path)
             return int(mtime)
         return None
     return dict(cache_bust=cache_bust)
+
+
+# ========== Models ==========
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
+    display_name = db.Column(db.String(100), nullable=False)
+    yandex_id = db.Column(db.String(100), unique=True, nullable=True)
+    vk_id = db.Column(db.String(100), unique=True, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, password)
+
+    def get_roles(self):
+        user_roles = UserRole.query.filter_by(user_id=self.id).all()
+        role_ids = [ur.role_id for ur in user_roles]
+        if not role_ids:
+            return []
+        roles = Role.query.filter(Role.id.in_(role_ids)).all()
+        return [r.name for r in roles]
+
+    def get_auth_source(self):
+        if self.yandex_id:
+            return 'yandex'
+        if self.vk_id:
+            return 'vk'
+        return 'local'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'display_name': self.display_name,
+            'yandex_id': self.yandex_id,
+            'vk_id': self.vk_id,
+            'is_active': self.is_active,
+            'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+            'roles': self.get_roles(),
+            'auth_source': self.get_auth_source(),
+        }
+
+
+class UserRole(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'role_id'),)
+
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -31,6 +115,7 @@ class Task(db.Model):
     start_date = db.Column(db.DateTime, nullable=True)
     end_date = db.Column(db.DateTime, nullable=True)
     author = db.Column(db.String(100), nullable=True)
+    user_id = db.Column(db.Integer, nullable=True)
     client_id = db.Column(db.Integer, nullable=True)
     is_paid = db.Column(db.Boolean, default=False)
     payment_date = db.Column(db.DateTime, nullable=True)
@@ -52,6 +137,7 @@ class Task(db.Model):
             'end_date': self.end_date.strftime('%d.%m.%Y %H:%M') if self.end_date else None,
             'end_date_iso': self.end_date.strftime('%Y-%m-%dT%H:%M') if self.end_date else None,
             'author': self.author,
+            'user_id': self.user_id,
             'client_id': self.client_id,
             'is_paid': self.is_paid,
             'payment_date': self.payment_date.strftime('%d.%m.%Y %H:%M') if self.payment_date else None,
@@ -129,6 +215,8 @@ class Role(db.Model):
         }
 
 
+# ========== Helpers ==========
+
 def parse_datetime(value):
     if not value:
         return None
@@ -138,19 +226,264 @@ def parse_datetime(value):
         return None
 
 
+def user_has_role(*role_names):
+    if not current_user.is_authenticated:
+        return False
+    user_role_ids = [ur.role_id for ur in UserRole.query.filter_by(user_id=current_user.id).all()]
+    if not user_role_ids:
+        return False
+    allowed_roles = Role.query.filter(Role.name.in_(role_names)).all()
+    return any(r.id in user_role_ids for r in allowed_roles)
+
+
+def require_role(*role_names):
+    def decorator(f):
+        @wraps(f)
+        @login_required
+        def decorated_function(*args, **kwargs):
+            if not user_has_role(*role_names):
+                return jsonify({'error': 'Недостаточно прав'}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+# ========== Auth Routes ==========
+
+@app.route('/login')
+def login_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    data = request.get_json()
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+
+    if not username or not password:
+        return jsonify({'error': 'Введите логин и пароль'}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.check_password(password):
+        return jsonify({'error': 'Неверный логин или пароль'}), 401
+
+    if not user.is_active:
+        return jsonify({'error': 'Учётная запись деактивирована'}), 403
+
+    login_user(user, remember=True)
+    return jsonify(user.to_dict())
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+@login_required
+def auth_logout():
+    logout_user()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/auth/me', methods=['GET'])
+@login_required
+def auth_me():
+    return jsonify(current_user.to_dict())
+
+
+@app.route('/api/auth/change-password', methods=['POST'])
+@login_required
+def auth_change_password():
+    data = request.get_json()
+    old_password = data.get('old_password') or ''
+    new_password = data.get('new_password') or ''
+
+    if not old_password or not new_password:
+        return jsonify({'error': 'Заполните все поля'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'error': 'Минимум 6 символов'}), 400
+
+    if not current_user.check_password(old_password):
+        return jsonify({'error': 'Неверный текущий пароль'}), 400
+
+    current_user.set_password(new_password)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ========== OAuth: Yandex ==========
+
+@app.route('/auth/yandex')
+def auth_yandex():
+    client_id = os.environ.get('YANDEX_CLIENT_ID')
+    if not client_id:
+        return 'Yandex OAuth не настроен', 500
+    redirect_uri = url_for('auth_yandex_callback', _external=True)
+    return redirect(f'https://oauth.yandex.com/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}')
+
+
+@app.route('/auth/yandex/callback')
+def auth_yandex_callback():
+    code = request.args.get('code')
+    if not code:
+        return redirect(url_for('login_page'))
+
+    client_id = os.environ.get('YANDEX_CLIENT_ID')
+    client_secret = os.environ.get('YANDEX_CLIENT_SECRET')
+    redirect_uri = url_for('auth_yandex_callback', _external=True)
+
+    # Exchange code for token
+    token_resp = http_requests.post('https://oauth.yandex.com/token', data={
+        'grant_type': 'authorization_code',
+        'code': code,
+        'client_id': client_id,
+        'client_secret': client_secret,
+    })
+    if token_resp.status_code != 200:
+        return redirect(url_for('login_page'))
+
+    access_token = token_resp.json().get('access_token')
+
+    # Get user info
+    info_resp = http_requests.get('https://login.yandex.ru/info', headers={
+        'Authorization': f'OAuth {access_token}'
+    })
+    if info_resp.status_code != 200:
+        return redirect(url_for('login_page'))
+
+    profile = info_resp.json()
+    yandex_id = str(profile.get('id'))
+    display_name = profile.get('display_name') or profile.get('real_name') or 'Пользователь Яндекс'
+
+    # Find or create user
+    user = User.query.filter_by(yandex_id=yandex_id).first()
+    if not user:
+        # Generate unique username
+        base_username = f'yandex_{yandex_id}'
+        user = User(
+            username=base_username,
+            display_name=display_name,
+            yandex_id=yandex_id,
+        )
+        db.session.add(user)
+        db.session.commit()
+        # Assign default role: student
+        student_role = Role.query.filter_by(name='student').first()
+        if student_role:
+            db.session.add(UserRole(user_id=user.id, role_id=student_role.id))
+            db.session.commit()
+
+    if not user.is_active:
+        return redirect(url_for('login_page'))
+
+    login_user(user, remember=True)
+    return redirect(url_for('index'))
+
+
+# ========== OAuth: VK ==========
+
+@app.route('/auth/vk')
+def auth_vk():
+    client_id = os.environ.get('VK_CLIENT_ID')
+    if not client_id:
+        return 'VK OAuth не настроен', 500
+    redirect_uri = url_for('auth_vk_callback', _external=True)
+    return redirect(f'https://oauth.vk.com/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&v=5.131')
+
+
+@app.route('/auth/vk/callback')
+def auth_vk_callback():
+    code = request.args.get('code')
+    if not code:
+        return redirect(url_for('login_page'))
+
+    client_id = os.environ.get('VK_CLIENT_ID')
+    client_secret = os.environ.get('VK_CLIENT_SECRET')
+    redirect_uri = url_for('auth_vk_callback', _external=True)
+
+    # Exchange code for token (VK returns user info with token)
+    token_resp = http_requests.get('https://oauth.vk.com/access_token', params={
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': redirect_uri,
+        'code': code,
+    })
+    if token_resp.status_code != 200:
+        return redirect(url_for('login_page'))
+
+    token_data = token_resp.json()
+    if 'error' in token_data:
+        return redirect(url_for('login_page'))
+
+    vk_user_id = str(token_data.get('user_id'))
+    access_token = token_data.get('access_token')
+
+    # Get user profile for display name
+    display_name = f'VK User {vk_user_id}'
+    try:
+        profile_resp = http_requests.get('https://api.vk.com/method/users.get', params={
+            'access_token': access_token,
+            'v': '5.131',
+        })
+        if profile_resp.status_code == 200:
+            users = profile_resp.json().get('response', [])
+            if users:
+                first_name = users[0].get('first_name', '')
+                last_name = users[0].get('last_name', '')
+                display_name = f'{first_name} {last_name}'.strip() or display_name
+    except Exception:
+        pass
+
+    # Find or create user
+    user = User.query.filter_by(vk_id=vk_user_id).first()
+    if not user:
+        base_username = f'vk_{vk_user_id}'
+        user = User(
+            username=base_username,
+            display_name=display_name,
+            vk_id=vk_user_id,
+        )
+        db.session.add(user)
+        db.session.commit()
+        # Assign default role: student
+        student_role = Role.query.filter_by(name='student').first()
+        if student_role:
+            db.session.add(UserRole(user_id=user.id, role_id=student_role.id))
+            db.session.commit()
+
+    if not user.is_active:
+        return redirect(url_for('login_page'))
+
+    login_user(user, remember=True)
+    return redirect(url_for('index'))
+
+
+# ========== Task Endpoints ==========
+
 @app.route('/api/tasks', methods=['GET'])
+@login_required
 def get_tasks():
     page = request.args.get('page', 1, type=int)
     per_page = 50
-    paginator = db.paginate(
-        db.select(Task).order_by(Task.created_at.desc()),
-        page=page, per_page=per_page, error_out=False
-    )
+
+    query = db.select(Task).order_by(Task.created_at.desc())
+    # RBAC: non-admin/owner users see only their tasks; guest sees none
+    if not user_has_role('admin', 'owner'):
+        if user_has_role('teacher', 'student'):
+            query = query.where(Task.user_id == current_user.id)
+        else:
+            # guest: no tasks visible
+            return jsonify({
+                'tasks': [], 'total': 0, 'pages': 0, 'current_page': 1, 'next_id': 1,
+            })
+
+    paginator = db.paginate(query, page=page, per_page=per_page, error_out=False)
 
     # Calculate next task ID
     max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
@@ -188,6 +521,7 @@ def get_tasks():
 
 
 @app.route('/api/tasks', methods=['POST'])
+@login_required
 def add_task():
     data = request.get_json()
     description = (data.get('description') or '').strip()
@@ -202,7 +536,8 @@ def add_task():
         description=description,
         start_date=parse_datetime(data.get('start_date')),
         end_date=parse_datetime(data.get('end_date')),
-        author=data.get('author'),
+        author=current_user.display_name,
+        user_id=current_user.id,
         client_id=data.get('client_id'),
         is_paid=bool(data.get('is_paid', False)),
         payment_date=parse_datetime(data.get('payment_date')),
@@ -219,8 +554,14 @@ def add_task():
 
 
 @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
+@login_required
 def update_task(task_id):
     task = db.get_or_404(Task, task_id)
+
+    # RBAC: non-admin/owner can only edit their own tasks
+    if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
     data = request.get_json()
 
     if 'description' in data:
@@ -232,8 +573,6 @@ def update_task(task_id):
         task.start_date = parse_datetime(data['start_date'])
     if 'end_date' in data:
         task.end_date = parse_datetime(data['end_date'])
-    if 'author' in data:
-        task.author = data['author']
     if 'client_id' in data:
         task.client_id = data['client_id']
     if 'is_paid' in data:
@@ -261,14 +600,23 @@ def update_task(task_id):
 
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+@login_required
 def delete_task(task_id):
     task = db.get_or_404(Task, task_id)
+
+    # RBAC: non-admin/owner can only delete their own tasks
+    if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
     db.session.delete(task)
     db.session.commit()
     return '', 204
 
 
+# ========== Client Endpoints ==========
+
 @app.route('/api/clients', methods=['GET'])
+@login_required
 def get_clients():
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -277,11 +625,9 @@ def get_clients():
         page=page, per_page=per_page, error_out=False
     )
 
-    # Calculate next client ID
     max_id_result = db.session.execute(db.select(db.func.max(Client.id))).scalar()
     next_id = (max_id_result or 0) + 1
 
-    # Batch lookup client status names
     status_ids = {c.status_id for c in paginator.items if c.status_id}
     status_map = {}
     if status_ids:
@@ -303,6 +649,7 @@ def get_clients():
 
 
 @app.route('/api/clients/all', methods=['GET'])
+@login_required
 def get_all_clients():
     clients = db.session.execute(
         db.select(Client).order_by(Client.name)
@@ -313,6 +660,7 @@ def get_all_clients():
 
 
 @app.route('/api/clients', methods=['POST'])
+@require_role('admin', 'owner')
 def add_client():
     data = request.get_json()
     name = (data.get('name') or '').strip()
@@ -329,6 +677,7 @@ def add_client():
 
 
 @app.route('/api/clients/<int:client_id>', methods=['PUT'])
+@require_role('admin', 'owner')
 def update_client(client_id):
     client = db.get_or_404(Client, client_id)
     data = request.get_json()
@@ -346,6 +695,7 @@ def update_client(client_id):
 
 
 @app.route('/api/clients/<int:client_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
 def delete_client(client_id):
     client = db.get_or_404(Client, client_id)
     db.session.delete(client)
@@ -356,6 +706,7 @@ def delete_client(client_id):
 # ========== Task Status Endpoints ==========
 
 @app.route('/api/task-statuses', methods=['GET'])
+@login_required
 def get_task_statuses():
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -375,6 +726,7 @@ def get_task_statuses():
 
 
 @app.route('/api/task-statuses/all', methods=['GET'])
+@login_required
 def get_all_task_statuses():
     statuses = db.session.execute(
         db.select(TaskStatus).order_by(TaskStatus.name)
@@ -383,6 +735,7 @@ def get_all_task_statuses():
 
 
 @app.route('/api/task-statuses', methods=['POST'])
+@require_role('admin', 'owner')
 def add_task_status():
     data = request.get_json()
     name = (data.get('name') or '').strip()
@@ -398,6 +751,7 @@ def add_task_status():
 
 
 @app.route('/api/task-statuses/<int:status_id>', methods=['PUT'])
+@require_role('admin', 'owner')
 def update_task_status(status_id):
     status = db.get_or_404(TaskStatus, status_id)
     data = request.get_json()
@@ -413,6 +767,7 @@ def update_task_status(status_id):
 
 
 @app.route('/api/task-statuses/<int:status_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
 def delete_task_status(status_id):
     status = db.get_or_404(TaskStatus, status_id)
     db.session.delete(status)
@@ -423,6 +778,7 @@ def delete_task_status(status_id):
 # ========== Client Status Endpoints ==========
 
 @app.route('/api/client-statuses', methods=['GET'])
+@login_required
 def get_client_statuses():
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -442,6 +798,7 @@ def get_client_statuses():
 
 
 @app.route('/api/client-statuses/all', methods=['GET'])
+@login_required
 def get_all_client_statuses():
     statuses = db.session.execute(
         db.select(ClientStatus).order_by(ClientStatus.name)
@@ -450,6 +807,7 @@ def get_all_client_statuses():
 
 
 @app.route('/api/client-statuses', methods=['POST'])
+@require_role('admin', 'owner')
 def add_client_status():
     data = request.get_json()
     name = (data.get('name') or '').strip()
@@ -465,6 +823,7 @@ def add_client_status():
 
 
 @app.route('/api/client-statuses/<int:status_id>', methods=['PUT'])
+@require_role('admin', 'owner')
 def update_client_status(status_id):
     status = db.get_or_404(ClientStatus, status_id)
     data = request.get_json()
@@ -480,6 +839,7 @@ def update_client_status(status_id):
 
 
 @app.route('/api/client-statuses/<int:status_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
 def delete_client_status(status_id):
     status = db.get_or_404(ClientStatus, status_id)
     db.session.delete(status)
@@ -490,6 +850,7 @@ def delete_client_status(status_id):
 # ========== Task Type Endpoints ==========
 
 @app.route('/api/task-types', methods=['GET'])
+@login_required
 def get_task_types():
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -509,6 +870,7 @@ def get_task_types():
 
 
 @app.route('/api/task-types/all', methods=['GET'])
+@login_required
 def get_all_task_types():
     task_types = db.session.execute(
         db.select(TaskType).order_by(TaskType.name)
@@ -517,6 +879,7 @@ def get_all_task_types():
 
 
 @app.route('/api/task-types', methods=['POST'])
+@require_role('admin', 'owner')
 def add_task_type():
     data = request.get_json()
     name = (data.get('name') or '').strip()
@@ -529,6 +892,7 @@ def add_task_type():
 
 
 @app.route('/api/task-types/<int:type_id>', methods=['PUT'])
+@require_role('admin', 'owner')
 def update_task_type(type_id):
     task_type = db.get_or_404(TaskType, type_id)
     data = request.get_json()
@@ -542,6 +906,7 @@ def update_task_type(type_id):
 
 
 @app.route('/api/task-types/<int:type_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
 def delete_task_type(type_id):
     task_type = db.get_or_404(TaskType, type_id)
     db.session.delete(task_type)
@@ -552,6 +917,7 @@ def delete_task_type(type_id):
 # ========== Role Endpoints ==========
 
 @app.route('/api/roles', methods=['GET'])
+@login_required
 def get_roles():
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -571,6 +937,7 @@ def get_roles():
 
 
 @app.route('/api/roles/all', methods=['GET'])
+@login_required
 def get_all_roles():
     roles = db.session.execute(
         db.select(Role).order_by(Role.name)
@@ -579,6 +946,7 @@ def get_all_roles():
 
 
 @app.route('/api/roles', methods=['POST'])
+@require_role('admin', 'owner')
 def add_role():
     data = request.get_json()
     name = (data.get('name') or '').strip()
@@ -591,6 +959,7 @@ def add_role():
 
 
 @app.route('/api/roles/<int:role_id>', methods=['PUT'])
+@require_role('admin', 'owner')
 def update_role(role_id):
     role = db.get_or_404(Role, role_id)
     data = request.get_json()
@@ -604,12 +973,125 @@ def update_role(role_id):
 
 
 @app.route('/api/roles/<int:role_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
 def delete_role(role_id):
     role = db.get_or_404(Role, role_id)
     db.session.delete(role)
     db.session.commit()
     return '', 204
 
+
+# ========== User Management Endpoints ==========
+
+@app.route('/api/users', methods=['GET'])
+@require_role('admin', 'owner')
+def get_users():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(User).order_by(User.id),
+        page=page, per_page=per_page, error_out=False
+    )
+    max_id_result = db.session.execute(db.select(db.func.max(User.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+    return jsonify({
+        'users': [u.to_dict() for u in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@app.route('/api/users', methods=['POST'])
+@require_role('admin', 'owner')
+def add_user():
+    data = request.get_json()
+    username = (data.get('username') or '').strip()
+    if not username or len(username) > 80:
+        return jsonify({'error': 'Логин: от 1 до 80 символов'}), 400
+
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Пользователь с таким логином уже существует'}), 400
+
+    display_name = (data.get('display_name') or '').strip()
+    if not display_name or len(display_name) > 100:
+        return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+
+    password = data.get('password') or ''
+    if len(password) < 6:
+        return jsonify({'error': 'Пароль: минимум 6 символов'}), 400
+
+    user = User(
+        username=username,
+        display_name=display_name,
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    # Assign roles
+    role_ids = data.get('role_ids', [])
+    for role_id in role_ids:
+        if Role.query.get(role_id):
+            db.session.add(UserRole(user_id=user.id, role_id=role_id))
+    db.session.commit()
+
+    return jsonify(user.to_dict()), 201
+
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@require_role('admin', 'owner')
+def update_user(user_id):
+    user = db.get_or_404(User, user_id)
+    data = request.get_json()
+
+    if 'display_name' in data:
+        display_name = (data['display_name'] or '').strip()
+        if not display_name or len(display_name) > 100:
+            return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
+        user.display_name = display_name
+
+    if 'is_active' in data:
+        user.is_active = bool(data['is_active'])
+
+    if 'role_ids' in data:
+        # Replace all roles
+        UserRole.query.filter_by(user_id=user.id).delete()
+        for role_id in data['role_ids']:
+            if Role.query.get(role_id):
+                db.session.add(UserRole(user_id=user.id, role_id=role_id))
+
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
+def delete_user(user_id):
+    user = db.get_or_404(User, user_id)
+
+    # Prevent deleting yourself
+    if user.id == current_user.id:
+        return jsonify({'error': 'Нельзя удалить свою учётную запись'}), 400
+
+    UserRole.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    db.session.commit()
+    return '', 204
+
+
+@app.route('/api/users/<int:user_id>/reset-password', methods=['POST'])
+@require_role('admin', 'owner')
+def reset_user_password(user_id):
+    user = db.get_or_404(User, user_id)
+    new_password = secrets.token_urlsafe(8)
+    user.set_password(new_password)
+    db.session.commit()
+    return jsonify({'new_password': new_password})
+
+
+# ========== Database Initialization ==========
 
 with app.app_context():
     db.create_all()
@@ -626,6 +1108,8 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN task_type_id INTEGER')
     if 'duration' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN duration INTEGER')
+    if 'user_id' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN user_id INTEGER')
     conn.commit()
     conn.close()
 
@@ -640,6 +1124,20 @@ with app.app_context():
         for name in ['admin', 'owner', 'teacher', 'student', 'guest']:
             db.session.add(Role(name=name))
         db.session.commit()
+
+    # Seed admin user if no users exist
+    if User.query.count() == 0:
+        admin_user = User(
+            username='admin',
+            display_name='Администратор',
+        )
+        admin_user.set_password('admin123')
+        db.session.add(admin_user)
+        db.session.commit()
+        admin_role = Role.query.filter_by(name='admin').first()
+        if admin_role:
+            db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+            db.session.commit()
 
 if __name__ == '__main__':
     app.run(debug=True)
