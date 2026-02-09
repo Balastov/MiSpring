@@ -6,11 +6,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=cache_bust('style.css')) }}">
 </head>
 <body>
-    <div class="top-right-bar" id="top-right-bar">
+    <div class="top-bar" id="top-bar">
         <span id="user-display-name"></span>
-        <button id="settings-btn">Настройки</button>
-        <button id="change-password-btn" class="btn-change-password">Сменить пароль</button>
-        <button id="logout-btn" class="btn-logout-small">Выйти</button>
+        <button id="settings-btn" class="btn-topbar">Настройки</button>
+        <button id="change-password-btn" class="btn-topbar">Сменить пароль</button>
+        <button id="logout-btn" class="btn-topbar btn-topbar-logout">Выйти</button>
     </div>
 
     <div class="container">
