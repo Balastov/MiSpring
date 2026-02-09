@@ -9,15 +9,13 @@ body {
     display: none;
     position: fixed;
     top: 0;
-    left: 0;
     right: 0;
-    height: 36px;
-    background: #1A515F;
+    background: #246A78;
     color: #fff;
-    padding: 0 20px;
+    padding: 6px 20px;
+    border-radius: 0 0 0 8px;
     z-index: 900;
     align-items: center;
-    justify-content: flex-end;
     gap: 12px;
     font-size: 13px;
 }
@@ -358,20 +356,7 @@ body {
     background-color: #f5f5f5;
 }
 
-/* ========== Settings Button ========== */
-#settings-btn {
-    background-color: #1A515F;
-    color: #fff;
-    border: none;
-    padding: 6px 14px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-#settings-btn:hover {
-    background-color: #14404C;
-}
+/* Settings button inherits .btn-topbar styles from top bar */
 
 /* ========== Settings Modal ========== */
 .settings-modal-content {

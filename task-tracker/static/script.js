@@ -124,8 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const formRoleName = document.getElementById('form-role-name');
     const roleSubmitBtn = document.getElementById('role-submit-btn');
 
-    // Top right bar elements
-    const topRightBar = document.getElementById('top-right-bar');
+    // Top bar elements
+    const topBar = document.getElementById('top-bar');
     const userDisplayName = document.getElementById('user-display-name');
     const changePasswordBtn = document.getElementById('change-password-btn');
     const logoutBtn = document.getElementById('logout-btn');
@@ -185,9 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyRBAC() {
         if (!currentUserData) return;
 
-        // Top right bar
+        // Top bar
         userDisplayName.textContent = currentUserData.display_name;
-        topRightBar.classList.add('visible');
+        topBar.classList.add('visible');
 
         // Show change password only for local users
         if (currentUserData.auth_source === 'local') {
