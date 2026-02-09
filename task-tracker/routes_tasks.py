@@ -1,0 +1,169 @@
+from flask import Blueprint, request, jsonify
+from flask_login import login_required, current_user
+from extensions import db
+from models import Task, User, TaskStatus, TaskType, Role, UserRole
+from helpers import parse_datetime, user_has_role
+
+tasks_bp = Blueprint('tasks', __name__)
+
+
+@tasks_bp.route('/api/tasks', methods=['GET'])
+@login_required
+def get_tasks():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+
+    query = db.select(Task).order_by(Task.created_at.desc())
+    if not user_has_role('admin', 'owner'):
+        if user_has_role('teacher', 'student'):
+            query = query.where(Task.user_id == current_user.id)
+        else:
+            return jsonify({
+                'tasks': [], 'total': 0, 'pages': 0, 'current_page': 1, 'next_id': 1,
+            })
+
+    paginator = db.paginate(query, page=page, per_page=per_page, error_out=False)
+
+    max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+
+    status_ids = {t.status_id for t in paginator.items if t.status_id}
+    student_ids = {t.student_id for t in paginator.items if t.student_id}
+    type_ids = {t.task_type_id for t in paginator.items if t.task_type_id}
+    status_map = {}
+    student_map = {}
+    type_map = {}
+    if status_ids:
+        status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+    if student_ids:
+        student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
+    if type_ids:
+        type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
+
+    tasks = []
+    for t in paginator.items:
+        d = t.to_dict()
+        d['status_name'] = status_map.get(t.status_id)
+        d['student_name'] = student_map.get(t.student_id)
+        d['task_type_name'] = type_map.get(t.task_type_id)
+        tasks.append(d)
+
+    return jsonify({
+        'tasks': tasks,
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@tasks_bp.route('/api/tasks', methods=['POST'])
+@login_required
+def add_task():
+    data = request.get_json()
+    description = (data.get('description') or '').strip()
+    if len(description) > 100:
+        return jsonify({'error': 'Описание: не более 100 символов'}), 400
+
+    comment = (data.get('comment') or '').strip() or None
+    if comment and len(comment) > 500:
+        return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+
+    task = Task(
+        description=description,
+        start_date=parse_datetime(data.get('start_date')),
+        end_date=parse_datetime(data.get('end_date')),
+        author=current_user.display_name,
+        user_id=current_user.id,
+        student_id=data.get('student_id'),
+        is_paid=bool(data.get('is_paid', False)),
+        payment_date=parse_datetime(data.get('payment_date')),
+        homework_id=data.get('homework_id'),
+        status_id=data.get('status_id'),
+        task_type_id=data.get('task_type_id'),
+        duration=data.get('duration'),
+        comment=comment,
+        closing_date=parse_datetime(data.get('closing_date')),
+    )
+    db.session.add(task)
+    db.session.commit()
+    return jsonify(task.to_dict()), 201
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>', methods=['PUT'])
+@login_required
+def update_task(task_id):
+    task = db.get_or_404(Task, task_id)
+
+    if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    data = request.get_json()
+
+    if 'description' in data:
+        description = (data['description'] or '').strip()
+        if len(description) > 100:
+            return jsonify({'error': 'Описание: не более 100 символов'}), 400
+        task.description = description
+    if 'start_date' in data:
+        task.start_date = parse_datetime(data['start_date'])
+    if 'end_date' in data:
+        task.end_date = parse_datetime(data['end_date'])
+    if 'student_id' in data:
+        task.student_id = data['student_id']
+    if 'is_paid' in data:
+        task.is_paid = bool(data['is_paid'])
+    if 'payment_date' in data:
+        task.payment_date = parse_datetime(data['payment_date'])
+    if 'homework_id' in data:
+        task.homework_id = data['homework_id']
+    if 'status_id' in data:
+        task.status_id = data['status_id']
+    if 'task_type_id' in data:
+        task.task_type_id = data['task_type_id']
+    if 'duration' in data:
+        task.duration = data['duration']
+    if 'comment' in data:
+        comment = (data['comment'] or '').strip() or None
+        if comment and len(comment) > 500:
+            return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+        task.comment = comment
+    if 'closing_date' in data:
+        task.closing_date = parse_datetime(data['closing_date'])
+
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+@login_required
+def delete_task(task_id):
+    task = db.get_or_404(Task, task_id)
+
+    if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    db.session.delete(task)
+    db.session.commit()
+    return '', 204
+
+
+# ========== Students Endpoint ==========
+
+@tasks_bp.route('/api/students/all', methods=['GET'])
+@login_required
+def get_all_students():
+    """Return users with role 'student' for task form dropdown."""
+    student_role = Role.query.filter_by(name='student').first()
+    if not student_role:
+        return jsonify({'students': []})
+    student_user_ids = [ur.user_id for ur in UserRole.query.filter_by(role_id=student_role.id).all()]
+    if not student_user_ids:
+        return jsonify({'students': []})
+    students = User.query.filter(
+        User.id.in_(student_user_ids),
+        User.is_active == True
+    ).order_by(User.display_name).all()
+    return jsonify({
+        'students': [{'id': u.id, 'display_name': u.display_name} for u in students]
+    })
