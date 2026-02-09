@@ -116,7 +116,7 @@ class Task(db.Model):
     end_date = db.Column(db.DateTime, nullable=True)
     author = db.Column(db.String(100), nullable=True)
     user_id = db.Column(db.Integer, nullable=True)
-    client_id = db.Column(db.Integer, nullable=True)
+    student_id = db.Column(db.Integer, nullable=True)
     is_paid = db.Column(db.Boolean, default=False)
     payment_date = db.Column(db.DateTime, nullable=True)
     homework_id = db.Column(db.Integer, nullable=True)
@@ -138,7 +138,7 @@ class Task(db.Model):
             'end_date_iso': self.end_date.strftime('%Y-%m-%dT%H:%M') if self.end_date else None,
             'author': self.author,
             'user_id': self.user_id,
-            'client_id': self.client_id,
+            'student_id': self.student_id,
             'is_paid': self.is_paid,
             'payment_date': self.payment_date.strftime('%d.%m.%Y %H:%M') if self.payment_date else None,
             'payment_date_iso': self.payment_date.strftime('%Y-%m-%dT%H:%M') if self.payment_date else None,
@@ -152,35 +152,7 @@ class Task(db.Model):
         }
 
 
-class Client(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    status_id = db.Column(db.Integer, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'status_id': self.status_id,
-            'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
-        }
-
-
 class TaskStatus(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    group = db.Column(db.String(100), nullable=True)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'group': self.group,
-        }
-
-
-class ClientStatus(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     group = db.Column(db.String(100), nullable=True)
@@ -489,17 +461,17 @@ def get_tasks():
     max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
     next_id = (max_id_result or 0) + 1
 
-    # Batch lookup names for status_id, client_id, task_type_id
+    # Batch lookup names for status_id, student_id, task_type_id
     status_ids = {t.status_id for t in paginator.items if t.status_id}
-    client_ids = {t.client_id for t in paginator.items if t.client_id}
+    student_ids = {t.student_id for t in paginator.items if t.student_id}
     type_ids = {t.task_type_id for t in paginator.items if t.task_type_id}
     status_map = {}
-    client_map = {}
+    student_map = {}
     type_map = {}
     if status_ids:
         status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
-    if client_ids:
-        client_map = {c.id: c.name for c in Client.query.filter(Client.id.in_(client_ids)).all()}
+    if student_ids:
+        student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
     if type_ids:
         type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
 
@@ -507,7 +479,7 @@ def get_tasks():
     for t in paginator.items:
         d = t.to_dict()
         d['status_name'] = status_map.get(t.status_id)
-        d['client_name'] = client_map.get(t.client_id)
+        d['student_name'] = student_map.get(t.student_id)
         d['task_type_name'] = type_map.get(t.task_type_id)
         tasks.append(d)
 
@@ -538,7 +510,7 @@ def add_task():
         end_date=parse_datetime(data.get('end_date')),
         author=current_user.display_name,
         user_id=current_user.id,
-        client_id=data.get('client_id'),
+        student_id=data.get('student_id'),
         is_paid=bool(data.get('is_paid', False)),
         payment_date=parse_datetime(data.get('payment_date')),
         homework_id=data.get('homework_id'),
@@ -573,8 +545,8 @@ def update_task(task_id):
         task.start_date = parse_datetime(data['start_date'])
     if 'end_date' in data:
         task.end_date = parse_datetime(data['end_date'])
-    if 'client_id' in data:
-        task.client_id = data['client_id']
+    if 'student_id' in data:
+        task.student_id = data['student_id']
     if 'is_paid' in data:
         task.is_paid = bool(data['is_paid'])
     if 'payment_date' in data:
@@ -613,94 +585,25 @@ def delete_task(task_id):
     return '', 204
 
 
-# ========== Client Endpoints ==========
+# ========== Students Endpoint ==========
 
-@app.route('/api/clients', methods=['GET'])
+@app.route('/api/students/all', methods=['GET'])
 @login_required
-def get_clients():
-    page = request.args.get('page', 1, type=int)
-    per_page = 50
-    paginator = db.paginate(
-        db.select(Client).order_by(Client.created_at.desc()),
-        page=page, per_page=per_page, error_out=False
-    )
-
-    max_id_result = db.session.execute(db.select(db.func.max(Client.id))).scalar()
-    next_id = (max_id_result or 0) + 1
-
-    status_ids = {c.status_id for c in paginator.items if c.status_id}
-    status_map = {}
-    if status_ids:
-        status_map = {s.id: s.name for s in ClientStatus.query.filter(ClientStatus.id.in_(status_ids)).all()}
-
-    clients = []
-    for c in paginator.items:
-        d = c.to_dict()
-        d['status_name'] = status_map.get(c.status_id)
-        clients.append(d)
-
+def get_all_students():
+    """Return users with role 'student' for task form dropdown."""
+    student_role = Role.query.filter_by(name='student').first()
+    if not student_role:
+        return jsonify({'students': []})
+    student_user_ids = [ur.user_id for ur in UserRole.query.filter_by(role_id=student_role.id).all()]
+    if not student_user_ids:
+        return jsonify({'students': []})
+    students = User.query.filter(
+        User.id.in_(student_user_ids),
+        User.is_active == True
+    ).order_by(User.display_name).all()
     return jsonify({
-        'clients': clients,
-        'total': paginator.total,
-        'pages': paginator.pages,
-        'current_page': paginator.page,
-        'next_id': next_id,
+        'students': [{'id': u.id, 'display_name': u.display_name} for u in students]
     })
-
-
-@app.route('/api/clients/all', methods=['GET'])
-@login_required
-def get_all_clients():
-    clients = db.session.execute(
-        db.select(Client).order_by(Client.name)
-    ).scalars().all()
-    return jsonify({
-        'clients': [c.to_dict() for c in clients]
-    })
-
-
-@app.route('/api/clients', methods=['POST'])
-@require_role('admin', 'owner')
-def add_client():
-    data = request.get_json()
-    name = (data.get('name') or '').strip()
-    if not name or len(name) > 100:
-        return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
-
-    client = Client(
-        name=name,
-        status_id=data.get('status_id'),
-    )
-    db.session.add(client)
-    db.session.commit()
-    return jsonify(client.to_dict()), 201
-
-
-@app.route('/api/clients/<int:client_id>', methods=['PUT'])
-@require_role('admin', 'owner')
-def update_client(client_id):
-    client = db.get_or_404(Client, client_id)
-    data = request.get_json()
-
-    if 'name' in data:
-        name = (data['name'] or '').strip()
-        if not name or len(name) > 100:
-            return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
-        client.name = name
-    if 'status_id' in data:
-        client.status_id = data['status_id']
-
-    db.session.commit()
-    return jsonify(client.to_dict())
-
-
-@app.route('/api/clients/<int:client_id>', methods=['DELETE'])
-@require_role('admin', 'owner')
-def delete_client(client_id):
-    client = db.get_or_404(Client, client_id)
-    db.session.delete(client)
-    db.session.commit()
-    return '', 204
 
 
 # ========== Task Status Endpoints ==========
@@ -770,78 +673,6 @@ def update_task_status(status_id):
 @require_role('admin', 'owner')
 def delete_task_status(status_id):
     status = db.get_or_404(TaskStatus, status_id)
-    db.session.delete(status)
-    db.session.commit()
-    return '', 204
-
-
-# ========== Client Status Endpoints ==========
-
-@app.route('/api/client-statuses', methods=['GET'])
-@login_required
-def get_client_statuses():
-    page = request.args.get('page', 1, type=int)
-    per_page = 50
-    paginator = db.paginate(
-        db.select(ClientStatus).order_by(ClientStatus.id),
-        page=page, per_page=per_page, error_out=False
-    )
-    max_id_result = db.session.execute(db.select(db.func.max(ClientStatus.id))).scalar()
-    next_id = (max_id_result or 0) + 1
-    return jsonify({
-        'statuses': [s.to_dict() for s in paginator.items],
-        'total': paginator.total,
-        'pages': paginator.pages,
-        'current_page': paginator.page,
-        'next_id': next_id,
-    })
-
-
-@app.route('/api/client-statuses/all', methods=['GET'])
-@login_required
-def get_all_client_statuses():
-    statuses = db.session.execute(
-        db.select(ClientStatus).order_by(ClientStatus.name)
-    ).scalars().all()
-    return jsonify({'statuses': [s.to_dict() for s in statuses]})
-
-
-@app.route('/api/client-statuses', methods=['POST'])
-@require_role('admin', 'owner')
-def add_client_status():
-    data = request.get_json()
-    name = (data.get('name') or '').strip()
-    if not name or len(name) > 100:
-        return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
-    status = ClientStatus(
-        name=name,
-        group=(data.get('group') or '').strip() or None,
-    )
-    db.session.add(status)
-    db.session.commit()
-    return jsonify(status.to_dict()), 201
-
-
-@app.route('/api/client-statuses/<int:status_id>', methods=['PUT'])
-@require_role('admin', 'owner')
-def update_client_status(status_id):
-    status = db.get_or_404(ClientStatus, status_id)
-    data = request.get_json()
-    if 'name' in data:
-        name = (data['name'] or '').strip()
-        if not name or len(name) > 100:
-            return jsonify({'error': 'Имя: от 1 до 100 символов'}), 400
-        status.name = name
-    if 'group' in data:
-        status.group = (data['group'] or '').strip() or None
-    db.session.commit()
-    return jsonify(status.to_dict())
-
-
-@app.route('/api/client-statuses/<int:status_id>', methods=['DELETE'])
-@require_role('admin', 'owner')
-def delete_client_status(status_id):
-    status = db.get_or_404(ClientStatus, status_id)
     db.session.delete(status)
     db.session.commit()
     return '', 204
@@ -1110,6 +941,11 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN duration INTEGER')
     if 'user_id' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN user_id INTEGER')
+    # Rename client_id → student_id
+    if 'client_id' in existing_columns and 'student_id' not in existing_columns:
+        cursor.execute('ALTER TABLE task RENAME COLUMN client_id TO student_id')
+    elif 'student_id' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN student_id INTEGER')
     conn.commit()
     conn.close()
 
