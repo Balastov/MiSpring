@@ -131,6 +131,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const formUserRoles = document.getElementById('form-user-roles');
     const userSubmitBtn = document.getElementById('user-submit-btn');
 
+    // Filter elements
+    const filterStudentId = document.getElementById('filter-student-id');
+    const filterDateFrom = document.getElementById('filter-date-from');
+    const filterDateTo = document.getElementById('filter-date-to');
+    const filterTodayBtn = document.getElementById('filter-today-btn');
+    const filterIsPaid = document.getElementById('filter-is-paid');
+    const filterApplyBtn = document.getElementById('filter-apply-btn');
+    const filterResetBtn = document.getElementById('filter-reset-btn');
+
     // Change password modal elements
     const changePasswordModal = document.getElementById('change-password-modal');
     const changePasswordModalClose = document.getElementById('change-password-modal-close');
@@ -418,14 +427,66 @@ document.addEventListener('DOMContentLoaded', () => {
         allTasksBtn.textContent = isListVisible ? 'Все задачи ▲' : 'Все задачи ▼';
         if (isListVisible) {
             currentPage = 1;
+            loadFilterStudents();
             fetchTasks();
         }
+    });
+
+    // ========== Filters Logic ==========
+
+    function loadFilterStudents() {
+        fetch('/api/students/all')
+            .then(r => r.json())
+            .then(data => {
+                const currentVal = filterStudentId.value;
+                filterStudentId.innerHTML = '<option value="">Все</option>';
+                data.students.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.display_name;
+                    filterStudentId.appendChild(opt);
+                });
+                filterStudentId.value = currentVal;
+            });
+    }
+
+    function buildFilterParams() {
+        const params = new URLSearchParams();
+        params.set('page', currentPage);
+        if (filterStudentId.value) params.set('student_id', filterStudentId.value);
+        if (filterDateFrom.value) params.set('date_from', filterDateFrom.value);
+        if (filterDateTo.value) params.set('date_to', filterDateTo.value);
+        if (filterIsPaid.value) params.set('is_paid', filterIsPaid.value);
+        return params.toString();
+    }
+
+    filterTodayBtn.addEventListener('click', () => {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        filterDateFrom.value = `${y}-${m}-${d}T00:00`;
+        filterDateTo.value = `${y}-${m}-${d}T23:59`;
+    });
+
+    filterApplyBtn.addEventListener('click', () => {
+        currentPage = 1;
+        fetchTasks();
+    });
+
+    filterResetBtn.addEventListener('click', () => {
+        filterStudentId.value = '';
+        filterDateFrom.value = '';
+        filterDateTo.value = '';
+        filterIsPaid.value = '';
+        currentPage = 1;
+        fetchTasks();
     });
 
     // Fetch paginated tasks
     function fetchTasks(page) {
         if (page !== undefined) currentPage = page;
-        fetch(`/api/tasks?page=${currentPage}`)
+        fetch(`/api/tasks?${buildFilterParams()}`)
             .then(r => r.json())
             .then(data => {
                 renderTasks(data.tasks);

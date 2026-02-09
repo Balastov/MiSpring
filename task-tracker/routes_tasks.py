@@ -22,6 +22,29 @@ def get_tasks():
                 'tasks': [], 'total': 0, 'pages': 0, 'current_page': 1, 'next_id': 1,
             })
 
+    # Filters
+    student_id = request.args.get('student_id', type=int)
+    if student_id:
+        query = query.where(Task.student_id == student_id)
+
+    date_from = request.args.get('date_from')
+    if date_from:
+        dt_from = parse_datetime(date_from)
+        if dt_from:
+            query = query.where(Task.start_date >= dt_from)
+
+    date_to = request.args.get('date_to')
+    if date_to:
+        dt_to = parse_datetime(date_to)
+        if dt_to:
+            query = query.where(Task.start_date <= dt_to)
+
+    is_paid = request.args.get('is_paid')
+    if is_paid == '1':
+        query = query.where(Task.is_paid == True)
+    elif is_paid == '0':
+        query = query.where(Task.is_paid == False)
+
     paginator = db.paginate(query, page=page, per_page=per_page, error_out=False)
 
     max_id_result = db.session.execute(db.select(db.func.max(Task.id))).scalar()
