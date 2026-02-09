@@ -18,6 +18,37 @@
         <button id="add-task-btn">Добавить</button>
         <button id="all-tasks-btn">Все задачи ▼</button>
         <div id="task-list-section" class="hidden">
+            <div class="filters-bar" id="filters-bar">
+                <div class="filter-group">
+                    <label>Ученик</label>
+                    <select id="filter-student-id" class="filter-control">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Дата с</label>
+                    <input type="datetime-local" id="filter-date-from" class="filter-control">
+                </div>
+                <div class="filter-group">
+                    <label>Дата до</label>
+                    <input type="datetime-local" id="filter-date-to" class="filter-control">
+                </div>
+                <div class="filter-group">
+                    <button id="filter-today-btn" class="btn-filter-today">Сегодня</button>
+                </div>
+                <div class="filter-group">
+                    <label>Оплачено</label>
+                    <select id="filter-is-paid" class="filter-control">
+                        <option value="">Все</option>
+                        <option value="1">Да</option>
+                        <option value="0">Нет</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <button id="filter-apply-btn" class="btn-filter-apply">Применить</button>
+                    <button id="filter-reset-btn" class="btn-filter-reset">Сбросить</button>
+                </div>
+            </div>
             <div id="pagination-info" class="pagination-info"></div>
             <div class="table-wrapper">
                 <table id="tasks-table">
