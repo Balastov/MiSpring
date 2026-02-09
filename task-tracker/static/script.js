@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formStartDate = document.getElementById('form-start-date');
     const formEndDate = document.getElementById('form-end-date');
     const formAuthor = document.getElementById('form-author');
-    const formClientId = document.getElementById('form-client-id');
+    const formStudentId = document.getElementById('form-student-id');
     const formIsPaid = document.getElementById('form-is-paid');
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
@@ -60,25 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsModal = document.getElementById('settings-modal');
     const settingsModalClose = document.getElementById('settings-modal-close');
 
-    // Clients page elements
-    const clientsPage = document.getElementById('clients-page');
-    const backToMainBtn = document.getElementById('back-to-main-btn');
-    const addClientBtn = document.getElementById('add-client-btn');
-    const clientsTbody = document.getElementById('clients-tbody');
-    const clientsPaginationInfo = document.getElementById('clients-pagination-info');
-    const clientsPaginationControls = document.getElementById('clients-pagination-controls');
-
-    // Client modal elements
-    const clientModal = document.getElementById('client-modal');
-    const clientModalTitle = document.getElementById('client-modal-title');
-    const clientModalClose = document.getElementById('client-modal-close');
-    const clientModalCancel = document.getElementById('client-modal-cancel');
-    const clientForm = document.getElementById('client-form');
-    const formClientIdDisplay = document.getElementById('form-client-id-display');
-    const formClientName = document.getElementById('form-client-name');
-    const formClientStatusId = document.getElementById('form-client-status-id');
-    const clientSubmitBtn = document.getElementById('client-submit-btn');
-
     // Placeholder modal
     const placeholderModal = document.getElementById('placeholder-modal');
     const placeholderModalTitle = document.getElementById('placeholder-modal-title');
@@ -91,9 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskStatusesTbody = document.getElementById('task-statuses-tbody');
     const taskStatusesPaginationInfo = document.getElementById('task-statuses-pagination-info');
     const taskStatusesPaginationControls = document.getElementById('task-statuses-pagination-controls');
-    const clientStatusesTbody = document.getElementById('client-statuses-tbody');
-    const clientStatusesPaginationInfo = document.getElementById('client-statuses-pagination-info');
-    const clientStatusesPaginationControls = document.getElementById('client-statuses-pagination-controls');
 
     // Status modal elements
     const statusModal = document.getElementById('status-modal');
@@ -161,12 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentPage = 1;
     let isListVisible = false;
-    let currentClientsPage = 1;
     let editingTaskId = null;
-    let editingClientId = null;
     let currentTaskStatusesPage = 1;
-    let currentClientStatusesPage = 1;
-    let currentStatusType = 'task'; // 'task' or 'client'
     let editingStatusId = null;
     let currentTaskTypesPage = 1;
     let editingTaskTypeId = null;
@@ -354,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formDuration.value = '';
                 formDuration.disabled = true;
                 formEndDate.value = '';
-                formClientId.value = '';
+                formStudentId.value = '';
                 formStatusId.value = '';
                 formTaskTypeId.value = '';
                 formIsPaid.checked = false;
@@ -363,20 +337,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 formComment.value = '';
                 formClosingDate.value = '';
 
-                // Fetch and populate client, status, and task type dropdowns
+                // Fetch and populate student, status, and task type dropdowns
                 return Promise.all([
-                    fetch('/api/clients/all').then(r => r.json()),
+                    fetch('/api/students/all').then(r => r.json()),
                     fetch('/api/task-statuses/all').then(r => r.json()),
                     fetch('/api/task-types/all').then(r => r.json())
                 ]);
             })
-            .then(([clientData, statusData, typeData]) => {
-                formClientId.innerHTML = '<option value="">-- Выберите клиента --</option>';
-                clientData.clients.forEach(client => {
+            .then(([studentData, statusData, typeData]) => {
+                formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
+                studentData.students.forEach(student => {
                     const option = document.createElement('option');
-                    option.value = client.id;
-                    option.textContent = `${client.id} - ${client.name}`;
-                    formClientId.appendChild(option);
+                    option.value = student.id;
+                    option.textContent = student.display_name;
+                    formStudentId.appendChild(option);
                 });
 
                 formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
@@ -470,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${task.id}</td>
-                <td>${escapeHtml(task.client_name || '—')}</td>
+                <td>${escapeHtml(task.student_name || '—')}</td>
                 <td>${escapeHtml(task.task_type_name || '—')}</td>
                 <!-- <td class="col-desc" title="${escapeAttr(task.description)}">${escapeHtml(task.description)}</td> -->
                 <td>${task.created_at || '—'}</td>
@@ -530,8 +504,8 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         // Validate required fields
-        if (!formClientId.value) {
-            alert('Клиент обязателен для заполнения');
+        if (!formStudentId.value) {
+            alert('Ученик обязателен для заполнения');
             return;
         }
         if (!formTaskTypeId.value) {
@@ -556,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
             start_date: formStartDate.value || null,
             end_date: formEndDate.value || null,
             duration: formDuration.value ? parseInt(formDuration.value) : null,
-            client_id: formClientId.value ? parseInt(formClientId.value) : null,
+            student_id: formStudentId.value ? parseInt(formStudentId.value) : null,
             is_paid: formIsPaid.checked,
             payment_date: formPaymentDate.value || null,
             homework_id: formHomeworkId.value ? parseInt(formHomeworkId.value) : null,
@@ -615,11 +589,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = parseInt(editBtn.dataset.id);
             Promise.all([
                 fetch(`/api/tasks?page=${currentPage}`).then(r => r.json()),
-                fetch('/api/clients/all').then(r => r.json()),
+                fetch('/api/students/all').then(r => r.json()),
                 fetch('/api/task-statuses/all').then(r => r.json()),
                 fetch('/api/task-types/all').then(r => r.json())
             ])
-                .then(([data, clientData, statusData, typeData]) => {
+                .then(([data, studentData, statusData, typeData]) => {
                     const task = data.tasks.find(t => t.id === id);
                     if (!task) {
                         alert('Задача не найдена');
@@ -643,15 +617,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     formComment.value = task.comment || '';
                     formClosingDate.value = task.closing_date_iso || '';
 
-                    // Populate client dropdown
-                    formClientId.innerHTML = '<option value="">-- Выберите клиента --</option>';
-                    clientData.clients.forEach(client => {
+                    // Populate student dropdown
+                    formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
+                    studentData.students.forEach(student => {
                         const option = document.createElement('option');
-                        option.value = client.id;
-                        option.textContent = `${client.id} - ${client.name}`;
-                        formClientId.appendChild(option);
+                        option.value = student.id;
+                        option.textContent = student.display_name;
+                        formStudentId.appendChild(option);
                     });
-                    formClientId.value = task.client_id || '';
+                    formStudentId.value = task.student_id || '';
 
                     // Populate status dropdown
                     formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
@@ -719,9 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const option = e.target.dataset.option;
             settingsModal.classList.add('hidden');
 
-            if (option === 'clients') {
-                showClientsPage();
-            } else if (option === 'statuses') {
+            if (option === 'statuses') {
                 showStatusesPage();
             } else if (option === 'task-types') {
                 showTaskTypesPage();
@@ -754,7 +726,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function hideAllPages() {
         document.querySelector('.container').classList.add('hidden');
-        clientsPage.classList.add('hidden');
         statusesPage.classList.add('hidden');
         taskTypesPage.classList.add('hidden');
         rolesPage.classList.add('hidden');
@@ -766,247 +737,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.container').classList.remove('hidden');
     }
 
-    function showClientsPage() {
-        hideAllPages();
-        clientsPage.classList.remove('hidden');
-        currentClientsPage = 1;
-        fetchClients();
-    }
-
-    backToMainBtn.addEventListener('click', showMainPage);
-
-    // ========== Clients CRUD Logic ==========
-
-    // Fetch paginated clients
-    function fetchClients(page) {
-        if (page !== undefined) currentClientsPage = page;
-        fetch(`/api/clients?page=${currentClientsPage}`)
-            .then(r => r.json())
-            .then(data => {
-                renderClients(data.clients);
-                renderClientsPagination(data);
-            });
-    }
-
-    // Render clients table
-    function renderClients(clients) {
-        clientsTbody.innerHTML = '';
-        if (clients.length === 0) {
-            clientsTbody.innerHTML = '<tr><td colspan="6" class="empty-msg">Клиентов нет</td></tr>';
-            return;
-        }
-        clients.forEach(client => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${client.id}</td>
-                <td>${escapeHtml(client.name)}</td>
-                <td>${escapeHtml(client.status_name || '—')}</td>
-                <td>${client.created_at || '—'}</td>
-                <td><button class="btn-edit" data-id="${client.id}">Изменить</button></td>
-                <td><button class="btn-delete" data-id="${client.id}">Удалить</button></td>
-            `;
-            clientsTbody.appendChild(tr);
-        });
-    }
-
-    // Render pagination for clients
-    function renderClientsPagination(data) {
-        clientsPaginationControls.innerHTML = '';
-
-        if (data.total === 0) {
-            clientsPaginationInfo.textContent = '';
-            return;
-        }
-
-        clientsPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} клиентов)`;
-
-        if (data.current_page > 1) {
-            addClientPageBtn('← Пред', data.current_page - 1);
-        }
-
-        const start = Math.max(1, data.current_page - 2);
-        const end = Math.min(data.pages, data.current_page + 2);
-        for (let i = start; i <= end; i++) {
-            addClientPageBtn(String(i), i, i === data.current_page);
-        }
-
-        if (data.current_page < data.pages) {
-            addClientPageBtn('След →', data.current_page + 1);
-        }
-    }
-
-    function addClientPageBtn(label, page, isActive = false) {
-        const btn = document.createElement('button');
-        btn.className = 'btn-page' + (isActive ? ' active' : '');
-        btn.textContent = label;
-        btn.addEventListener('click', () => fetchClients(page));
-        clientsPaginationControls.appendChild(btn);
-    }
-
-    // ========== Client Modal Logic ==========
-
-    // Open client modal for adding
-    addClientBtn.addEventListener('click', () => {
-        Promise.all([
-            fetch('/api/clients?page=1').then(r => r.json()),
-            fetch('/api/client-statuses/all').then(r => r.json())
-        ])
-            .then(([data, statusData]) => {
-                editingClientId = null;
-                clientModalTitle.textContent = 'Создание клиента';
-                clientSubmitBtn.textContent = 'Подтвердить и создать';
-                formClientIdDisplay.value = data.next_id;
-                formClientName.value = '';
-
-                // Populate client status dropdown
-                formClientStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
-                statusData.statuses.forEach(status => {
-                    const option = document.createElement('option');
-                    option.value = status.id;
-                    option.textContent = status.name;
-                    formClientStatusId.appendChild(option);
-                });
-                formClientStatusId.value = '';
-
-                clientModal.classList.remove('hidden');
-            })
-            .catch(() => {
-                formClientIdDisplay.value = 'Авто';
-                clientModal.classList.remove('hidden');
-            });
-    });
-
-    // Close client modal
-    function closeClientModal() {
-        clientModal.classList.add('hidden');
-        clientForm.reset();
-        editingClientId = null;
-    }
-
-    clientModalClose.addEventListener('click', closeClientModal);
-    clientModalCancel.addEventListener('click', closeClientModal);
-
-    clientModal.addEventListener('click', (e) => {
-        if (e.target === clientModal) closeClientModal();
-    });
-
-    // Submit client form
-    clientForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-
-        const name = formClientName.value.trim();
-        if (!name) {
-            alert('Имя обязательно для заполнения');
-            return;
-        }
-
-        const clientData = {
-            name: name,
-            status_id: formClientStatusId.value ? parseInt(formClientStatusId.value) : null,
-        };
-
-        const method = editingClientId ? 'PUT' : 'POST';
-        const url = editingClientId ? `/api/clients/${editingClientId}` : '/api/clients';
-
-        fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(clientData)
-        })
-        .then(r => {
-            if (r.ok) {
-                return r.json();
-            } else {
-                return r.json().then(err => {
-                    throw new Error(err.error || 'Ошибка при сохранении клиента');
-                });
-            }
-        })
-        .then(() => {
-            closeClientModal();
-            fetchClients(currentClientsPage);
-        })
-        .catch(err => {
-            alert(err.message || 'Ошибка при сохранении клиента');
-        });
-    });
-
-    // Edit and delete client (event delegation)
-    clientsTbody.addEventListener('click', (e) => {
-        const editBtn = e.target.closest('.btn-edit');
-        const deleteBtn = e.target.closest('.btn-delete');
-
-        if (editBtn) {
-            const id = parseInt(editBtn.dataset.id);
-            Promise.all([
-                fetch(`/api/clients?page=${currentClientsPage}`).then(r => r.json()),
-                fetch('/api/client-statuses/all').then(r => r.json())
-            ])
-                .then(([data, statusData]) => {
-                    const client = data.clients.find(c => c.id === id);
-                    if (!client) {
-                        alert('Клиент не найден');
-                        return;
-                    }
-                    editingClientId = client.id;
-                    clientModalTitle.textContent = 'Изменение клиента';
-                    clientSubmitBtn.textContent = 'Подтвердить изменения';
-                    formClientIdDisplay.value = client.id;
-                    formClientName.value = client.name;
-
-                    // Populate client status dropdown
-                    formClientStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
-                    statusData.statuses.forEach(status => {
-                        const option = document.createElement('option');
-                        option.value = status.id;
-                        option.textContent = status.name;
-                        formClientStatusId.appendChild(option);
-                    });
-                    formClientStatusId.value = client.status_id || '';
-
-                    clientModal.classList.remove('hidden');
-                });
-        }
-
-        if (deleteBtn) {
-            if (!confirm('Удалить этого клиента?')) return;
-            const id = deleteBtn.dataset.id;
-            fetch(`/api/clients/${id}`, { method: 'DELETE' })
-                .then(() => fetchClients(currentClientsPage));
-        }
-    });
-
     // ========== Statuses Page Logic ==========
 
     function showStatusesPage() {
         hideAllPages();
         statusesPage.classList.remove('hidden');
         currentTaskStatusesPage = 1;
-        currentClientStatusesPage = 1;
         fetchTaskStatuses();
     }
 
     backToMainFromStatusesBtn.addEventListener('click', showMainPage);
-
-    // Tab switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-
-            const tab = e.target.dataset.tab;
-            document.getElementById('task-statuses-tab').classList.toggle('hidden', tab !== 'task-statuses');
-            document.getElementById('client-statuses-tab').classList.toggle('hidden', tab !== 'client-statuses');
-
-            if (tab === 'task-statuses') {
-                currentStatusType = 'task';
-                fetchTaskStatuses();
-            } else {
-                currentStatusType = 'client';
-                fetchClientStatuses();
-            }
-        });
-    });
 
     // Fetch task statuses
     function fetchTaskStatuses(page) {
@@ -1019,18 +759,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // Fetch client statuses
-    function fetchClientStatuses(page) {
-        if (page !== undefined) currentClientStatusesPage = page;
-        fetch(`/api/client-statuses?page=${currentClientStatusesPage}`)
-            .then(r => r.json())
-            .then(data => {
-                renderStatuses(data.statuses, clientStatusesTbody);
-                renderStatusesPagination(data, clientStatusesPaginationInfo, clientStatusesPaginationControls, fetchClientStatuses);
-            });
-    }
-
-    // Shared render for both status types
+    // Render statuses table
     function renderStatuses(statuses, tbody) {
         tbody.innerHTML = '';
         if (statuses.length === 0) {
@@ -1083,12 +812,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== Status Modal Logic ==========
 
     addStatusBtn.addEventListener('click', () => {
-        const apiUrl = currentStatusType === 'task' ? '/api/task-statuses?page=1' : '/api/client-statuses?page=1';
-        fetch(apiUrl)
+        fetch('/api/task-statuses?page=1')
             .then(r => r.json())
             .then(data => {
                 editingStatusId = null;
-                statusModalTitle.textContent = currentStatusType === 'task' ? 'Создание статуса задачи' : 'Создание статуса клиента';
+                statusModalTitle.textContent = 'Создание статуса';
                 statusSubmitBtn.textContent = 'Подтвердить и создать';
                 formStatusIdDisplay.value = data.next_id;
                 formStatusName.value = '';
@@ -1123,9 +851,8 @@ document.addEventListener('DOMContentLoaded', () => {
             group: formStatusGroup.value.trim() || null,
         };
 
-        const baseUrl = currentStatusType === 'task' ? '/api/task-statuses' : '/api/client-statuses';
         const method = editingStatusId ? 'PUT' : 'POST';
-        const url = editingStatusId ? `${baseUrl}/${editingStatusId}` : baseUrl;
+        const url = editingStatusId ? `/api/task-statuses/${editingStatusId}` : '/api/task-statuses';
 
         fetch(url, {
             method: method,
@@ -1138,20 +865,14 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(() => {
             closeStatusModal();
-            if (currentStatusType === 'task') fetchTaskStatuses(currentTaskStatusesPage);
-            else fetchClientStatuses(currentClientStatusesPage);
+            fetchTaskStatuses(currentTaskStatusesPage);
         })
         .catch(err => alert(err.message));
     });
 
     // Edit/delete task statuses (event delegation)
     taskStatusesTbody.addEventListener('click', (e) => {
-        handleStatusTableClick(e, 'task', '/api/task-statuses', currentTaskStatusesPage, fetchTaskStatuses);
-    });
-
-    // Edit/delete client statuses (event delegation)
-    clientStatusesTbody.addEventListener('click', (e) => {
-        handleStatusTableClick(e, 'client', '/api/client-statuses', currentClientStatusesPage, fetchClientStatuses);
+        handleStatusTableClick(e, '/api/task-statuses', currentTaskStatusesPage, fetchTaskStatuses);
     });
 
     // ========== Task Types Page Logic ==========
@@ -1454,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function handleStatusTableClick(e, type, apiBase, currentPageVal, fetchFn) {
+    function handleStatusTableClick(e, apiBase, currentPageVal, fetchFn) {
         const editBtn = e.target.closest('.btn-edit');
         const deleteBtn = e.target.closest('.btn-delete');
 
@@ -1465,9 +1186,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(data => {
                     const status = data.statuses.find(s => s.id === id);
                     if (!status) { alert('Статус не найден'); return; }
-                    currentStatusType = type;
                     editingStatusId = status.id;
-                    statusModalTitle.textContent = type === 'task' ? 'Изменение статуса задачи' : 'Изменение статуса клиента';
+                    statusModalTitle.textContent = 'Изменение статуса';
                     statusSubmitBtn.textContent = 'Подтвердить изменения';
                     formStatusIdDisplay.value = status.id;
                     formStatusName.value = status.name;

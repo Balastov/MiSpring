@@ -111,7 +111,6 @@ body {
 }
 
 #tasks-table,
-#clients-table,
 .data-table {
     width: 100%;
     min-width: 800px;
@@ -121,8 +120,6 @@ body {
 
 #tasks-table th,
 #tasks-table td,
-#clients-table th,
-#clients-table td,
 .data-table th,
 .data-table td {
     padding: 8px 10px;
@@ -132,20 +129,17 @@ body {
 }
 
 #tasks-table th,
-#clients-table th,
 .data-table th {
     background-color: #f4f4f4;
     font-weight: 600;
 }
 
 #tasks-table tbody tr:nth-child(even),
-#clients-table tbody tr:nth-child(even),
 .data-table tbody tr:nth-child(even) {
     background-color: #fafafa;
 }
 
 #tasks-table tbody tr:hover,
-#clients-table tbody tr:hover,
 .data-table tbody tr:hover {
     background-color: #eef0ff;
 }
