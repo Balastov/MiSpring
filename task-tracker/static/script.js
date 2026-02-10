@@ -501,27 +501,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${y}-${m}-${d}T${h}:${min}`;
     }
 
-    function handleEventMove(info) {
+    async function handleEventMove(info) {
         const taskId = info.event.id;
         const data = { start_date: dateToLocalIso(info.event.start) };
         if (info.event.end) {
             data.end_date = dateToLocalIso(info.event.end);
         }
 
-        fetch(`/api/tasks/${taskId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(r => {
+        try {
+            const r = await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
             if (!r.ok) {
-                return r.json().then(err => {
-                    alert(err.error || 'Ошибка');
-                    info.revert();
-                });
+                const err = await r.json().catch(() => ({}));
+                alert(err.error || 'Ошибка сохранения');
+                info.revert();
+                return;
             }
-        })
-        .catch(() => info.revert());
+            // Update extendedProps with new dates
+            const updated = await r.json().catch(() => null);
+            if (updated) {
+                info.event.setExtendedProp('start_date_iso', updated.start_date_iso);
+                info.event.setExtendedProp('end_date_iso', updated.end_date_iso);
+                info.event.setExtendedProp('start_date', updated.start_date);
+                info.event.setExtendedProp('end_date', updated.end_date);
+            }
+        } catch (e) {
+            alert('Ошибка сети при перемещении задачи');
+            info.revert();
+        }
     }
 
     function initCalendar() {
