@@ -213,10 +213,18 @@ select.filter-control {
     background: #fff;
     border-radius: 6px;
     padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: calc(100vh - 200px);
 }
 
 #calendar-container.hidden {
     display: none;
+}
+
+#calendar-container .fc {
+    height: 100%;
+    min-height: calc(100vh - 240px);
 }
 
 #calendar-container .fc-event {
