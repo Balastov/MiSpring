@@ -72,6 +72,16 @@ cd ~/projects/MiSpring
 git pull origin main
 sudo systemctl restart task-tracker
 
+# 6. Перенос БД в /var/lib (одноразово при первом деплое)
+sudo mkdir -p /var/lib/task-tracker
+sudo mv ~/projects/MiSpring/task-tracker/tasks.db /var/lib/task-tracker/tasks.db
+sudo chown user1:user1 /var/lib/task-tracker/tasks.db
+# Затем добавить в /etc/systemd/system/task-tracker.service:
+#   Environment="DATABASE_PATH=/var/lib/task-tracker/tasks.db"
+# И перезапустить:
+#   sudo systemctl daemon-reload
+#   sudo systemctl restart task-tracker
+
 
 ----------------------------------------------
 
