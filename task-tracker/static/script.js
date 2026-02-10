@@ -492,10 +492,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Calendar Logic ==========
 
+    function toLocalIso(date) {
+        if (!date) return null;
+        const d = new Date(date);
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+
+    function handleEventMove(info) {
+        const taskId = info.event.id;
+        const newStart = toLocalIso(info.event.start);
+        const newEnd = toLocalIso(info.event.end);
+        const data = { start_date: newStart };
+        if (newEnd) data.end_date = newEnd;
+
+        fetch(`/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(r => {
+            if (!r.ok) {
+                info.revert();
+                return r.json().then(err => { alert(err.error || 'Ошибка'); });
+            }
+        })
+        .catch(() => info.revert());
+    }
+
     function initCalendar() {
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
             initialView: 'dayGridMonth',
+            editable: true,
+            snapDuration: '00:15:00',
+            slotDuration: '00:15:00',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -515,6 +545,12 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             eventClick: function(info) {
                 openEditFromCalendar(info.event);
+            },
+            eventDrop: function(info) {
+                handleEventMove(info);
+            },
+            eventResize: function(info) {
+                handleEventMove(info);
             },
             height: 'auto',
             eventDisplay: 'block',
