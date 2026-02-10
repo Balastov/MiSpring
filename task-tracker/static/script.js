@@ -1541,6 +1541,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return div.innerHTML;
     }
 
+    // Handle paste in richtext editor: preserve links from clipboard HTML
+    formHomeworkComment.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const html = e.clipboardData.getData('text/html');
+        const text = e.clipboardData.getData('text/plain');
+
+        if (html) {
+            const sanitized = sanitizeHtml(html);
+            document.execCommand('insertHTML', false, sanitized);
+        } else if (text) {
+            document.execCommand('insertText', false, text);
+        }
+    });
+
     // ========== Homework Page Logic ==========
 
     function showHomeworkPage() {
