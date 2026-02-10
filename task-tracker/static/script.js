@@ -515,8 +515,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(data)
             });
             if (!r.ok) {
-                const err = await r.json().catch(() => ({}));
-                alert(err.error || 'Ошибка сохранения');
+                let msg = 'Ошибка ' + r.status;
+                try { const err = await r.json(); msg = err.error || msg; } catch {}
+                alert(msg);
                 info.revert();
                 return;
             }
@@ -731,7 +732,11 @@ document.addEventListener('DOMContentLoaded', () => {
         paginationControls.appendChild(btn);
     }
 
-    // Submit task form
+    // Submit task form — button is type="button" to bypass Safari datetime-local validation
+    taskSubmitBtn.addEventListener('click', () => {
+        taskForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
     taskForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
