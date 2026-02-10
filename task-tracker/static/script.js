@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let isListVisible = false;
     let editingTaskId = null;
-    let currentView = 'table';
+    let currentView = 'calendar';
     let calendar = null;
     let currentTaskStatusesPage = 1;
     let editingStatusId = null;
@@ -448,7 +448,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isListVisible) {
             currentPage = 1;
             loadFilterStudents();
-            fetchTasks();
+            if (currentView === 'calendar') {
+                if (!calendar) {
+                    initCalendar();
+                } else {
+                    calendar.refetchEvents();
+                }
+            } else {
+                fetchTasks();
+            }
         }
     });
 
@@ -585,7 +593,8 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResize: function(info) {
                 handleEventMove(info);
             },
-            height: 700,
+            height: 'auto',
+            expandRows: true,
             eventDisplay: 'block',
             dayMaxEvents: 4,
         });
@@ -820,7 +829,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 allTasksBtn.textContent = 'Все задачи ▲';
             }
 
-            // Refresh list - stay on current page when editing, go to page 1 for new
+            // Refresh data
+            if (currentView === 'calendar' && calendar) {
+                calendar.refetchEvents();
+            }
             if (!isEditing) {
                 currentPage = 1;
             }
