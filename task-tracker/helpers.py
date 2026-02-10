@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from functools import wraps
 from flask import jsonify
@@ -22,6 +23,23 @@ def user_has_role(*role_names):
         return False
     allowed_roles = Role.query.filter(Role.name.in_(role_names)).all()
     return any(r.id in user_role_ids for r in allowed_roles)
+
+
+def sanitize_comment_html(html):
+    """Allow only <a> tags with href. Strip all other HTML tags."""
+    if not html:
+        return html
+    # Remove all tags except <a ...> and </a>
+    clean = re.sub(r'<(?!/?a[\s>])[^>]*>', '', html)
+    # Normalize <a> tags: keep only href attribute, add target/rel
+    def clean_a_tag(match):
+        href_match = re.search(r'href="([^"]*)"', match.group(0))
+        if href_match:
+            href = href_match.group(1)
+            return f'<a href="{href}" target="_blank" rel="noopener">'
+        return ''
+    clean = re.sub(r'<a\s[^>]*>', clean_a_tag, clean)
+    return clean.strip()
 
 
 def require_role(*role_names):

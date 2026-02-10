@@ -1504,6 +1504,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Sanitize HTML: keep only <a> tags with href, strip everything else
+    function sanitizeHtml(html) {
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        function walk(node) {
+            const children = Array.from(node.childNodes);
+            children.forEach(child => {
+                if (child.nodeType === Node.TEXT_NODE) return;
+                if (child.nodeType === Node.ELEMENT_NODE) {
+                    if (child.tagName === 'A') {
+                        const href = child.getAttribute('href');
+                        // Remove all attributes except href
+                        while (child.attributes.length > 0) {
+                            child.removeAttribute(child.attributes[0].name);
+                        }
+                        if (href) {
+                            child.setAttribute('href', href);
+                            child.setAttribute('target', '_blank');
+                            child.setAttribute('rel', 'noopener');
+                        }
+                        walk(child);
+                    } else {
+                        // Replace non-<a> elements with their content
+                        while (child.firstChild) {
+                            node.insertBefore(child.firstChild, child);
+                        }
+                        node.removeChild(child);
+                    }
+                } else {
+                    node.removeChild(child);
+                }
+            });
+        }
+        walk(div);
+        return div.innerHTML;
+    }
+
     // ========== Homework Page Logic ==========
 
     function showHomeworkPage() {
@@ -1533,10 +1570,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         items.forEach(hw => {
             const tr = document.createElement('tr');
+            const commentHtml = hw.comment ? sanitizeHtml(hw.comment) : '—';
             tr.innerHTML = `
                 <td>${hw.id}</td>
                 <td>${escapeHtml(hw.name)}</td>
-                <td class="col-comment" title="${escapeAttr(hw.comment || '')}">${escapeHtml(hw.comment || '—')}</td>
+                <td class="col-comment homework-comment">${commentHtml}</td>
                 <td><button class="btn-edit" data-id="${hw.id}">Изменить</button></td>
                 <td><button class="btn-delete" data-id="${hw.id}">Удалить</button></td>
             `;
@@ -1583,7 +1621,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 homeworkSubmitBtn.textContent = 'Подтвердить и создать';
                 formHomeworkIdDisplay.value = data.next_id;
                 formHomeworkName.value = '';
-                formHomeworkComment.value = '';
+                formHomeworkComment.innerHTML = '';
                 homeworkModal.classList.remove('hidden');
             });
     });
@@ -1591,6 +1629,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeHomeworkModal() {
         homeworkModal.classList.add('hidden');
         homeworkForm.reset();
+        formHomeworkComment.innerHTML = '';
         editingHomeworkId = null;
     }
 
@@ -1608,9 +1647,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const rawComment = sanitizeHtml(formHomeworkComment.innerHTML).trim();
         const hwData = {
             name: name,
-            comment: formHomeworkComment.value.trim() || null,
+            comment: rawComment || null,
         };
 
         const method = editingHomeworkId ? 'PUT' : 'POST';
@@ -1649,7 +1689,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     homeworkSubmitBtn.textContent = 'Подтвердить изменения';
                     formHomeworkIdDisplay.value = hw.id;
                     formHomeworkName.value = hw.name;
-                    formHomeworkComment.value = hw.comment || '';
+                    formHomeworkComment.innerHTML = hw.comment || '';
                     homeworkModal.classList.remove('hidden');
                 });
         }

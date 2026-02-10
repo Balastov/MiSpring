@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required
 from extensions import db
 from models import TaskStatus, TaskType, Role, Homework
-from helpers import require_role
+from helpers import require_role, sanitize_comment_html
 
 references_bp = Blueprint('references', __name__)
 
@@ -251,9 +251,7 @@ def add_homework():
     name = (data.get('name') or '').strip()
     if not name or len(name) > 100:
         return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
-    comment = (data.get('comment') or '').strip() or None
-    if comment and len(comment) > 500:
-        return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+    comment = sanitize_comment_html(data.get('comment') or '') or None
     hw = Homework(name=name, comment=comment)
     db.session.add(hw)
     db.session.commit()
@@ -271,10 +269,7 @@ def update_homework(hw_id):
             return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
         hw.name = name
     if 'comment' in data:
-        comment = (data['comment'] or '').strip() or None
-        if comment and len(comment) > 500:
-            return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
-        hw.comment = comment
+        hw.comment = sanitize_comment_html(data['comment'] or '') or None
     db.session.commit()
     return jsonify(hw.to_dict())
 
