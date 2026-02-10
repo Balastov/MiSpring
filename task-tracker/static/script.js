@@ -1,4 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ========== Safari Workaround: bypass browser form validation ==========
+    // Safari validates ALL forms on the page (including hidden ones with datetime-local).
+    // Intercept submit-button clicks, prevent native validation, dispatch submit event directly.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[type="submit"]');
+        if (btn) {
+            e.preventDefault();
+            const form = btn.closest('form');
+            if (form) {
+                form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+        }
+    });
+
     // ========== Auth State ==========
     let currentUserData = null;
 
