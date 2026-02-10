@@ -11,7 +11,8 @@ from extensions import db, login_manager
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "tasks.db")}'
+db_path = os.environ.get('DATABASE_PATH', os.path.join(basedir, 'tasks.db'))
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -77,7 +78,7 @@ app.register_blueprint(users_bp)
 with app.app_context():
     db.create_all()
 
-    conn = sqlite3.connect(os.path.join(basedir, 'tasks.db'))
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     existing_columns = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
     if 'start_date' not in existing_columns:
