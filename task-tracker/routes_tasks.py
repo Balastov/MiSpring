@@ -171,6 +171,59 @@ def delete_task(task_id):
     return '', 204
 
 
+# ========== Calendar Endpoint ==========
+
+@tasks_bp.route('/api/tasks/calendar', methods=['GET'])
+@login_required
+def get_tasks_calendar():
+    start = request.args.get('start')
+    end = request.args.get('end')
+
+    query = db.select(Task).where(Task.start_date.isnot(None))
+
+    if not user_has_role('admin', 'owner'):
+        if user_has_role('teacher', 'student'):
+            query = query.where(Task.user_id == current_user.id)
+        else:
+            return jsonify([])
+
+    if start:
+        dt_start = parse_datetime(start[:16]) if len(start) > 16 else parse_datetime(start)
+        if dt_start:
+            query = query.where(Task.start_date >= dt_start)
+    if end:
+        dt_end = parse_datetime(end[:16]) if len(end) > 16 else parse_datetime(end)
+        if dt_end:
+            query = query.where(Task.start_date <= dt_end)
+
+    tasks = db.session.execute(query).scalars().all()
+
+    student_ids = {t.student_id for t in tasks if t.student_id}
+    type_ids = {t.task_type_id for t in tasks if t.task_type_id}
+    student_map = {}
+    type_map = {}
+    if student_ids:
+        student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
+    if type_ids:
+        type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
+
+    events = []
+    for t in tasks:
+        student_name = student_map.get(t.student_id, '')
+        type_name = type_map.get(t.task_type_id, '')
+        title_parts = [p for p in [student_name, type_name] if p]
+        events.append({
+            'id': t.id,
+            'title': ' — '.join(title_parts) or f'Задача #{t.id}',
+            'start': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+            'end': t.end_date.strftime('%Y-%m-%dT%H:%M') if t.end_date else None,
+            'color': '#38a169' if t.is_paid else '#1A515F',
+            'extendedProps': t.to_dict(),
+        })
+
+    return jsonify(events)
+
+
 # ========== Students Endpoint ==========
 
 @tasks_bp.route('/api/students/all', methods=['GET'])

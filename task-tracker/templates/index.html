@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>EngSpring</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=cache_bust('style.css')) }}">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 </head>
 <body>
     <div class="top-bar" id="top-bar">
@@ -48,7 +50,12 @@
                     <button id="filter-apply-btn" class="btn-filter-apply">Применить</button>
                     <button id="filter-reset-btn" class="btn-filter-reset">Сбросить</button>
                 </div>
+                <div class="filter-group">
+                    <button id="view-toggle-btn" class="btn-view-toggle">Календарь</button>
+                </div>
             </div>
+            <div id="calendar-container" class="hidden"></div>
+            <div id="table-view">
             <div id="pagination-info" class="pagination-info"></div>
             <div class="table-wrapper">
                 <table id="tasks-table">
@@ -77,6 +84,7 @@
                 </table>
             </div>
             <div id="pagination-controls" class="pagination-controls"></div>
+            </div>
         </div>
     </div>
 

@@ -140,6 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterApplyBtn = document.getElementById('filter-apply-btn');
     const filterResetBtn = document.getElementById('filter-reset-btn');
 
+    // Calendar elements
+    const viewToggleBtn = document.getElementById('view-toggle-btn');
+    const calendarContainer = document.getElementById('calendar-container');
+    const tableView = document.getElementById('table-view');
+
     // Change password modal elements
     const changePasswordModal = document.getElementById('change-password-modal');
     const changePasswordModalClose = document.getElementById('change-password-modal-close');
@@ -149,6 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let isListVisible = false;
     let editingTaskId = null;
+    let currentView = 'table';
+    let calendar = null;
     let currentTaskStatusesPage = 1;
     let editingStatusId = null;
     let currentTaskTypesPage = 1;
@@ -483,6 +490,116 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchTasks();
     });
 
+    // ========== Calendar Logic ==========
+
+    function initCalendar() {
+        calendar = new FullCalendar.Calendar(calendarContainer, {
+            locale: 'ru',
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            buttonText: {
+                today: 'Сегодня',
+                month: 'Месяц',
+                week: 'Неделя',
+                day: 'День'
+            },
+            events: function(info, successCallback, failureCallback) {
+                fetch(`/api/tasks/calendar?start=${info.startStr}&end=${info.endStr}`)
+                    .then(r => r.json())
+                    .then(events => successCallback(events))
+                    .catch(() => failureCallback());
+            },
+            eventClick: function(info) {
+                openEditFromCalendar(info.event);
+            },
+            height: 'auto',
+            eventDisplay: 'block',
+            dayMaxEvents: 4,
+        });
+        calendar.render();
+    }
+
+    function openEditFromCalendar(event) {
+        const task = event.extendedProps;
+        const taskId = parseInt(event.id);
+
+        Promise.all([
+            fetch('/api/students/all').then(r => r.json()),
+            fetch('/api/task-statuses/all').then(r => r.json()),
+            fetch('/api/task-types/all').then(r => r.json())
+        ]).then(([studentData, statusData, typeData]) => {
+            editingTaskId = taskId;
+            taskModalTitle.textContent = 'Редактирование задачи';
+            taskSubmitBtn.textContent = 'Подтвердить изменения';
+
+            formId.value = task.id;
+            if (formDescription) formDescription.value = task.description || '';
+            formCreatedAt.value = task.created_at_iso || '';
+            formStartDate.value = task.start_date_iso || '';
+            formDuration.value = task.duration || '';
+            updateDurationState();
+            formEndDate.value = task.end_date_iso || '';
+            formAuthor.value = task.author || '';
+            formIsPaid.checked = task.is_paid || false;
+            formPaymentDate.value = task.payment_date_iso || '';
+            formHomeworkId.value = task.homework_id ?? '';
+            formComment.value = task.comment || '';
+            formClosingDate.value = task.closing_date_iso || '';
+
+            formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
+            studentData.students.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.id;
+                option.textContent = student.display_name;
+                formStudentId.appendChild(option);
+            });
+            formStudentId.value = task.student_id || '';
+
+            formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
+            statusData.statuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status.id;
+                option.textContent = status.name;
+                formStatusId.appendChild(option);
+            });
+            formStatusId.value = task.status_id || '';
+
+            formTaskTypeId.innerHTML = '<option value="">-- Выберите тип --</option>';
+            typeData.task_types.forEach(tt => {
+                const option = document.createElement('option');
+                option.value = tt.id;
+                option.textContent = tt.name;
+                formTaskTypeId.appendChild(option);
+            });
+            formTaskTypeId.value = task.task_type_id || '';
+
+            modal.classList.remove('hidden');
+        });
+    }
+
+    viewToggleBtn.addEventListener('click', () => {
+        if (currentView === 'table') {
+            currentView = 'calendar';
+            tableView.classList.add('hidden');
+            calendarContainer.classList.remove('hidden');
+            viewToggleBtn.textContent = 'Таблица';
+            if (!calendar) {
+                initCalendar();
+            } else {
+                calendar.refetchEvents();
+            }
+        } else {
+            currentView = 'table';
+            calendarContainer.classList.add('hidden');
+            tableView.classList.remove('hidden');
+            viewToggleBtn.textContent = 'Календарь';
+        }
+    });
+
     // Fetch paginated tasks
     function fetchTasks(page) {
         if (page !== undefined) currentPage = page;
@@ -635,6 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentPage = 1;
             }
             fetchTasks(currentPage);
+            if (calendar) calendar.refetchEvents();
         })
         .catch(err => {
             alert(err.message || 'Ошибка при сохранении задачи');
@@ -716,7 +834,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirm('Удалить эту задачу?')) return;
             const id = deleteBtn.dataset.id;
             fetch(`/api/tasks/${id}`, { method: 'DELETE' })
-                .then(() => { if (isListVisible) fetchTasks(); });
+                .then(() => {
+                    if (isListVisible) fetchTasks();
+                    if (calendar) calendar.refetchEvents();
+                });
         }
     });
 
