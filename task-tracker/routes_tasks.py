@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
-from models import Task, User, TaskStatus, TaskType, Role, UserRole
+from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework
 from helpers import parse_datetime, user_has_role
 
 tasks_bp = Blueprint('tasks', __name__)
@@ -53,15 +53,19 @@ def get_tasks():
     status_ids = {t.status_id for t in paginator.items if t.status_id}
     student_ids = {t.student_id for t in paginator.items if t.student_id}
     type_ids = {t.task_type_id for t in paginator.items if t.task_type_id}
+    homework_ids = {t.homework_id for t in paginator.items if t.homework_id}
     status_map = {}
     student_map = {}
     type_map = {}
+    homework_map = {}
     if status_ids:
         status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
     if student_ids:
         student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
     if type_ids:
         type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
+    if homework_ids:
+        homework_map = {hw.id: hw.name for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()}
 
     tasks = []
     for t in paginator.items:
@@ -69,6 +73,7 @@ def get_tasks():
         d['status_name'] = status_map.get(t.status_id)
         d['student_name'] = student_map.get(t.student_id)
         d['task_type_name'] = type_map.get(t.task_type_id)
+        d['homework_name'] = homework_map.get(t.homework_id)
         tasks.append(d)
 
     return jsonify({

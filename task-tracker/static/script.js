@@ -116,6 +116,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const formRoleName = document.getElementById('form-role-name');
     const roleSubmitBtn = document.getElementById('role-submit-btn');
 
+    // Homework page elements
+    const homeworkPage = document.getElementById('homework-page');
+    const backToMainFromHomeworkBtn = document.getElementById('back-to-main-from-homework-btn');
+    const addHomeworkBtn = document.getElementById('add-homework-btn');
+    const homeworkTbody = document.getElementById('homework-tbody');
+    const homeworkPaginationInfo = document.getElementById('homework-pagination-info');
+    const homeworkPaginationControls = document.getElementById('homework-pagination-controls');
+
+    // Homework modal elements
+    const homeworkModal = document.getElementById('homework-modal');
+    const homeworkModalTitle = document.getElementById('homework-modal-title');
+    const homeworkModalClose = document.getElementById('homework-modal-close');
+    const homeworkModalCancel = document.getElementById('homework-modal-cancel');
+    const homeworkForm = document.getElementById('homework-form');
+    const formHomeworkIdDisplay = document.getElementById('form-homework-id-display');
+    const formHomeworkName = document.getElementById('form-homework-name');
+    const formHomeworkComment = document.getElementById('form-homework-comment');
+    const homeworkSubmitBtn = document.getElementById('homework-submit-btn');
+
     // Top bar elements
     const topBar = document.getElementById('top-bar');
     const userDisplayName = document.getElementById('user-display-name');
@@ -176,6 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingTaskTypeId = null;
     let currentRolesPage = 1;
     let editingRoleId = null;
+    let currentHomeworkPage = 1;
+    let editingHomeworkId = null;
     let currentUsersPage = 1;
     let editingUserId = null;
 
@@ -367,14 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 formComment.value = '';
                 formClosingDate.value = '';
 
-                // Fetch and populate student, status, and task type dropdowns
+                // Fetch and populate student, status, task type, and homework dropdowns
                 return Promise.all([
                     fetch('/api/students/all').then(r => r.json()),
                     fetch('/api/task-statuses/all').then(r => r.json()),
-                    fetch('/api/task-types/all').then(r => r.json())
+                    fetch('/api/task-types/all').then(r => r.json()),
+                    fetch('/api/homework/all').then(r => r.json())
                 ]);
             })
-            .then(([studentData, statusData, typeData]) => {
+            .then(([studentData, statusData, typeData, homeworkData]) => {
                 formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
                 studentData.students.forEach(student => {
                     const option = document.createElement('option');
@@ -404,6 +426,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Default to "Урок"
                 const lessonType = typeData.task_types.find(tt => tt.name === 'Урок');
                 if (lessonType) formTaskTypeId.value = lessonType.id;
+
+                formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
+                homeworkData.homework.forEach(hw => {
+                    const option = document.createElement('option');
+                    option.value = hw.id;
+                    option.textContent = hw.name;
+                    formHomeworkId.appendChild(option);
+                });
 
                 modal.classList.remove('hidden');
             })
@@ -615,8 +645,9 @@ document.addEventListener('DOMContentLoaded', () => {
         Promise.all([
             fetch('/api/students/all').then(r => r.json()),
             fetch('/api/task-statuses/all').then(r => r.json()),
-            fetch('/api/task-types/all').then(r => r.json())
-        ]).then(([studentData, statusData, typeData]) => {
+            fetch('/api/task-types/all').then(r => r.json()),
+            fetch('/api/homework/all').then(r => r.json())
+        ]).then(([studentData, statusData, typeData, homeworkData]) => {
             editingTaskId = taskId;
             taskModalTitle.textContent = 'Редактирование задачи';
             taskSubmitBtn.textContent = 'Подтвердить изменения';
@@ -661,6 +692,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 formTaskTypeId.appendChild(option);
             });
             formTaskTypeId.value = task.task_type_id || '';
+
+            formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
+            homeworkData.homework.forEach(hw => {
+                const option = document.createElement('option');
+                option.value = hw.id;
+                option.textContent = hw.name;
+                formHomeworkId.appendChild(option);
+            });
+            formHomeworkId.value = task.homework_id || '';
 
             modal.classList.remove('hidden');
         });
@@ -720,7 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${escapeHtml(task.author || '—')}</td>
                 <td class="cell-bool">${task.is_paid ? '✓' : '✗'}</td>
                 <td>${task.payment_date || '—'}</td>
-                <td>${task.homework_id ?? '—'}</td>
+                <td>${escapeHtml(task.homework_name || '—')}</td>
                 <td>${escapeHtml(task.status_name || '—')}</td>
                 <td class="col-comment" title="${escapeAttr(task.comment || '')}">${escapeHtml(task.comment || '—')}</td>
                 <td>${task.closing_date || '—'}</td>
@@ -865,9 +905,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch(`/api/tasks?page=${currentPage}`).then(r => r.json()),
                 fetch('/api/students/all').then(r => r.json()),
                 fetch('/api/task-statuses/all').then(r => r.json()),
-                fetch('/api/task-types/all').then(r => r.json())
+                fetch('/api/task-types/all').then(r => r.json()),
+                fetch('/api/homework/all').then(r => r.json())
             ])
-                .then(([data, studentData, statusData, typeData]) => {
+                .then(([data, studentData, statusData, typeData, homeworkData]) => {
                     const task = data.tasks.find(t => t.id === id);
                     if (!task) {
                         alert('Задача не найдена');
@@ -920,6 +961,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         formTaskTypeId.appendChild(option);
                     });
                     formTaskTypeId.value = task.task_type_id || '';
+
+                    // Populate homework dropdown
+                    formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
+                    homeworkData.homework.forEach(hw => {
+                        const option = document.createElement('option');
+                        option.value = hw.id;
+                        option.textContent = hw.name;
+                        formHomeworkId.appendChild(option);
+                    });
+                    formHomeworkId.value = task.homework_id || '';
 
                     modal.classList.remove('hidden');
                 });
@@ -979,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (option === 'users') {
                 showUsersPage();
             } else if (option === 'homework') {
-                showPlaceholder('Домашки');
+                showHomeworkPage();
             }
         });
     });
@@ -1006,6 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusesPage.classList.add('hidden');
         taskTypesPage.classList.add('hidden');
         rolesPage.classList.add('hidden');
+        homeworkPage.classList.add('hidden');
         usersPage.classList.add('hidden');
     }
 
@@ -1449,6 +1501,164 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = deleteBtn.dataset.id;
             fetch(`/api/roles/${id}`, { method: 'DELETE' })
                 .then(() => fetchRoles(currentRolesPage));
+        }
+    });
+
+    // ========== Homework Page Logic ==========
+
+    function showHomeworkPage() {
+        hideAllPages();
+        homeworkPage.classList.remove('hidden');
+        currentHomeworkPage = 1;
+        fetchHomework();
+    }
+
+    backToMainFromHomeworkBtn.addEventListener('click', showMainPage);
+
+    function fetchHomework(page) {
+        if (page !== undefined) currentHomeworkPage = page;
+        fetch(`/api/homework?page=${currentHomeworkPage}`)
+            .then(r => r.json())
+            .then(data => {
+                renderHomework(data.homework);
+                renderHomeworkPagination(data);
+            });
+    }
+
+    function renderHomework(items) {
+        homeworkTbody.innerHTML = '';
+        if (items.length === 0) {
+            homeworkTbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Домашних заданий нет</td></tr>';
+            return;
+        }
+        items.forEach(hw => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${hw.id}</td>
+                <td>${escapeHtml(hw.name)}</td>
+                <td class="col-comment" title="${escapeAttr(hw.comment || '')}">${escapeHtml(hw.comment || '—')}</td>
+                <td><button class="btn-edit" data-id="${hw.id}">Изменить</button></td>
+                <td><button class="btn-delete" data-id="${hw.id}">Удалить</button></td>
+            `;
+            homeworkTbody.appendChild(tr);
+        });
+    }
+
+    function renderHomeworkPagination(data) {
+        homeworkPaginationControls.innerHTML = '';
+        if (data.total === 0) {
+            homeworkPaginationInfo.textContent = '';
+            return;
+        }
+        homeworkPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} заданий)`;
+        if (data.current_page > 1) {
+            addHomeworkPageBtn('← Пред', data.current_page - 1);
+        }
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) {
+            addHomeworkPageBtn(String(i), i, i === data.current_page);
+        }
+        if (data.current_page < data.pages) {
+            addHomeworkPageBtn('След →', data.current_page + 1);
+        }
+    }
+
+    function addHomeworkPageBtn(label, page, isActive = false) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-page' + (isActive ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => fetchHomework(page));
+        homeworkPaginationControls.appendChild(btn);
+    }
+
+    // ========== Homework Modal Logic ==========
+
+    addHomeworkBtn.addEventListener('click', () => {
+        fetch('/api/homework?page=1')
+            .then(r => r.json())
+            .then(data => {
+                editingHomeworkId = null;
+                homeworkModalTitle.textContent = 'Создание домашнего задания';
+                homeworkSubmitBtn.textContent = 'Подтвердить и создать';
+                formHomeworkIdDisplay.value = data.next_id;
+                formHomeworkName.value = '';
+                formHomeworkComment.value = '';
+                homeworkModal.classList.remove('hidden');
+            });
+    });
+
+    function closeHomeworkModal() {
+        homeworkModal.classList.add('hidden');
+        homeworkForm.reset();
+        editingHomeworkId = null;
+    }
+
+    homeworkModalClose.addEventListener('click', closeHomeworkModal);
+    homeworkModalCancel.addEventListener('click', closeHomeworkModal);
+    homeworkModal.addEventListener('click', (e) => {
+        if (e.target === homeworkModal) closeHomeworkModal();
+    });
+
+    homeworkForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = formHomeworkName.value.trim();
+        if (!name) {
+            alert('Наименование обязательно для заполнения');
+            return;
+        }
+
+        const hwData = {
+            name: name,
+            comment: formHomeworkComment.value.trim() || null,
+        };
+
+        const method = editingHomeworkId ? 'PUT' : 'POST';
+        const url = editingHomeworkId ? `/api/homework/${editingHomeworkId}` : '/api/homework';
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(hwData)
+        })
+        .then(r => {
+            if (r.ok) return r.json();
+            return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+        })
+        .then(() => {
+            closeHomeworkModal();
+            fetchHomework(currentHomeworkPage);
+        })
+        .catch(err => alert(err.message));
+    });
+
+    // Edit/delete homework (event delegation)
+    homeworkTbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit');
+        const deleteBtn = e.target.closest('.btn-delete');
+
+        if (editBtn) {
+            const id = parseInt(editBtn.dataset.id);
+            fetch(`/api/homework?page=${currentHomeworkPage}`)
+                .then(r => r.json())
+                .then(data => {
+                    const hw = data.homework.find(h => h.id === id);
+                    if (!hw) { alert('Домашнее задание не найдено'); return; }
+                    editingHomeworkId = hw.id;
+                    homeworkModalTitle.textContent = 'Изменение домашнего задания';
+                    homeworkSubmitBtn.textContent = 'Подтвердить изменения';
+                    formHomeworkIdDisplay.value = hw.id;
+                    formHomeworkName.value = hw.name;
+                    formHomeworkComment.value = hw.comment || '';
+                    homeworkModal.classList.remove('hidden');
+                });
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Удалить это домашнее задание?')) return;
+            const id = deleteBtn.dataset.id;
+            fetch(`/api/homework/${id}`, { method: 'DELETE' })
+                .then(() => fetchHomework(currentHomeworkPage));
         }
     });
 

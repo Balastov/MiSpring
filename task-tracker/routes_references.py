@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required
 from extensions import db
-from models import TaskStatus, TaskType, Role
+from models import TaskStatus, TaskType, Role, Homework
 from helpers import require_role
 
 references_bp = Blueprint('references', __name__)
@@ -209,5 +209,80 @@ def update_role(role_id):
 def delete_role(role_id):
     role = db.get_or_404(Role, role_id)
     db.session.delete(role)
+    db.session.commit()
+    return '', 204
+
+
+# ========== Homework Endpoints ==========
+
+@references_bp.route('/api/homework', methods=['GET'])
+@login_required
+def get_homework():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    paginator = db.paginate(
+        db.select(Homework).order_by(Homework.id),
+        page=page, per_page=per_page, error_out=False
+    )
+    max_id_result = db.session.execute(db.select(db.func.max(Homework.id))).scalar()
+    next_id = (max_id_result or 0) + 1
+    return jsonify({
+        'homework': [h.to_dict() for h in paginator.items],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+        'next_id': next_id,
+    })
+
+
+@references_bp.route('/api/homework/all', methods=['GET'])
+@login_required
+def get_all_homework():
+    items = db.session.execute(
+        db.select(Homework).order_by(Homework.id)
+    ).scalars().all()
+    return jsonify({'homework': [h.to_dict() for h in items]})
+
+
+@references_bp.route('/api/homework', methods=['POST'])
+@require_role('admin', 'owner')
+def add_homework():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name or len(name) > 100:
+        return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
+    comment = (data.get('comment') or '').strip() or None
+    if comment and len(comment) > 500:
+        return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+    hw = Homework(name=name, comment=comment)
+    db.session.add(hw)
+    db.session.commit()
+    return jsonify(hw.to_dict()), 201
+
+
+@references_bp.route('/api/homework/<int:hw_id>', methods=['PUT'])
+@require_role('admin', 'owner')
+def update_homework(hw_id):
+    hw = db.get_or_404(Homework, hw_id)
+    data = request.get_json()
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name or len(name) > 100:
+            return jsonify({'error': 'Наименование: от 1 до 100 символов'}), 400
+        hw.name = name
+    if 'comment' in data:
+        comment = (data['comment'] or '').strip() or None
+        if comment and len(comment) > 500:
+            return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+        hw.comment = comment
+    db.session.commit()
+    return jsonify(hw.to_dict())
+
+
+@references_bp.route('/api/homework/<int:hw_id>', methods=['DELETE'])
+@require_role('admin', 'owner')
+def delete_homework(hw_id):
+    hw = db.get_or_404(Homework, hw_id)
+    db.session.delete(hw)
     db.session.commit()
     return '', 204

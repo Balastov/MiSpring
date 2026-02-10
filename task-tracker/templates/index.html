@@ -72,7 +72,7 @@
                             <th>Автор</th>
                             <th>Оплачено</th>
                             <th>Дата оплаты</th>
-                            <th>Домашка</th>
+                            <th>Д/З</th>
                             <th>Статус</th>
                             <th>Комментарий</th>
                             <th>Дата закрытия</th>
@@ -151,8 +151,10 @@
                     <input type="datetime-local" id="form-payment-date">
                 </div>
                 <div class="form-row">
-                    <label>Домашка</label>
-                    <input type="number" id="form-homework-id" placeholder="ID домашки">
+                    <label>Домашнее задание</label>
+                    <select id="form-homework-id" class="form-select">
+                        <option value="">-- Выберите --</option>
+                    </select>
                 </div>
                 <div class="form-row">
                     <label>Статус</label>
@@ -187,7 +189,7 @@
                 <button class="settings-option-btn" data-option="statuses">Статусы</button>
                 <button class="settings-option-btn" data-option="task-types">Типы задач</button>
                 <button class="settings-option-btn" data-option="roles">Роли</button>
-                <button class="settings-option-btn" data-option="homework">Домашки</button>
+                <button class="settings-option-btn" data-option="homework">Домашнее задание</button>
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
             </div>
         </div>
@@ -362,6 +364,63 @@
                 <div class="form-actions">
                     <button type="submit" class="btn-primary" id="role-submit-btn">Подтвердить и создать</button>
                     <button type="button" class="btn-secondary" id="role-modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Homework Page (hidden by default) -->
+    <div id="homework-page" class="page hidden">
+        <div class="page-header">
+            <h2>Справочник домашних заданий</h2>
+            <div class="page-actions">
+                <button id="add-homework-btn" class="btn-primary">Добавить</button>
+                <button id="back-to-main-from-homework-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div id="homework-list-section">
+            <div id="homework-pagination-info" class="pagination-info"></div>
+            <div class="table-wrapper">
+                <table id="homework-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Наименование</th>
+                            <th>Комментарий</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="homework-tbody"></tbody>
+                </table>
+            </div>
+            <div id="homework-pagination-controls" class="pagination-controls"></div>
+        </div>
+    </div>
+
+    <!-- Homework Modal (for add/edit) -->
+    <div id="homework-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="homework-modal-title">Создание домашнего задания</h2>
+                <button class="modal-close" id="homework-modal-close">&times;</button>
+            </div>
+            <form id="homework-form" class="task-form">
+                <div class="form-row">
+                    <label>ID</label>
+                    <input type="text" id="form-homework-id-display" value="Авто" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Наименование*</label>
+                    <input type="text" id="form-homework-name" maxlength="100" required>
+                </div>
+                <div class="form-row">
+                    <label>Комментарий</label>
+                    <textarea id="form-homework-comment" maxlength="500" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="homework-submit-btn">Подтвердить и создать</button>
+                    <button type="button" class="btn-secondary" id="homework-modal-cancel">Отмена</button>
                 </div>
             </form>
         </div>
