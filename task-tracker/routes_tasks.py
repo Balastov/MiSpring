@@ -121,41 +121,47 @@ def update_task(task_id):
     if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
 
-    data = request.get_json()
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({'error': 'Нет данных'}), 400
 
-    if 'description' in data:
-        description = (data['description'] or '').strip()
-        if len(description) > 100:
-            return jsonify({'error': 'Описание: не более 100 символов'}), 400
-        task.description = description
-    if 'start_date' in data:
-        task.start_date = parse_datetime(data['start_date'])
-    if 'end_date' in data:
-        task.end_date = parse_datetime(data['end_date'])
-    if 'student_id' in data:
-        task.student_id = data['student_id']
-    if 'is_paid' in data:
-        task.is_paid = bool(data['is_paid'])
-    if 'payment_date' in data:
-        task.payment_date = parse_datetime(data['payment_date'])
-    if 'homework_id' in data:
-        task.homework_id = data['homework_id']
-    if 'status_id' in data:
-        task.status_id = data['status_id']
-    if 'task_type_id' in data:
-        task.task_type_id = data['task_type_id']
-    if 'duration' in data:
-        task.duration = data['duration']
-    if 'comment' in data:
-        comment = (data['comment'] or '').strip() or None
-        if comment and len(comment) > 500:
-            return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
-        task.comment = comment
-    if 'closing_date' in data:
-        task.closing_date = parse_datetime(data['closing_date'])
+    try:
+        if 'description' in data:
+            description = (data['description'] or '').strip()
+            if len(description) > 100:
+                return jsonify({'error': 'Описание: не более 100 символов'}), 400
+            task.description = description
+        if 'start_date' in data:
+            task.start_date = parse_datetime(data['start_date'])
+        if 'end_date' in data:
+            task.end_date = parse_datetime(data['end_date'])
+        if 'student_id' in data:
+            task.student_id = data['student_id']
+        if 'is_paid' in data:
+            task.is_paid = bool(data['is_paid'])
+        if 'payment_date' in data:
+            task.payment_date = parse_datetime(data['payment_date'])
+        if 'homework_id' in data:
+            task.homework_id = data['homework_id']
+        if 'status_id' in data:
+            task.status_id = data['status_id']
+        if 'task_type_id' in data:
+            task.task_type_id = data['task_type_id']
+        if 'duration' in data:
+            task.duration = data['duration']
+        if 'comment' in data:
+            comment = (data['comment'] or '').strip() or None
+            if comment and len(comment) > 500:
+                return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+            task.comment = comment
+        if 'closing_date' in data:
+            task.closing_date = parse_datetime(data['closing_date'])
 
-    db.session.commit()
-    return jsonify(task.to_dict())
+        db.session.commit()
+        return jsonify(task.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['DELETE'])
