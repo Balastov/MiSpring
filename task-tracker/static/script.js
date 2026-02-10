@@ -593,8 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResize: function(info) {
                 handleEventMove(info);
             },
-            height: 'auto',
-            expandRows: true,
+            height: '100%',
             eventDisplay: 'block',
             dayMaxEvents: 4,
         });
