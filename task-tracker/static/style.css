@@ -215,16 +215,12 @@ select.filter-control {
     padding: 12px;
     width: 100%;
     box-sizing: border-box;
-    min-height: calc(100vh - 200px);
+    height: calc(100vh - 180px);
+    overflow: hidden;
 }
 
 #calendar-container.hidden {
     display: none;
-}
-
-#calendar-container .fc {
-    height: 100%;
-    min-height: calc(100vh - 240px);
 }
 
 #calendar-container .fc-event {
