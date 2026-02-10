@@ -659,3 +659,50 @@ select.filter-control {
     background-color: #d97706;
     color: #fff;
 }
+
+/* ========== Rich Text Editor (contenteditable) ========== */
+.richtext-editor {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    min-height: 60px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #fff;
+    line-height: 1.5;
+}
+
+.richtext-editor:focus {
+    outline: none;
+    border-color: #1A515F;
+}
+
+.richtext-editor:empty::before {
+    content: '';
+    color: #999;
+}
+
+.richtext-editor a {
+    color: #1A515F;
+    text-decoration: underline;
+}
+
+.form-row .hint {
+    font-size: 11px;
+    color: #999;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+/* Clickable links in homework table */
+.homework-comment a {
+    color: #1A515F;
+    text-decoration: underline;
+}
+
+.homework-comment a:hover {
+    color: #14404C;
+}
