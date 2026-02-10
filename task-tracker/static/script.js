@@ -557,6 +557,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function getCalendarHeight() {
+        const top = calendarContainer.getBoundingClientRect().top;
+        return window.innerHeight - top - 24;
+    }
+
     function initCalendar() {
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
@@ -593,11 +598,15 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResize: function(info) {
                 handleEventMove(info);
             },
-            height: '100%',
+            height: getCalendarHeight(),
             eventDisplay: 'block',
             dayMaxEvents: 4,
         });
         calendar.render();
+
+        window.addEventListener('resize', () => {
+            if (calendar) calendar.setOption('height', getCalendarHeight());
+        });
     }
 
     function openEditFromCalendar(event) {
