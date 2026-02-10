@@ -99,6 +99,12 @@ body {
     text-align: left;
 }
 
+#task-list-section.view-calendar {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 170px);
+}
+
 .pagination-info {
     color: #666;
     font-size: 14px;
@@ -215,6 +221,8 @@ select.filter-control {
     padding: 12px;
     width: 100%;
     box-sizing: border-box;
+    flex: 1;
+    min-height: 0;
 }
 
 #calendar-container.hidden {

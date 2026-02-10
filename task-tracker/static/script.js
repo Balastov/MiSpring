@@ -444,6 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
     allTasksBtn.addEventListener('click', () => {
         isListVisible = !isListVisible;
         taskListSection.classList.toggle('hidden', !isListVisible);
+        taskListSection.classList.toggle('view-calendar', isListVisible && currentView === 'calendar');
         allTasksBtn.textContent = isListVisible ? 'Все задачи ▲' : 'Все задачи ▼';
         if (isListVisible) {
             currentPage = 1;
@@ -557,11 +558,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function getCalendarHeight() {
-        const top = calendarContainer.getBoundingClientRect().top;
-        return window.innerHeight - top - 24;
-    }
-
     function initCalendar() {
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
@@ -598,14 +594,14 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResize: function(info) {
                 handleEventMove(info);
             },
-            height: getCalendarHeight(),
+            height: '100%',
             eventDisplay: 'block',
             dayMaxEvents: 4,
         });
         calendar.render();
 
         window.addEventListener('resize', () => {
-            if (calendar) calendar.setOption('height', getCalendarHeight());
+            if (calendar) calendar.updateSize();
         });
     }
 
@@ -672,16 +668,19 @@ document.addEventListener('DOMContentLoaded', () => {
             currentView = 'calendar';
             tableView.classList.add('hidden');
             calendarContainer.classList.remove('hidden');
+            taskListSection.classList.add('view-calendar');
             viewToggleBtn.textContent = 'Таблица';
             if (!calendar) {
                 initCalendar();
             } else {
+                calendar.updateSize();
                 calendar.refetchEvents();
             }
         } else {
             currentView = 'table';
             calendarContainer.classList.add('hidden');
             tableView.classList.remove('hidden');
+            taskListSection.classList.remove('view-calendar');
             viewToggleBtn.textContent = 'Календарь';
         }
     });
