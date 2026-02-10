@@ -418,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .toISOString().slice(0, 16);
         } else {
             formPaymentDate.value = '';
-            formPaymentDate.defaultValue = '';
         }
     });
 
@@ -492,18 +491,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Calendar Logic ==========
 
-    function toLocalIso(date) {
+    function dateToLocalIso(date) {
         if (!date) return null;
-        const d = new Date(date);
-        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const h = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${d}T${h}:${min}`;
     }
 
     function handleEventMove(info) {
         const taskId = info.event.id;
-        const newStart = toLocalIso(info.event.start);
-        const newEnd = toLocalIso(info.event.end);
-        const data = { start_date: newStart };
-        if (newEnd) data.end_date = newEnd;
+        const data = { start_date: dateToLocalIso(info.event.start) };
+        if (info.event.end) {
+            data.end_date = dateToLocalIso(info.event.end);
+        }
 
         fetch(`/api/tasks/${taskId}`, {
             method: 'PUT',
@@ -512,8 +515,10 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(r => {
             if (!r.ok) {
-                info.revert();
-                return r.json().then(err => { alert(err.error || 'Ошибка'); });
+                return r.json().then(err => {
+                    alert(err.error || 'Ошибка');
+                    info.revert();
+                });
             }
         })
         .catch(() => info.revert());
