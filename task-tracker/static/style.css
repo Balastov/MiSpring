@@ -215,8 +215,6 @@ select.filter-control {
     padding: 12px;
     width: 100%;
     box-sizing: border-box;
-    height: calc(100vh - 180px);
-    overflow: hidden;
 }
 
 #calendar-container.hidden {
