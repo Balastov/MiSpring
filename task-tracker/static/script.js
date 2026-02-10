@@ -527,10 +527,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function initCalendar() {
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
-            initialView: 'dayGridMonth',
+            initialView: 'timeGridWeek',
             editable: true,
             snapDuration: '00:15:00',
             slotDuration: '00:15:00',
+            slotMinTime: '07:00:00',
+            slotMaxTime: '23:00:00',
+            scrollTime: '08:00:00',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -557,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResize: function(info) {
                 handleEventMove(info);
             },
-            height: 'auto',
+            height: 700,
             eventDisplay: 'block',
             dayMaxEvents: 4,
         });
