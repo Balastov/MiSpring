@@ -57,7 +57,7 @@ Backend: Gunicorn + Flask
 sudo systemctl restart task-tracker
 
 # 2. Перезапуск Nginx
-sudo systemctl restart nginx
+sudo systemctl restart nginx 
 
 # 3. Проверка статуса всех сервисов
 sudo systemctl status task-tracker nginx certbot.timer
