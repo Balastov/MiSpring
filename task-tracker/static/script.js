@@ -1515,7 +1515,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (child.nodeType === Node.ELEMENT_NODE) {
                     if (child.tagName === 'A') {
                         const href = child.getAttribute('href');
-                        // Remove all attributes except href
                         while (child.attributes.length > 0) {
                             child.removeAttribute(child.attributes[0].name);
                         }
@@ -1526,7 +1525,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         walk(child);
                     } else {
-                        // Replace non-<a> elements with their content
                         while (child.firstChild) {
                             node.insertBefore(child.firstChild, child);
                         }
@@ -1541,6 +1539,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return div.innerHTML;
     }
 
+    // Auto-detect URLs in plain text and wrap them in <a> tags
+    function autoLinkUrls(text) {
+        const escaped = escapeHtml(text);
+        return escaped.replace(
+            /(https?:\/\/[^\s<]+)/g,
+            '<a href="$1" target="_blank" rel="noopener">$1</a>'
+        );
+    }
+
     // Handle paste in richtext editor: preserve links from clipboard HTML
     formHomeworkComment.addEventListener('paste', (e) => {
         e.preventDefault();
@@ -1549,9 +1556,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (html) {
             const sanitized = sanitizeHtml(html);
-            document.execCommand('insertHTML', false, sanitized);
+            // If HTML had no links after sanitizing, auto-link URLs from plain text
+            if (!sanitized.includes('<a ') && text) {
+                document.execCommand('insertHTML', false, autoLinkUrls(text));
+            } else {
+                document.execCommand('insertHTML', false, sanitized);
+            }
         } else if (text) {
-            document.execCommand('insertText', false, text);
+            document.execCommand('insertHTML', false, autoLinkUrls(text));
         }
     });
 
