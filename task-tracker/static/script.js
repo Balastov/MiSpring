@@ -1559,13 +1559,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const html = e.clipboardData.getData('text/html');
         const text = e.clipboardData.getData('text/plain');
 
-        // Debug: log clipboard contents (open browser DevTools → Console to see)
-        console.log('[Paste debug] HTML:', html || '(empty)');
-        console.log('[Paste debug] Text:', text || '(empty)');
-
         if (html) {
             const sanitized = sanitizeHtml(html);
-            console.log('[Paste debug] Sanitized:', sanitized);
             // If HTML had no links after sanitizing, auto-link URLs from plain text
             if (!sanitized.includes('<a ') && text) {
                 document.execCommand('insertHTML', false, autoLinkUrls(text));
