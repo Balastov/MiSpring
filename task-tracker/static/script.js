@@ -135,6 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const formHomeworkComment = document.getElementById('form-homework-comment');
     const homeworkSubmitBtn = document.getElementById('homework-submit-btn');
 
+    // Flashcards page elements
+    const flashcardsPage = document.getElementById('flashcards-page');
+    const flashcardsBtn = document.getElementById('flashcards-btn');
+    const backToMainFromFlashcardsBtn = document.getElementById('back-to-main-from-flashcards-btn');
+
     // Top bar elements
     const topBar = document.getElementById('top-bar');
     const userDisplayName = document.getElementById('user-display-name');
@@ -1038,12 +1043,22 @@ document.addEventListener('DOMContentLoaded', () => {
         rolesPage.classList.add('hidden');
         homeworkPage.classList.add('hidden');
         usersPage.classList.add('hidden');
+        flashcardsPage.classList.add('hidden');
     }
 
     function showMainPage() {
         hideAllPages();
         document.querySelector('.container').classList.remove('hidden');
     }
+
+    // ========== Flashcards Page Logic ==========
+
+    flashcardsBtn.addEventListener('click', () => {
+        hideAllPages();
+        flashcardsPage.classList.remove('hidden');
+    });
+
+    backToMainFromFlashcardsBtn.addEventListener('click', showMainPage);
 
     // ========== Statuses Page Logic ==========
 
