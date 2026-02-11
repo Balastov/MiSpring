@@ -51,6 +51,17 @@ body {
     background: rgba(229,62,62,0.9);
 }
 
+/* ========== Logo Banner ========== */
+.logo-banner {
+    margin-bottom: 20px;
+}
+
+.logo-banner img {
+    width: 100%;
+    max-width: 500px;
+    height: auto;
+}
+
 .container {
     text-align: center;
 }
