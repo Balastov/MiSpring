@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120">
+  <rect width="600" height="120" rx="8" fill="#2d6a4f"/>
+  <!-- Globe arcs -->
+  <g stroke="#fff" stroke-width="1.8" fill="none" opacity="0.5">
+    <ellipse cx="300" cy="60" rx="50" ry="50"/>
+    <ellipse cx="300" cy="60" rx="50" ry="20"/>
+    <ellipse cx="300" cy="60" rx="20" ry="50"/>
+    <line x1="250" y1="60" x2="350" y2="60"/>
+    <line x1="300" y1="10" x2="300" y2="110"/>
+  </g>
+  <!-- Decorative arcs left -->
+  <path d="M 80 90 Q 140 20, 220 50" stroke="#fff" stroke-width="2" fill="none" opacity="0.3"/>
+  <path d="M 60 100 Q 130 30, 220 60" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.2"/>
+  <!-- Decorative arcs right -->
+  <path d="M 520 90 Q 460 20, 380 50" stroke="#fff" stroke-width="2" fill="none" opacity="0.3"/>
+  <path d="M 540 100 Q 470 30, 380 60" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.2"/>
+  <!-- Text -->
+  <text x="300" y="72" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="42" fill="#fff" letter-spacing="12">ENGSPRING</text>
+</svg>
