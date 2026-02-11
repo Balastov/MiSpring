@@ -211,21 +211,29 @@ def get_tasks_calendar():
 
     student_ids = {t.student_id for t in tasks if t.student_id}
     type_ids = {t.task_type_id for t in tasks if t.task_type_id}
+    status_ids = {t.status_id for t in tasks if t.status_id}
     student_map = {}
     type_map = {}
+    status_map = {}
     if student_ids:
         student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
     if type_ids:
         type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
+    if status_ids:
+        status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
 
     events = []
     for t in tasks:
         student_name = student_map.get(t.student_id, '')
         type_name = type_map.get(t.task_type_id, '')
+        status_name = status_map.get(t.status_id, '')
         title_parts = [p for p in [student_name, type_name] if p]
+        title = ' — '.join(title_parts) or f'Задача #{t.id}'
+        if status_name:
+            title += f' [{status_name}]'
         events.append({
             'id': t.id,
-            'title': ' — '.join(title_parts) or f'Задача #{t.id}',
+            'title': title,
             'start': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
             'end': t.end_date.strftime('%Y-%m-%dT%H:%M') if t.end_date else None,
             'color': '#38a169' if t.is_paid else '#1A515F',
