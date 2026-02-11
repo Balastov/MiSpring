@@ -72,6 +72,13 @@ cd ~/projects/MiSpring
 git pull origin main
 sudo systemctl restart task-tracker
 
+# 5.1. Если были изменения в базе, но данные на сервере нужно сохранить
+cd ~/projects/MiSpring && git checkout -- task-tracker/tasks.db && git pull origin main && sudo systemctl restart task-tracker
+Если вам важно сохранить данные в БД на сервере, тогда лучше так:
+cd ~/projects/MiSpring && git stash push task-tracker/tasks.db && git pull origin main && git stash pop && sudo systemctl restart task-tracker
+
+
+
 # 6. Перенос БД в /var/lib (одноразово при первом деплое)
 sudo mkdir -p /var/lib/task-tracker
 sudo mv ~/projects/MiSpring/task-tracker/tasks.db /var/lib/task-tracker/tasks.db

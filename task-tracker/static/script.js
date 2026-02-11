@@ -1508,34 +1508,39 @@ document.addEventListener('DOMContentLoaded', () => {
     function sanitizeHtml(html) {
         const div = document.createElement('div');
         div.innerHTML = html;
-        function walk(node) {
-            const children = Array.from(node.childNodes);
-            children.forEach(child => {
-                if (child.nodeType === Node.TEXT_NODE) return;
-                if (child.nodeType === Node.ELEMENT_NODE) {
-                    if (child.tagName === 'A') {
-                        const href = child.getAttribute('href');
-                        while (child.attributes.length > 0) {
-                            child.removeAttribute(child.attributes[0].name);
-                        }
-                        if (href) {
-                            child.setAttribute('href', href);
-                            child.setAttribute('target', '_blank');
-                            child.setAttribute('rel', 'noopener');
-                        }
-                        walk(child);
-                    } else {
-                        while (child.firstChild) {
-                            node.insertBefore(child.firstChild, child);
-                        }
-                        node.removeChild(child);
+
+        // Step 1: Clean all <a> tags — keep only href, add target/rel
+        div.querySelectorAll('a').forEach(a => {
+            const href = a.getAttribute('href');
+            while (a.attributes.length > 0) {
+                a.removeAttribute(a.attributes[0].name);
+            }
+            if (href) {
+                a.setAttribute('href', href);
+                a.setAttribute('target', '_blank');
+                a.setAttribute('rel', 'noopener');
+            }
+        });
+
+        // Step 2: Strip all non-<a> elements (unwrap them, keeping children)
+        // Repeat until no more non-<a> elements remain
+        let found = true;
+        while (found) {
+            found = false;
+            const els = div.getElementsByTagName('*');
+            for (let i = 0; i < els.length; i++) {
+                if (els[i].tagName !== 'A') {
+                    const el = els[i];
+                    while (el.firstChild) {
+                        el.parentNode.insertBefore(el.firstChild, el);
                     }
-                } else {
-                    node.removeChild(child);
+                    el.parentNode.removeChild(el);
+                    found = true;
+                    break; // restart — DOM changed
                 }
-            });
+            }
         }
-        walk(div);
+
         return div.innerHTML;
     }
 
@@ -1554,8 +1559,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const html = e.clipboardData.getData('text/html');
         const text = e.clipboardData.getData('text/plain');
 
+        // Debug: log clipboard contents (open browser DevTools → Console to see)
+        console.log('[Paste debug] HTML:', html || '(empty)');
+        console.log('[Paste debug] Text:', text || '(empty)');
+
         if (html) {
             const sanitized = sanitizeHtml(html);
+            console.log('[Paste debug] Sanitized:', sanitized);
             // If HTML had no links after sanitizing, auto-link URLs from plain text
             if (!sanitized.includes('<a ') && text) {
                 document.execCommand('insertHTML', false, autoLinkUrls(text));
