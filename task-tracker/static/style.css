@@ -53,13 +53,18 @@ body {
 
 /* ========== Logo Banner ========== */
 .logo-banner {
-    margin-bottom: 20px;
+    margin: -48px -40px 20px -40px;
+    background-color: #246A78;
+    display: flex;
+    justify-content: center;
+    padding: 0;
 }
 
 .logo-banner img {
     width: 100%;
-    max-width: 500px;
+    max-width: 600px;
     height: auto;
+    display: block;
 }
 
 .container {
