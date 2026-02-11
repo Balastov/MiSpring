@@ -63,7 +63,7 @@ sudo systemctl restart nginx
 sudo systemctl status task-tracker nginx certbot.timer
 
 # 4. Просмотр логов
-sudo journalctl -u task-tracker -f          # Логи приложения
+sudo journalctl -u task-tracker -f         # Логи приложения
 sudo tail -f /var/log/nginx/error.log      # Логи ошибок Nginx
 sudo certbot renew --dry-run               # Тест обновления SSL
 
