@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Main elements
     const addTaskBtn = document.getElementById('add-task-btn');
-    const allTasksBtn = document.getElementById('all-tasks-btn');
+    // allTasksBtn removed — task list is always visible
     const taskListSection = document.getElementById('task-list-section');
     const tasksTbody = document.getElementById('tasks-tbody');
     const paginationInfo = document.getElementById('pagination-info');
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const changePasswordForm = document.getElementById('change-password-form');
 
     let currentPage = 1;
-    let isListVisible = false;
+    let isListVisible = true;
     let editingTaskId = null;
     let currentView = 'calendar';
     let calendar = null;
@@ -228,11 +228,9 @@ document.addEventListener('DOMContentLoaded', () => {
             settingsBtn.style.display = 'none';
         }
 
-        // All tasks button: admin/owner/teacher/student (not guest)
-        if (hasRole('admin', 'owner', 'teacher', 'student')) {
-            allTasksBtn.style.display = '';
-        } else {
-            allTasksBtn.style.display = 'none';
+        // Task list visibility: hide for guests
+        if (!hasRole('admin', 'owner', 'teacher', 'student')) {
+            taskListSection.style.display = 'none';
         }
     }
 
@@ -244,6 +242,13 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(user => {
             currentUserData = user;
             applyRBAC();
+            // Load task list immediately
+            loadFilterStudents();
+            if (currentView === 'calendar') {
+                initCalendar();
+            } else {
+                fetchTasks();
+            }
         })
         .catch(() => {
             window.location.href = '/login';
@@ -470,26 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === modal) closeModal();
     });
 
-    // Toggle task list
-    allTasksBtn.addEventListener('click', () => {
-        isListVisible = !isListVisible;
-        taskListSection.classList.toggle('hidden', !isListVisible);
-        taskListSection.classList.toggle('view-calendar', isListVisible && currentView === 'calendar');
-        allTasksBtn.textContent = isListVisible ? 'Все задачи ▲' : 'Все задачи ▼';
-        if (isListVisible) {
-            currentPage = 1;
-            loadFilterStudents();
-            if (currentView === 'calendar') {
-                if (!calendar) {
-                    initCalendar();
-                } else {
-                    calendar.refetchEvents();
-                }
-            } else {
-                fetchTasks();
-            }
-        }
-    });
+    // Task list is always visible — no toggle needed
 
     // ========== Filters Logic ==========
 
@@ -871,13 +857,6 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(() => {
             // Close modal
             closeModal();
-
-            // Auto-open "All tasks" list if not visible
-            if (!isListVisible) {
-                isListVisible = true;
-                taskListSection.classList.remove('hidden');
-                allTasksBtn.textContent = 'Все задачи ▲';
-            }
 
             // Refresh data
             if (currentView === 'calendar' && calendar) {
