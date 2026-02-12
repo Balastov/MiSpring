@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formEndDate = document.getElementById('form-end-date');
     const formAuthor = document.getElementById('form-author');
     const formStudentId = document.getElementById('form-student-id');
+    const studentRow = document.getElementById('student-row');
     const formIsPaid = document.getElementById('form-is-paid');
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
@@ -360,6 +361,20 @@ document.addEventListener('DOMContentLoaded', () => {
         recalcEndDate();
     });
 
+    // Show/hide student row based on task type
+    function updateStudentRowVisibility() {
+        const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
+        const isLesson = sel && sel.textContent === 'Урок';
+        studentRow.style.display = isLesson ? '' : 'none';
+        if (!isLesson) {
+            formStudentId.value = '';
+        }
+    }
+
+    formTaskTypeId.addEventListener('change', () => {
+        updateStudentRowVisibility();
+    });
+
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
         editingTaskId = null;
@@ -436,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Default to "Урок"
                 const lessonType = typeData.task_types.find(tt => tt.name === 'Урок');
                 if (lessonType) formTaskTypeId.value = lessonType.id;
+                updateStudentRowVisibility();
 
                 formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
                 homeworkData.homework.forEach(hw => {
@@ -683,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formTaskTypeId.appendChild(option);
             });
             formTaskTypeId.value = task.task_type_id || '';
+            updateStudentRowVisibility();
 
             formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
             homeworkData.homework.forEach(hw => {
@@ -805,10 +822,6 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         // Validate required fields
-        if (!formStudentId.value) {
-            alert('Ученик обязателен для заполнения');
-            return;
-        }
         if (!formTaskTypeId.value) {
             alert('Тип задачи обязателен для заполнения');
             return;
@@ -818,9 +831,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Duration is required when task type is "Урок"
+        // Student and duration are required when task type is "Урок"
         const selectedTypeOption = formTaskTypeId.options[formTaskTypeId.selectedIndex];
-        if (selectedTypeOption && selectedTypeOption.textContent === 'Урок' && !formDuration.value) {
+        const isLessonType = selectedTypeOption && selectedTypeOption.textContent === 'Урок';
+        if (isLessonType && !formStudentId.value) {
+            alert('Ученик обязателен для типа задачи "Урок"');
+            return;
+        }
+        if (isLessonType && !formDuration.value) {
             alert('Продолжительность обязательна для типа задачи "Урок"');
             return;
         }
@@ -945,6 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         formTaskTypeId.appendChild(option);
                     });
                     formTaskTypeId.value = task.task_type_id || '';
+                    updateStudentRowVisibility();
 
                     // Populate homework dropdown
                     formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
