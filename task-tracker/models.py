@@ -70,6 +70,7 @@ class Task(db.Model):
     is_paid = db.Column(db.Boolean, default=False)
     payment_date = db.Column(db.DateTime, nullable=True)
     homework_id = db.Column(db.Integer, nullable=True)
+    homework_required = db.Column(db.Boolean, default=True)
     status_id = db.Column(db.Integer, nullable=True)
     task_type_id = db.Column(db.Integer, nullable=True)
     duration = db.Column(db.Integer, nullable=True)
@@ -93,6 +94,7 @@ class Task(db.Model):
             'payment_date': self.payment_date.strftime('%d.%m.%Y %H:%M') if self.payment_date else None,
             'payment_date_iso': self.payment_date.strftime('%Y-%m-%dT%H:%M') if self.payment_date else None,
             'homework_id': self.homework_id,
+            'homework_required': self.homework_required,
             'status_id': self.status_id,
             'task_type_id': self.task_type_id,
             'duration': self.duration,

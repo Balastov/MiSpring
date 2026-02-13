@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const formIsPaid = document.getElementById('form-is-paid');
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
+    const formHomeworkRequired = document.getElementById('form-homework-required');
+    const homeworkRequiredRow = document.getElementById('homework-required-row');
+    const homeworkRow = document.getElementById('homework-row');
     const formStatusId = document.getElementById('form-status-id');
     const formTaskTypeId = document.getElementById('form-task-type-id');
     const formDuration = document.getElementById('form-duration');
@@ -361,18 +364,28 @@ document.addEventListener('DOMContentLoaded', () => {
         recalcEndDate();
     });
 
-    // Show/hide student row based on task type
-    function updateStudentRowVisibility() {
+    // Show/hide lesson-specific fields based on task type
+    function updateLessonFieldsVisibility() {
         const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
         const isLesson = sel && sel.textContent === 'Урок';
+
+        // Show/hide student, homework_required, and homework fields
         studentRow.style.display = isLesson ? '' : 'none';
+        homeworkRequiredRow.style.display = isLesson ? '' : 'none';
+        homeworkRow.style.display = isLesson ? '' : 'none';
+
         if (!isLesson) {
             formStudentId.value = '';
+            formHomeworkRequired.checked = true; // Reset to default
+            formHomeworkId.value = '';
+        } else {
+            // When switching to lesson type, set homework_required to true by default
+            formHomeworkRequired.checked = true;
         }
     }
 
     formTaskTypeId.addEventListener('change', () => {
-        updateStudentRowVisibility();
+        updateLessonFieldsVisibility();
     });
 
     // Open modal and auto-fill fields
@@ -410,6 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formIsPaid.checked = false;
                 formPaymentDate.value = '';
                 formHomeworkId.value = '';
+                formHomeworkRequired.checked = true;
                 formComment.value = '';
                 formClosingDate.value = '';
 
@@ -451,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Default to "Урок"
                 const lessonType = typeData.task_types.find(tt => tt.name === 'Урок');
                 if (lessonType) formTaskTypeId.value = lessonType.id;
-                updateStudentRowVisibility();
+                updateLessonFieldsVisibility();
 
                 formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
                 homeworkData.homework.forEach(hw => {
@@ -670,6 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formIsPaid.checked = task.is_paid || false;
             formPaymentDate.value = task.payment_date_iso || '';
             formHomeworkId.value = task.homework_id ?? '';
+            formHomeworkRequired.checked = task.homework_required ?? true;
             formComment.value = task.comment || '';
             formClosingDate.value = task.closing_date_iso || '';
 
@@ -699,7 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formTaskTypeId.appendChild(option);
             });
             formTaskTypeId.value = task.task_type_id || '';
-            updateStudentRowVisibility();
+            updateLessonFieldsVisibility();
 
             formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
             homeworkData.homework.forEach(hw => {
@@ -826,21 +841,28 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Тип задачи обязателен для заполнения');
             return;
         }
-        if (!formStartDate.value) {
-            alert('Дата начала обязательна для заполнения');
-            return;
-        }
 
-        // Student and duration are required when task type is "Урок"
+        // Lesson-specific validations
         const selectedTypeOption = formTaskTypeId.options[formTaskTypeId.selectedIndex];
         const isLessonType = selectedTypeOption && selectedTypeOption.textContent === 'Урок';
-        if (isLessonType && !formStudentId.value) {
-            alert('Ученик обязателен для типа задачи "Урок"');
-            return;
-        }
-        if (isLessonType && !formDuration.value) {
-            alert('Продолжительность обязательна для типа задачи "Урок"');
-            return;
+
+        if (isLessonType) {
+            if (!formStartDate.value) {
+                alert('Дата начала обязательна для типа задачи "Урок"');
+                return;
+            }
+            if (!formStudentId.value) {
+                alert('Ученик обязателен для типа задачи "Урок"');
+                return;
+            }
+            if (!formDuration.value) {
+                alert('Продолжительность обязательна для типа задачи "Урок"');
+                return;
+            }
+            if (formHomeworkRequired.checked && !formHomeworkId.value) {
+                alert('Домашнее задание обязательно, если включена опция "ДЗ обязательно"');
+                return;
+            }
         }
 
         // Collect form data
@@ -853,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
             is_paid: formIsPaid.checked,
             payment_date: formPaymentDate.value || null,
             homework_id: formHomeworkId.value ? parseInt(formHomeworkId.value) : null,
+            homework_required: formHomeworkRequired.checked,
             status_id: formStatusId.value ? parseInt(formStatusId.value) : null,
             task_type_id: formTaskTypeId.value ? parseInt(formTaskTypeId.value) : null,
             comment: formComment.value.trim() || null,
@@ -931,6 +954,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     formIsPaid.checked = task.is_paid || false;
                     formPaymentDate.value = task.payment_date_iso || '';
                     formHomeworkId.value = task.homework_id ?? '';
+                    formHomeworkRequired.checked = task.homework_required ?? true;
                     formComment.value = task.comment || '';
                     formClosingDate.value = task.closing_date_iso || '';
 
@@ -963,7 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         formTaskTypeId.appendChild(option);
                     });
                     formTaskTypeId.value = task.task_type_id || '';
-                    updateStudentRowVisibility();
+                    updateLessonFieldsVisibility();
 
                     // Populate homework dropdown
                     formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';

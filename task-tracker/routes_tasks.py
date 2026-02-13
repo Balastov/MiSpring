@@ -107,6 +107,7 @@ def add_task():
         is_paid=bool(data.get('is_paid', False)),
         payment_date=parse_datetime(data.get('payment_date')),
         homework_id=data.get('homework_id'),
+        homework_required=bool(data.get('homework_required', True)),
         status_id=data.get('status_id'),
         task_type_id=data.get('task_type_id'),
         duration=data.get('duration'),
@@ -148,6 +149,8 @@ def update_task(task_id):
             task.payment_date = parse_datetime(data['payment_date'])
         if 'homework_id' in data:
             task.homework_id = data['homework_id']
+        if 'homework_required' in data:
+            task.homework_required = bool(data['homework_required'])
         if 'status_id' in data:
             task.status_id = data['status_id']
         if 'task_type_id' in data:
