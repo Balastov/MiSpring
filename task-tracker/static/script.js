@@ -254,12 +254,13 @@ document.addEventListener('DOMContentLoaded', () => {
             applyRBAC();
             // Load task list immediately
             loadFilterStudents();
-            loadFilterTaskTypes();
-            if (currentView === 'calendar') {
-                initCalendar();
-            } else {
-                fetchTasks();
-            }
+            loadFilterTaskTypes().then(() => {
+                if (currentView === 'calendar') {
+                    initCalendar();
+                } else {
+                    fetchTasks();
+                }
+            });
         })
         .catch(() => {
             window.location.href = '/login';
@@ -533,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadFilterTaskTypes() {
-        fetch('/api/task-types/all')
+        return fetch('/api/task-types/all')
             .then(r => r.json())
             .then(data => {
                 const currentVal = filterTaskTypeId.value;
