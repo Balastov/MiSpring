@@ -892,8 +892,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Продолжительность обязательна для типа задачи "Урок"');
                 return;
             }
-            if (formHomeworkRequired.checked && !formHomeworkId.value) {
-                alert('Домашнее задание обязательно, если включена опция "ДЗ обязательно"');
+
+            // Check if homework is required
+            const selectedStatusOption = formStatusId.options[formStatusId.selectedIndex];
+            const isCompleted = selectedStatusOption && selectedStatusOption.textContent === 'Завершён';
+
+            if (formHomeworkRequired.checked && isCompleted && !formHomeworkId.value) {
+                alert('Домашнее задание обязательно, если включена опция "ДЗ обязательно" и статус "Завершён"');
                 return;
             }
         }
