@@ -197,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let isListVisible = true;
     let editingTaskId = null;
+    let originalStudentId = null; // Store original student when editing
     let currentView = 'calendar';
     let calendar = null;
     let currentTaskStatusesPage = 1;
@@ -367,6 +368,43 @@ document.addEventListener('DOMContentLoaded', () => {
         recalcEndDate();
     });
 
+    // Auto-fill next homework for student
+    function autoFillNextHomework() {
+        // Only auto-fill if:
+        // 1. Task type is "Урок"
+        // 2. Student is selected
+        // 3. Homework is required
+        const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
+        const isLesson = sel && sel.textContent === 'Урок';
+
+        if (!isLesson || !formStudentId.value || !formHomeworkRequired.checked) {
+            return;
+        }
+
+        const studentId = formStudentId.value;
+
+        // Fetch last homework for this student
+        fetch(`/api/students/${studentId}/last-homework`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.homework_id) {
+                    // Find the next homework ID in the dropdown
+                    const currentHomeworkId = data.homework_id;
+                    const options = Array.from(formHomeworkId.options);
+                    const currentIndex = options.findIndex(opt => opt.value == currentHomeworkId);
+
+                    if (currentIndex !== -1 && currentIndex + 1 < options.length) {
+                        // Set to next homework
+                        const nextOption = options[currentIndex + 1];
+                        formHomeworkId.value = nextOption.value;
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Failed to fetch last homework:', err);
+            });
+    }
+
     // Show/hide lesson-specific fields based on task type
     function updateLessonFieldsVisibility() {
         const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
@@ -391,9 +429,33 @@ document.addEventListener('DOMContentLoaded', () => {
         updateLessonFieldsVisibility();
     });
 
+    // Auto-fill homework when student or homework_required changes
+    formStudentId.addEventListener('change', (e) => {
+        // If editing and student changed, show confirmation
+        if (editingTaskId && originalStudentId && formStudentId.value !== originalStudentId) {
+            const confirmed = confirm('Внимание! Вы меняете ученика, изменится Домашнее задание, которое ему было назначено! Вы уверены?');
+
+            if (!confirmed) {
+                // Revert to original student
+                formStudentId.value = originalStudentId;
+                return;
+            }
+
+            // User confirmed, update originalStudentId and auto-fill homework
+            originalStudentId = formStudentId.value;
+        }
+
+        autoFillNextHomework();
+    });
+
+    formHomeworkRequired.addEventListener('change', () => {
+        autoFillNextHomework();
+    });
+
     // Open modal and auto-fill fields
     addTaskBtn.addEventListener('click', () => {
         editingTaskId = null;
+        originalStudentId = null;
         taskModalTitle.textContent = 'Создание задачи';
         taskSubmitBtn.textContent = 'Подтвердить и создать';
 
@@ -729,6 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formStudentId.appendChild(option);
             });
             formStudentId.value = task.student_id || '';
+            originalStudentId = task.student_id || null; // Store original for confirmation
 
             formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
             statusData.statuses.forEach(status => {
@@ -1005,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         formStudentId.appendChild(option);
                     });
                     formStudentId.value = task.student_id || '';
+                    originalStudentId = task.student_id || null; // Store original for confirmation
 
                     // Populate status dropdown
                     formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';

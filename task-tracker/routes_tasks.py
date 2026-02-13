@@ -189,6 +189,29 @@ def delete_task(task_id):
     return '', 204
 
 
+@tasks_bp.route('/api/students/<int:student_id>/last-homework', methods=['GET'])
+@login_required
+def get_last_homework_for_student(student_id):
+    """Get the last homework assigned to a student in their most recent lesson task"""
+    # Find "Урок" task type
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return jsonify({'homework_id': None})
+
+    # Find the most recent task for this student with task_type "Урок" and homework assigned
+    last_task = Task.query.filter_by(
+        student_id=student_id,
+        task_type_id=lesson_type.id
+    ).filter(
+        Task.homework_id.isnot(None)
+    ).order_by(Task.start_date.desc()).first()
+
+    if last_task and last_task.homework_id:
+        return jsonify({'homework_id': last_task.homework_id})
+
+    return jsonify({'homework_id': None})
+
+
 # ========== Calendar Endpoint ==========
 
 @tasks_bp.route('/api/tasks/calendar', methods=['GET'])
