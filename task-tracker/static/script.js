@@ -707,6 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initCalendar() {
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
+            firstDay: 1, // Start week on Monday
             initialView: 'timeGridWeek',
             editable: true,
             longPressDelay: 300,
