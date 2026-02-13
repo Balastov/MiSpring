@@ -27,6 +27,10 @@ def get_tasks():
     if student_id:
         query = query.where(Task.student_id == student_id)
 
+    task_type_id = request.args.get('task_type_id', type=int)
+    if task_type_id:
+        query = query.where(Task.task_type_id == task_type_id)
+
     date_from = request.args.get('date_from')
     if date_from:
         dt_from = parse_datetime(date_from)

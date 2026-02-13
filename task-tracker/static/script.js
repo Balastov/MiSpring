@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Filter elements
     const filterStudentId = document.getElementById('filter-student-id');
+    const filterTaskTypeId = document.getElementById('filter-task-type-id');
     const filterDateFrom = document.getElementById('filter-date-from');
     const filterDateTo = document.getElementById('filter-date-to');
     const filterTodayBtn = document.getElementById('filter-today-btn');
@@ -253,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             applyRBAC();
             // Load task list immediately
             loadFilterStudents();
+            loadFilterTaskTypes();
             if (currentView === 'calendar') {
                 initCalendar();
             } else {
@@ -530,10 +532,33 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    function loadFilterTaskTypes() {
+        fetch('/api/task-types/all')
+            .then(r => r.json())
+            .then(data => {
+                const currentVal = filterTaskTypeId.value;
+                filterTaskTypeId.innerHTML = '<option value="">Все</option>';
+                data.task_types.forEach(tt => {
+                    const opt = document.createElement('option');
+                    opt.value = tt.id;
+                    opt.textContent = tt.name;
+                    filterTaskTypeId.appendChild(opt);
+                });
+                // Set default to "Урок" if not already set
+                if (!currentVal) {
+                    const lessonType = data.task_types.find(tt => tt.name === 'Урок');
+                    if (lessonType) filterTaskTypeId.value = lessonType.id;
+                } else {
+                    filterTaskTypeId.value = currentVal;
+                }
+            });
+    }
+
     function buildFilterParams() {
         const params = new URLSearchParams();
         params.set('page', currentPage);
         if (filterStudentId.value) params.set('student_id', filterStudentId.value);
+        if (filterTaskTypeId.value) params.set('task_type_id', filterTaskTypeId.value);
         if (filterDateFrom.value) params.set('date_from', filterDateFrom.value);
         if (filterDateTo.value) params.set('date_to', filterDateTo.value);
         if (filterIsPaid.value) params.set('is_paid', filterIsPaid.value);
@@ -560,7 +585,14 @@ document.addEventListener('DOMContentLoaded', () => {
         filterDateTo.value = '';
         filterIsPaid.value = '';
         currentPage = 1;
-        fetchTasks();
+        // Reset task type to default "Урок"
+        fetch('/api/task-types/all')
+            .then(r => r.json())
+            .then(data => {
+                const lessonType = data.task_types.find(tt => tt.name === 'Урок');
+                if (lessonType) filterTaskTypeId.value = lessonType.id;
+                fetchTasks();
+            });
     });
 
     // ========== Calendar Logic ==========
