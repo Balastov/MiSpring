@@ -14,6 +14,12 @@ class User(UserMixin, db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
+    # Telegram integration
+    telegram_id = db.Column(db.String(50), unique=True, nullable=True)
+    telegram_username = db.Column(db.String(100), nullable=True)
+    telegram_code = db.Column(db.String(10), unique=True, nullable=True)
+    telegram_notifications = db.Column(db.Boolean, default=True)
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -48,6 +54,9 @@ class User(UserMixin, db.Model):
             'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
             'roles': self.get_roles(),
             'auth_source': self.get_auth_source(),
+            'telegram_id': self.telegram_id,
+            'telegram_username': self.telegram_username,
+            'telegram_notifications': self.telegram_notifications,
         }
 
 
@@ -76,6 +85,7 @@ class Task(db.Model):
     duration = db.Column(db.Integer, nullable=True)
     comment = db.Column(db.String(500), nullable=True)
     closing_date = db.Column(db.DateTime, nullable=True)
+    student_confirmed = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         return {
@@ -101,6 +111,7 @@ class Task(db.Model):
             'comment': self.comment,
             'closing_date': self.closing_date.strftime('%d.%m.%Y %H:%M') if self.closing_date else None,
             'closing_date_iso': self.closing_date.strftime('%Y-%m-%dT%H:%M') if self.closing_date else None,
+            'student_confirmed': self.student_confirmed,
         }
 
 
