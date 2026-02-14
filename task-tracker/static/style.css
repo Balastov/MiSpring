@@ -730,3 +730,148 @@ select.filter-control {
 .homework-comment a:hover {
     color: #14404C;
 }
+/* ========== Telegram Page Styles ========== */
+
+.telegram-section {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.telegram-status-card,
+.telegram-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.telegram-status-card h3,
+.telegram-card h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: #1A515F;
+    font-size: 18px;
+}
+
+.telegram-instructions {
+    margin: 16px 0;
+    padding-left: 24px;
+    line-height: 1.8;
+}
+
+.telegram-instructions li {
+    margin-bottom: 8px;
+}
+
+.telegram-instructions code {
+    background: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #d63384;
+}
+
+.code-display {
+    margin-top: 20px;
+    padding: 16px;
+    background: #f8f9fa;
+    border: 2px dashed #40916C;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.code-value {
+    font-size: 32px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    color: #1A515F;
+    letter-spacing: 4px;
+    margin: 12px 0;
+    user-select: all;
+}
+
+.code-hint {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #666;
+}
+
+.code-hint code {
+    background: #fff;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    color: #d63384;
+}
+
+.telegram-info {
+    margin: 16px 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.telegram-info p {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.telegram-info strong {
+    color: #1A515F;
+    min-width: 120px;
+    display: inline-block;
+}
+
+.telegram-notifications {
+    margin: 20px 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.telegram-notifications label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+.telegram-notifications input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.loading {
+    color: #999;
+    font-style: italic;
+}
+
+#telegram-status-info .status-bound {
+    color: #40916C;
+    font-weight: bold;
+}
+
+#telegram-status-info .status-not-bound {
+    color: #999;
+}

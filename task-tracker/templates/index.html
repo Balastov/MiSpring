@@ -204,6 +204,7 @@
                 <button class="settings-option-btn" data-option="roles">Роли</button>
                 <button class="settings-option-btn" data-option="homework">Домашнее задание</button>
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
+                <button class="settings-option-btn" data-option="telegram">Telegram</button>
             </div>
         </div>
     </div>
@@ -516,6 +517,58 @@
                     <button type="button" class="btn-secondary" id="user-modal-cancel">Отмена</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Telegram Page (hidden by default) -->
+    <div id="telegram-page" class="page hidden">
+        <div class="page-header">
+            <h2>Telegram интеграция</h2>
+            <div class="page-actions">
+                <button id="back-to-main-from-telegram-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div class="telegram-section">
+            <div class="telegram-status-card">
+                <h3>Статус привязки</h3>
+                <div id="telegram-status-info">
+                    <p class="loading">Загрузка...</p>
+                </div>
+            </div>
+
+            <!-- Not bound state -->
+            <div id="telegram-not-bound" class="telegram-card hidden">
+                <h3>Привязать Telegram аккаунт</h3>
+                <p>Для получения уведомлений о занятиях и домашних заданиях привяжите свой Telegram аккаунт.</p>
+                <ol class="telegram-instructions">
+                    <li>Нажмите кнопку "Сгенерировать код"</li>
+                    <li>Скопируйте полученный код</li>
+                    <li>Откройте бота <strong>@EngSpring_bot</strong> в Telegram</li>
+                    <li>Отправьте команду <code>/start КОД</code></li>
+                </ol>
+                <button id="generate-code-btn" class="btn-primary">Сгенерировать код</button>
+                <div id="binding-code-display" class="code-display hidden">
+                    <p>Ваш код привязки:</p>
+                    <div class="code-value" id="binding-code-value"></div>
+                    <p class="code-hint">Отправьте боту: <code>/start <span id="code-hint"></span></code></p>
+                </div>
+            </div>
+
+            <!-- Bound state -->
+            <div id="telegram-bound" class="telegram-card hidden">
+                <h3>Telegram привязан</h3>
+                <div class="telegram-info">
+                    <p><strong>Telegram ID:</strong> <span id="bound-telegram-id"></span></p>
+                    <p><strong>Username:</strong> <span id="bound-telegram-username"></span></p>
+                </div>
+                <div class="telegram-notifications">
+                    <label>
+                        <input type="checkbox" id="notifications-toggle">
+                        <span>Получать уведомления в Telegram</span>
+                    </label>
+                </div>
+                <button id="unbind-telegram-btn" class="btn-danger">Отвязать Telegram</button>
+            </div>
         </div>
     </div>
 

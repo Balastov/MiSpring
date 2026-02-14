@@ -1161,6 +1161,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showUsersPage();
             } else if (option === 'homework') {
                 showHomeworkPage();
+            } else if (option === 'telegram') {
+                showTelegramPage();
             }
         });
     });
@@ -1196,6 +1198,142 @@ document.addEventListener('DOMContentLoaded', () => {
         hideAllPages();
         document.querySelector('.container').classList.remove('hidden');
     }
+
+    // ========== Telegram Page Logic ==========
+
+    const telegramPage = document.getElementById('telegram-page');
+    const backToMainFromTelegramBtn = document.getElementById('back-to-main-from-telegram-btn');
+    const telegramStatusInfo = document.getElementById('telegram-status-info');
+    const telegramNotBound = document.getElementById('telegram-not-bound');
+    const telegramBound = document.getElementById('telegram-bound');
+    const generateCodeBtn = document.getElementById('generate-code-btn');
+    const bindingCodeDisplay = document.getElementById('binding-code-display');
+    const bindingCodeValue = document.getElementById('binding-code-value');
+    const codeHint = document.getElementById('code-hint');
+    const boundTelegramId = document.getElementById('bound-telegram-id');
+    const boundTelegramUsername = document.getElementById('bound-telegram-username');
+    const notificationsToggle = document.getElementById('notifications-toggle');
+    const unbindTelegramBtn = document.getElementById('unbind-telegram-btn');
+
+    function showTelegramPage() {
+        hideAllPages();
+        telegramPage.classList.remove('hidden');
+        loadTelegramStatus();
+    }
+
+    function loadTelegramStatus() {
+        telegramStatusInfo.innerHTML = '<p class="loading">Загрузка...</p>';
+        telegramNotBound.classList.add('hidden');
+        telegramBound.classList.add('hidden');
+        bindingCodeDisplay.classList.add('hidden');
+
+        fetch('/api/telegram/status')
+            .then(r => r.json())
+            .then(data => {
+                if (data.is_bound) {
+                    // Show bound state
+                    telegramStatusInfo.innerHTML = '<p class="status-bound">✓ Telegram привязан</p>';
+                    telegramBound.classList.remove('hidden');
+                    boundTelegramId.textContent = data.telegram_id || '—';
+                    boundTelegramUsername.textContent = data.telegram_username ? '@' + data.telegram_username : '—';
+                    notificationsToggle.checked = data.notifications_enabled;
+                } else {
+                    // Show not bound state
+                    telegramStatusInfo.innerHTML = '<p class="status-not-bound">Telegram не привязан</p>';
+                    telegramNotBound.classList.remove('hidden');
+
+                    // If there's a pending code, show it
+                    if (data.pending_code) {
+                        bindingCodeValue.textContent = data.pending_code;
+                        codeHint.textContent = data.pending_code;
+                        bindingCodeDisplay.classList.remove('hidden');
+                    }
+                }
+            })
+            .catch(err => {
+                telegramStatusInfo.innerHTML = '<p style="color: red;">Ошибка загрузки статуса</p>';
+                console.error(err);
+            });
+    }
+
+    backToMainFromTelegramBtn.addEventListener('click', showMainPage);
+
+    generateCodeBtn.addEventListener('click', () => {
+        generateCodeBtn.disabled = true;
+        generateCodeBtn.textContent = 'Генерация...';
+
+        fetch('/api/telegram/generate-code', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.code) {
+                    bindingCodeValue.textContent = data.code;
+                    codeHint.textContent = data.code;
+                    bindingCodeDisplay.classList.remove('hidden');
+                } else if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                }
+            })
+            .catch(err => {
+                alert('Ошибка генерации кода');
+                console.error(err);
+            })
+            .finally(() => {
+                generateCodeBtn.disabled = false;
+                generateCodeBtn.textContent = 'Сгенерировать код';
+            });
+    });
+
+    notificationsToggle.addEventListener('change', () => {
+        const enabled = notificationsToggle.checked;
+
+        fetch('/api/telegram/notifications', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(enabled ? 'Уведомления включены' : 'Уведомления выключены');
+                } else if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                    notificationsToggle.checked = !enabled; // Revert
+                }
+            })
+            .catch(err => {
+                alert('Ошибка обновления настроек');
+                notificationsToggle.checked = !enabled; // Revert
+                console.error(err);
+            });
+    });
+
+    unbindTelegramBtn.addEventListener('click', () => {
+        if (!confirm('Вы уверены, что хотите отвязать Telegram аккаунт?')) {
+            return;
+        }
+
+        unbindTelegramBtn.disabled = true;
+        unbindTelegramBtn.textContent = 'Отвязка...';
+
+        fetch('/api/telegram/unbind', { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Telegram отвязан');
+                    loadTelegramStatus(); // Reload
+                } else if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                }
+            })
+            .catch(err => {
+                alert('Ошибка отвязки');
+                console.error(err);
+            })
+            .finally(() => {
+                unbindTelegramBtn.disabled = false;
+                unbindTelegramBtn.textContent = 'Отвязать Telegram';
+            });
+    });
 
     // ========== Flashcards Page Logic ==========
 
