@@ -66,11 +66,13 @@ from auth import auth_bp
 from routes_tasks import tasks_bp
 from routes_references import references_bp
 from routes_users import users_bp
+from routes_telegram import telegram_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(tasks_bp)
 app.register_blueprint(references_bp)
 app.register_blueprint(users_bp)
+app.register_blueprint(telegram_bp)
 
 
 # ========== Database Initialization ==========
