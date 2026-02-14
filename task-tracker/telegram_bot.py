@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-BOT_TOKEN = os.environ.get('8027718984:AAHOamCfdoMUrdMZobHW0MPlqi_TJOoABi0')
+BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 API_BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:5000')
 
 if not BOT_TOKEN:
