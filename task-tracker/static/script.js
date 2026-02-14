@@ -1926,7 +1926,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUsers(users) {
         usersTbody.innerHTML = '';
         if (users.length === 0) {
-            usersTbody.innerHTML = '<tr><td colspan="10" class="empty-msg">Пользователей нет</td></tr>';
+            usersTbody.innerHTML = '<tr><td colspan="13" class="empty-msg">Пользователей нет</td></tr>';
             return;
         }
 
@@ -1942,6 +1942,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${escapeHtml(sourceLabels[user.auth_source] || user.auth_source)}</td>
                 <td class="cell-bool">${user.is_active ? '✓' : '✗'}</td>
                 <td>${user.created_at || '—'}</td>
+                <td>${user.telegram_id ? escapeHtml(user.telegram_id) : '—'}</td>
+                <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
+                <td class="cell-bool">${user.telegram_notifications ? '✓' : '✗'}</td>
                 <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
                 <td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>
                 <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
