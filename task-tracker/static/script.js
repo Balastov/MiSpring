@@ -55,6 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const formComment = document.getElementById('form-comment');
     const formClosingDate = document.getElementById('form-closing-date');
 
+    // Quick status buttons
+    const quickStatusButtons = document.getElementById('quick-status-buttons');
+    const btnStatusCompleted = document.getElementById('btn-status-completed');
+    const btnStatusCancelled = document.getElementById('btn-status-cancelled');
+
     // Task types page elements
     const taskTypesPage = document.getElementById('task-types-page');
     const backToMainFromTaskTypesBtn = document.getElementById('back-to-main-from-task-types-btn');
@@ -531,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const lessonType = typeData.task_types.find(tt => tt.name === 'Урок');
                 if (lessonType) formTaskTypeId.value = lessonType.id;
                 updateLessonFieldsVisibility();
+                updateQuickStatusButtons();
 
                 formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
                 homeworkData.homework.forEach(hw => {
@@ -1021,6 +1027,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Quick status buttons handlers
+    function updateTaskStatus(statusName) {
+        if (!editingTaskId) {
+            alert('Ошибка: задача не открыта для редактирования');
+            return;
+        }
+
+        // Find status by name
+        const statusOptions = Array.from(formStatusId.options);
+        const statusOption = statusOptions.find(opt => opt.textContent === statusName);
+
+        if (!statusOption) {
+            alert(`Статус "${statusName}" не найден`);
+            return;
+        }
+
+        // Set status
+        formStatusId.value = statusOption.value;
+
+        // Trigger form submit
+        taskForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+
+    btnStatusCompleted.addEventListener('click', () => {
+        updateTaskStatus('Проведён');
+    });
+
+    btnStatusCancelled.addEventListener('click', () => {
+        updateTaskStatus('Отменён');
+    });
+
+    // Show/hide quick status buttons based on task type
+    function updateQuickStatusButtons() {
+        const selectedTypeOption = formTaskTypeId.options[formTaskTypeId.selectedIndex];
+        const isLessonType = selectedTypeOption && selectedTypeOption.textContent === 'Урок';
+        const isEditing = !!editingTaskId;
+
+        if (isLessonType && isEditing) {
+            quickStatusButtons.classList.remove('hidden');
+        } else {
+            quickStatusButtons.classList.add('hidden');
+        }
+    }
+
+    // Update buttons when task type changes
+    formTaskTypeId.addEventListener('change', updateQuickStatusButtons);
+
     // Edit and delete task (event delegation)
     tasksTbody.addEventListener('click', (e) => {
         const editBtn = e.target.closest('.btn-edit');
@@ -1091,6 +1144,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     formTaskTypeId.value = task.task_type_id || '';
                     updateLessonFieldsVisibility();
+                    updateQuickStatusButtons();
 
                     // Populate homework dropdown
                     formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
