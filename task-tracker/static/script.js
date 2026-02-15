@@ -828,6 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             formHomeworkId.value = task.homework_id || '';
 
+            updateQuickStatusButtons();
             modal.classList.remove('hidden');
         });
     }
