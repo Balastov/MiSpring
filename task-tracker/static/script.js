@@ -1051,16 +1051,21 @@ document.addEventListener('DOMContentLoaded', () => {
         taskForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }
 
-    btnStatusCompleted.addEventListener('click', () => {
-        updateTaskStatus('Проведён');
-    });
+    if (btnStatusCompleted) {
+        btnStatusCompleted.addEventListener('click', () => {
+            updateTaskStatus('Проведён');
+        });
+    }
 
-    btnStatusCancelled.addEventListener('click', () => {
-        updateTaskStatus('Отменён');
-    });
+    if (btnStatusCancelled) {
+        btnStatusCancelled.addEventListener('click', () => {
+            updateTaskStatus('Отменён');
+        });
+    }
 
     // Show/hide quick status buttons based on task type
     function updateQuickStatusButtons() {
+        if (!quickStatusButtons || !formTaskTypeId) return;
         const selectedTypeOption = formTaskTypeId.options[formTaskTypeId.selectedIndex];
         const isLessonType = selectedTypeOption && selectedTypeOption.textContent === 'Урок';
         const isEditing = !!editingTaskId;
@@ -1073,7 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Update buttons when task type changes
-    formTaskTypeId.addEventListener('change', updateQuickStatusButtons);
+    if (formTaskTypeId) formTaskTypeId.addEventListener('change', updateQuickStatusButtons);
 
     // Edit and delete task (event delegation)
     tasksTbody.addEventListener('click', (e) => {
