@@ -141,6 +141,21 @@ def update_lesson_price(student_id):
     return jsonify({'ok': True, 'lesson_price': student.lesson_price})
 
 
+@payments_bp.route('/api/students/<int:student_id>/test-notification', methods=['POST'])
+@login_required
+def test_notification(student_id):
+    if not user_has_role('admin', 'owner'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    student = db.get_or_404(User, student_id)
+    from routes_tasks import _send_prepay_warning
+    try:
+        _send_prepay_warning(student)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @payments_bp.route('/api/reports/earnings', methods=['GET'])
 @login_required
 def earnings_report():

@@ -2578,6 +2578,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h3 class="payments-title">История платежей</h3>
                 <div id="payments-list">${paymentsHtml}</div>
                 ${canManage ? `<button type="button" class="btn-primary btn-sm" id="add-payment-btn" style="margin-top:12px">+ Добавить оплату</button>` : ''}
+                ${hasRole('admin', 'owner') ? `<button type="button" class="btn-secondary btn-sm" id="test-notification-btn" style="margin-top:12px">Тест: уведомление</button>` : ''}
             </div>
         `;
 
@@ -2597,6 +2598,24 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('add-payment-btn').addEventListener('click', () => {
                 openPaymentModal(studentId, data.lesson_price);
             });
+
+            if (hasRole('admin', 'owner')) {
+                document.getElementById('test-notification-btn').addEventListener('click', (e) => {
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.textContent = 'Отправка...';
+                    fetch(`/api/students/${studentId}/test-notification`, { method: 'POST' })
+                        .then(r => r.json())
+                        .then(res => {
+                            btn.textContent = res.ok ? 'Отправлено ✓' : ('Ошибка: ' + res.error);
+                            btn.disabled = false;
+                        })
+                        .catch(() => {
+                            btn.textContent = 'Ошибка';
+                            btn.disabled = false;
+                        });
+                });
+            }
 
             document.getElementById('payments-list').addEventListener('click', (e) => {
                 const deletePayBtn = e.target.closest('.btn-delete-payment');
