@@ -2607,11 +2607,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetch(`/api/students/${studentId}/test-notification`, { method: 'POST' })
                         .then(r => r.json())
                         .then(res => {
-                            btn.textContent = res.ok ? 'Отправлено ✓' : ('Ошибка: ' + res.error);
+                            if (res.ok) {
+                                btn.textContent = 'Отправлено ✓ → ' + res.sent_to.join(', ');
+                                if (res.errors && res.errors.length) console.warn('Частичные ошибки:', res.errors);
+                            } else {
+                                btn.textContent = 'Ошибка: ' + res.error;
+                            }
                             btn.disabled = false;
                         })
                         .catch(() => {
-                            btn.textContent = 'Ошибка';
+                            btn.textContent = 'Ошибка сети';
                             btn.disabled = false;
                         });
                 });

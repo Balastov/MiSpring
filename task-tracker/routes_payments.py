@@ -147,11 +147,54 @@ def test_notification(student_id):
     if not user_has_role('admin', 'owner'):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
+    import os, asyncio
     student = db.get_or_404(User, student_id)
-    from routes_tasks import _send_prepay_warning
+
+    # Шаг 1: токен бота
+    token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    if not token:
+        return jsonify({'error': 'TELEGRAM_BOT_TOKEN не задан в окружении'}), 500
+
+    # Шаг 2: учителя с Telegram
+    from models import UserRole as UR, Role
+    teacher_roles = Role.query.filter(Role.name.in_(['teacher', 'owner', 'admin'])).all()
+    role_ids = [r.id for r in teacher_roles]
+    teacher_user_ids = [ur.user_id for ur in UR.query.filter(UR.role_id.in_(role_ids)).all()]
+    teachers = User.query.filter(
+        User.id.in_(teacher_user_ids),
+        User.telegram_id.isnot(None),
+        User.telegram_notifications == True
+    ).all()
+
+    if not teachers:
+        return jsonify({'error': 'Нет пользователей с ролью teacher/owner/admin с привязанным Telegram'}), 500
+
+    # Шаг 3: отправка
+    text = (
+        f'⚠️ [ТЕСТ] У ученика <b>{student.display_name}</b>'
+        f' остался <b>1 оплаченный урок</b>.'
+    )
     try:
-        _send_prepay_warning(student)
-        return jsonify({'ok': True})
+        import telegram
+
+        sent_to = []
+        errors = []
+
+        async def _send():
+            bot = telegram.Bot(token=token)
+            for teacher in teachers:
+                try:
+                    await bot.send_message(chat_id=teacher.telegram_id, text=text, parse_mode='HTML')
+                    sent_to.append(teacher.display_name)
+                except Exception as e:
+                    errors.append(f'{teacher.display_name}: {e}')
+
+        asyncio.run(_send())
+
+        if errors and not sent_to:
+            return jsonify({'error': 'Ошибки при отправке: ' + '; '.join(errors)}), 500
+
+        return jsonify({'ok': True, 'sent_to': sent_to, 'errors': errors})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
