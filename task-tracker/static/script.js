@@ -191,10 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const paymentModalClose = document.getElementById('payment-modal-close');
     const paymentModalCancel = document.getElementById('payment-modal-cancel');
     const paymentForm = document.getElementById('payment-form');
-    const formPaymentLessons = document.getElementById('form-payment-lessons');
-    const formPaymentAmount = document.getElementById('form-payment-amount');
-    const formPaymentDate = document.getElementById('form-payment-date');
-    const formPaymentNotes = document.getElementById('form-payment-notes');
+    const formPayLessons = document.getElementById('form-pay-lessons');
+    const formPayAmount = document.getElementById('form-pay-amount');
+    const formPayDate = document.getElementById('form-pay-date');
+    const formPayNotes = document.getElementById('form-pay-notes');
 
     // Reports page elements
     const reportsPage = document.getElementById('reports-page');
@@ -2556,10 +2556,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    balanceModalClose.addEventListener('click', () => balanceModal.classList.add('hidden'));
-    balanceModal.addEventListener('click', (e) => {
-        if (e.target === balanceModal) balanceModal.classList.add('hidden');
-    });
+    if (balanceModalClose) {
+        balanceModalClose.addEventListener('click', () => balanceModal.classList.add('hidden'));
+    }
+    if (balanceModal) {
+        balanceModal.addEventListener('click', (e) => {
+            if (e.target === balanceModal) balanceModal.classList.add('hidden');
+        });
+    }
 
     // ========== Payment Modal Logic ==========
 
@@ -2568,42 +2572,46 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPaymentStudentLessonPrice = lessonPrice;
 
         const today = new Date();
-        formPaymentDate.value = today.toISOString().split('T')[0];
-        formPaymentLessons.value = '';
-        formPaymentAmount.value = '';
-        formPaymentNotes.value = '';
+        if (formPayDate) formPayDate.value = today.toISOString().split('T')[0];
+        if (formPayLessons) formPayLessons.value = '';
+        if (formPayAmount) formPayAmount.value = '';
+        if (formPayNotes) formPayNotes.value = '';
 
-        paymentModal.classList.remove('hidden');
+        if (paymentModal) paymentModal.classList.remove('hidden');
     }
 
-    formPaymentLessons.addEventListener('input', () => {
-        const count = parseInt(formPaymentLessons.value);
-        if (count > 0 && currentPaymentStudentLessonPrice > 0) {
-            formPaymentAmount.value = Math.round(count * currentPaymentStudentLessonPrice);
-        }
-    });
+    if (formPayLessons) {
+        formPayLessons.addEventListener('input', () => {
+            const count = parseInt(formPayLessons.value);
+            if (count > 0 && currentPaymentStudentLessonPrice > 0) {
+                formPayAmount.value = Math.round(count * currentPaymentStudentLessonPrice);
+            }
+        });
+    }
 
     function closePaymentModal() {
-        paymentModal.classList.add('hidden');
-        paymentForm.reset();
+        if (paymentModal) paymentModal.classList.add('hidden');
+        if (paymentForm) paymentForm.reset();
     }
 
-    paymentModalClose.addEventListener('click', closePaymentModal);
-    paymentModalCancel.addEventListener('click', closePaymentModal);
-    paymentModal.addEventListener('click', (e) => {
-        if (e.target === paymentModal) closePaymentModal();
-    });
+    if (paymentModalClose) paymentModalClose.addEventListener('click', closePaymentModal);
+    if (paymentModalCancel) paymentModalCancel.addEventListener('click', closePaymentModal);
+    if (paymentModal) {
+        paymentModal.addEventListener('click', (e) => {
+            if (e.target === paymentModal) closePaymentModal();
+        });
+    }
 
-    paymentForm.addEventListener('submit', (e) => {
+    if (paymentForm) paymentForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const lessonsCount = parseInt(formPaymentLessons.value);
+        const lessonsCount = parseInt(formPayLessons.value);
         if (!lessonsCount || lessonsCount <= 0) {
             alert('Укажите количество уроков (больше 0)');
             return;
         }
-        const amount = formPaymentAmount.value;
-        const paymentDate = formPaymentDate.value;
-        const notes = formPaymentNotes.value.trim();
+        const amount = formPayAmount.value;
+        const paymentDate = formPayDate.value;
+        const notes = formPayNotes.value.trim();
 
         fetch(`/api/students/${currentBalanceStudentId}/payment`, {
             method: 'POST',
@@ -2644,9 +2652,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loadEarningsReport(currentYear);
     }
 
-    backToMainFromReportsBtn.addEventListener('click', showMainPage);
+    if (backToMainFromReportsBtn) backToMainFromReportsBtn.addEventListener('click', showMainPage);
 
-    reportLoadBtn.addEventListener('click', () => {
+    if (reportLoadBtn) reportLoadBtn.addEventListener('click', () => {
         const year = parseInt(reportYearSelect.value);
         if (year) loadEarningsReport(year);
     });
