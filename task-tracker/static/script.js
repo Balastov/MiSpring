@@ -265,12 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
             changePasswordBtn.style.display = 'none';
         }
 
-        // Settings button: admin/owner/teacher
-        if (hasRole('admin', 'owner', 'teacher')) {
-            settingsBtn.style.display = '';
-        } else {
-            settingsBtn.style.display = 'none';
-        }
+        // Settings button: visible to all authenticated users
+        settingsBtn.style.display = '';
 
         // Task list visibility: hide for guests
         if (!hasRole('admin', 'owner', 'teacher', 'student')) {
@@ -1253,14 +1249,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open settings modal
     settingsBtn.addEventListener('click', () => {
-        // For teachers (non-admin/owner): only show Users and Reports
         const allOptionBtns = settingsModal.querySelectorAll('.settings-option-btn');
-        const isAdminOrOwner = hasRole('admin', 'owner');
+        const isPrivileged = hasRole('admin', 'owner', 'teacher');
         allOptionBtns.forEach(btn => {
-            if (isAdminOrOwner) {
+            if (isPrivileged) {
                 btn.style.display = '';
             } else {
-                btn.style.display = ['users', 'reports'].includes(btn.dataset.option) ? '' : 'none';
+                btn.style.display = ['users', 'telegram'].includes(btn.dataset.option) ? '' : 'none';
             }
         });
         settingsModal.classList.remove('hidden');
@@ -2210,6 +2205,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function fetchUsers(page) {
         if (page !== undefined) currentUsersPage = page;
+        if (!hasRole('admin', 'owner', 'teacher')) {
+            if (currentUserData) renderUsers([currentUserData]);
+            return;
+        }
         fetch(`/api/users?page=${currentUsersPage}`)
             .then(r => r.json())
             .then(data => {
@@ -2219,37 +2218,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderUsers(users) {
+        const canManage = hasRole('admin', 'owner', 'teacher');
+        const usersTheadRow = document.querySelector('#users-table thead tr');
+
+        if (canManage) {
+            usersTheadRow.innerHTML = `
+                <th>ID</th><th>Логин</th><th>Имя</th><th>Роли</th>
+                <th>Источник</th><th>Активен</th><th>Дата создания</th>
+                <th>Telegram ID</th><th>Telegram Username</th><th>Уведомления TG</th>
+                <th></th><th></th><th></th><th></th>`;
+        } else {
+            usersTheadRow.innerHTML = `
+                <th>Логин</th><th>Имя</th><th>Дата создания</th>
+                <th>Telegram Username</th><th></th>`;
+        }
+
         usersTbody.innerHTML = '';
         if (users.length === 0) {
-            usersTbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Пользователей нет</td></tr>';
+            usersTbody.innerHTML = `<tr><td colspan="${canManage ? 14 : 5}" class="empty-msg">Пользователей нет</td></tr>`;
             return;
         }
 
         const sourceLabels = { local: 'Локальный', yandex: 'Яндекс', vk: 'ВКонтакте' };
-        const canManageBalance = hasRole('admin', 'owner', 'teacher');
 
         users.forEach(user => {
-            const isStudent = user.roles.includes('student');
-            const balanceBtn = (isStudent && canManageBalance)
-                ? `<button class="btn-balance" data-id="${user.id}" data-name="${escapeHtml(user.display_name)}">Баланс</button>`
-                : '';
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${user.id}</td>
-                <td>${escapeHtml(user.username)}</td>
-                <td>${escapeHtml(user.display_name)}</td>
-                <td>${escapeHtml(user.roles.join(', ') || '—')}</td>
-                <td>${escapeHtml(sourceLabels[user.auth_source] || user.auth_source)}</td>
-                <td class="cell-bool">${user.is_active ? '✓' : '✗'}</td>
-                <td>${user.created_at || '—'}</td>
-                <td>${user.telegram_id ? escapeHtml(user.telegram_id) : '—'}</td>
-                <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
-                <td class="cell-bool">${user.telegram_notifications ? '✓' : '✗'}</td>
-                <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
-                <td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>
-                <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
-                <td>${balanceBtn}</td>
-            `;
+            if (canManage) {
+                const isStudent = user.roles.includes('student');
+                const balanceBtn = isStudent
+                    ? `<button class="btn-balance" data-id="${user.id}" data-name="${escapeAttr(user.display_name)}">Баланс</button>`
+                    : '';
+                tr.innerHTML = `
+                    <td>${user.id}</td>
+                    <td>${escapeHtml(user.username)}</td>
+                    <td>${escapeHtml(user.display_name)}</td>
+                    <td>${escapeHtml(user.roles.join(', ') || '—')}</td>
+                    <td>${escapeHtml(sourceLabels[user.auth_source] || user.auth_source)}</td>
+                    <td class="cell-bool">${user.is_active ? '✓' : '✗'}</td>
+                    <td>${user.created_at || '—'}</td>
+                    <td>${user.telegram_id ? escapeHtml(user.telegram_id) : '—'}</td>
+                    <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
+                    <td class="cell-bool">${user.telegram_notifications ? '✓' : '✗'}</td>
+                    <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
+                    <td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>
+                    <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
+                    <td>${balanceBtn}</td>`;
+            } else {
+                tr.innerHTML = `
+                    <td>${escapeHtml(user.username)}</td>
+                    <td>${escapeHtml(user.display_name)}</td>
+                    <td>${user.created_at || '—'}</td>
+                    <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
+                    <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>`;
+            }
             usersTbody.appendChild(tr);
         });
     }
