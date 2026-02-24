@@ -479,7 +479,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         autoFillNextHomework();
+        checkAndApplyPrepaid();
     });
+
+    function checkAndApplyPrepaid() {
+        const studentId = formStudentId.value;
+        if (!studentId) {
+            formIsPaid.disabled = false;
+            return;
+        }
+        fetch(`/api/students/${studentId}/balance`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.remaining > 0) {
+                    formIsPaid.checked = true;
+                    formIsPaid.disabled = true;
+                    if (data.prepaid_since_iso) {
+                        formPaymentDate.value = data.prepaid_since_iso + 'T00:00';
+                    } else {
+                        const now = new Date();
+                        formPaymentDate.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                            .toISOString().slice(0, 16);
+                    }
+                } else {
+                    formIsPaid.disabled = false;
+                }
+            })
+            .catch(() => { formIsPaid.disabled = false; });
+    }
 
     formHomeworkRequired.addEventListener('change', () => {
         autoFillNextHomework();
@@ -519,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formStatusId.value = '';
                 formTaskTypeId.value = '';
                 formIsPaid.checked = false;
+                formIsPaid.disabled = false;
                 formPaymentDate.value = '';
                 formHomeworkId.value = '';
                 formHomeworkRequired.checked = true;
@@ -587,6 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeModal() {
         modal.classList.add('hidden');
         taskForm.reset();
+        formIsPaid.disabled = false;
         editingTaskId = null;
     }
 
@@ -857,6 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formHomeworkId.value = task.homework_id || '';
 
             updateQuickStatusButtons();
+            checkAndApplyPrepaid();
             modal.classList.remove('hidden');
         });
     }
