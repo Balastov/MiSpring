@@ -776,6 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
             longPressDelay: 300,
             eventLongPressDelay: 300,
             selectLongPressDelay: 300,
+            nowIndicator: true,
             snapDuration: '00:15:00',
             slotDuration: '00:15:00',
             slotMinTime: '07:00:00',
