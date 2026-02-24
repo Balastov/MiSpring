@@ -1278,3 +1278,130 @@ select.filter-control {
     padding: 8px 12px;
     font-size: 14px;
 }
+
+/* ========== Responsive: Portrait mobile ========== */
+@media (max-width: 600px) {
+    body {
+        padding: 48px 12px 12px 12px;
+    }
+
+    .logo-banner {
+        margin: -48px -12px 14px -12px;
+    }
+
+    .top-bar {
+        padding: 6px 12px;
+        font-size: 12px;
+        gap: 8px;
+    }
+
+    .btn-topbar {
+        padding: 4px 10px;
+        font-size: 11px;
+    }
+
+    .modal-content {
+        width: 96%;
+    }
+
+    .form-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .form-row label {
+        flex: none;
+        margin-bottom: 4px;
+    }
+
+    .form-row input[type="text"],
+    .form-row input[type="number"],
+    .form-row input[type="datetime-local"],
+    .form-row textarea,
+    .form-row select.form-select {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .fc-toolbar-title {
+        font-size: 1rem !important;
+    }
+}
+
+/* ========== Responsive: Landscape on small screens (phones) ========== */
+@media (orientation: landscape) and (max-height: 600px) {
+    body {
+        padding: 40px 16px 8px 16px;
+    }
+
+    /* Hide logo to reclaim vertical space */
+    .logo-banner {
+        display: none;
+    }
+
+    .top-bar {
+        padding: 5px 14px;
+        font-size: 12px;
+        gap: 8px;
+    }
+
+    .btn-topbar {
+        padding: 4px 10px;
+        font-size: 11px;
+    }
+
+    #add-task-btn,
+    #flashcards-btn {
+        padding: 7px 14px;
+        font-size: 13px;
+    }
+
+    #task-list-section {
+        margin-top: 8px;
+    }
+
+    /* Recalculate calendar height for compact landscape layout:
+       40px body-top + ~36px buttons + 8px margin-top + ~38px filters + 8px margin-bottom + 12px calendar-margin ≈ 142px */
+    #task-list-section.view-calendar {
+        height: calc(100vh - 150px);
+    }
+
+    /* Compact filter bar: hide labels, reduce padding */
+    .filters-bar {
+        padding: 6px 10px;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+
+    .filter-group label {
+        display: none;
+    }
+
+    .filter-control {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+
+    .btn-filter-today,
+    .btn-filter-apply,
+    .btn-filter-reset,
+    .btn-view-toggle {
+        padding: 5px 10px;
+        font-size: 12px;
+    }
+
+    #calendar-container {
+        padding: 6px;
+        margin-top: 0;
+    }
+
+    /* Smaller toolbar title so it doesn't wrap */
+    .fc-toolbar-title {
+        font-size: 1rem !important;
+    }
+
+    .fc-button {
+        padding: 4px 10px !important;
+        font-size: 12px !important;
+    }
+}
