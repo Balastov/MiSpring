@@ -1292,7 +1292,8 @@ document.addEventListener('DOMContentLoaded', () => {
         homeworkPage.classList.add('hidden');
         usersPage.classList.add('hidden');
         flashcardsPage.classList.add('hidden');
-        reportsPage.classList.add('hidden');
+        if (reportsPage) reportsPage.classList.add('hidden');
+        if (telegramPage) telegramPage.classList.add('hidden');
     }
 
     function showMainPage() {
