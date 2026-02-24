@@ -293,6 +293,15 @@ select.filter-control {
     font-size: 12px;
 }
 
+#calendar-container .fc-now-indicator {
+    border-color: var(--color-primary);
+}
+
+#calendar-container .fc-now-indicator-arrow {
+    border-top-color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
 /* Table */
 .table-wrapper {
     overflow-x: auto;
