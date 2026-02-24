@@ -910,6 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tableView.classList.remove('hidden');
             taskListSection.classList.remove('view-calendar');
             viewToggleBtn.textContent = 'Календарь';
+            fetchTasks();
         }
     });
 
