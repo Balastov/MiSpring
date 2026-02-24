@@ -851,6 +851,16 @@ select.filter-control {
     color: #d63384;
 }
 
+.ics-copy-hint {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    word-break: break-all;
+    color: var(--color-text-secondary);
+}
+
 .code-display {
     margin-top: 20px;
     padding: 16px;

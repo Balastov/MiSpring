@@ -579,6 +579,19 @@
                 </div>
                 <button id="unbind-telegram-btn" class="btn-danger">Отвязать Telegram</button>
             </div>
+            <!-- Google Calendar ICS sync -->
+            <div class="telegram-card">
+                <h3>Синхронизация с Google Calendar</h3>
+                <p>Подпишитесь на ваши уроки в Google Calendar — они будут обновляться автоматически.</p>
+                <ol class="telegram-instructions">
+                    <li>Нажмите кнопку ниже — ссылка скопируется в буфер обмена</li>
+                    <li>Откройте <strong>calendar.google.com</strong></li>
+                    <li>Слева внизу нажмите <strong>"+"</strong> рядом с "Другие календари" → <strong>"По URL"</strong></li>
+                    <li>Вставьте ссылку → <strong>"Добавить календарь"</strong></li>
+                </ol>
+                <button id="copy-ics-btn" class="btn-primary">Скопировать ссылку на календарь</button>
+                <p id="ics-copy-hint" class="ics-copy-hint hidden"></p>
+            </div>
         </div>
     </div>
 

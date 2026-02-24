@@ -1467,6 +1467,29 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
 
+    // ========== ICS Calendar Sync ==========
+
+    const copyIcsBtn = document.getElementById('copy-ics-btn');
+    const icsCopyHint = document.getElementById('ics-copy-hint');
+
+    if (copyIcsBtn) {
+        copyIcsBtn.addEventListener('click', () => {
+            fetch('/api/user/calendar-token')
+                .then(r => r.json())
+                .then(data => {
+                    navigator.clipboard.writeText(data.url).then(() => {
+                        icsCopyHint.textContent = 'Ссылка скопирована: ' + data.url;
+                        icsCopyHint.classList.remove('hidden');
+                    }).catch(() => {
+                        // Fallback for browsers that block clipboard API
+                        icsCopyHint.textContent = data.url;
+                        icsCopyHint.classList.remove('hidden');
+                    });
+                })
+                .catch(() => alert('Ошибка получения ссылки'));
+        });
+    }
+
     // ========== Flashcards Page Logic ==========
 
     flashcardsBtn.addEventListener('click', () => {

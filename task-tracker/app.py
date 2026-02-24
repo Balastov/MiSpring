@@ -68,6 +68,7 @@ from routes_references import references_bp
 from routes_users import users_bp
 from routes_telegram import telegram_bp
 from routes_payments import payments_bp
+from routes_calendar import calendar_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(tasks_bp)
@@ -75,6 +76,7 @@ app.register_blueprint(references_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(telegram_bp)
 app.register_blueprint(payments_bp)
+app.register_blueprint(calendar_bp)
 
 
 # ========== Database Initialization ==========
@@ -93,6 +95,8 @@ with app.app_context():
         cursor.execute('ALTER TABLE user ADD COLUMN prepaid_lessons INTEGER DEFAULT 0')
     if 'prepaid_since' not in user_columns:
         cursor.execute('ALTER TABLE user ADD COLUMN prepaid_since DATETIME')
+    if 'calendar_token' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN calendar_token VARCHAR(64)')
 
     existing_columns = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
     if 'start_date' not in existing_columns:

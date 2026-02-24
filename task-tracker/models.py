@@ -20,6 +20,9 @@ class User(UserMixin, db.Model):
     telegram_code = db.Column(db.String(10), unique=True, nullable=True)
     telegram_notifications = db.Column(db.Boolean, default=True)
 
+    # Calendar sync
+    calendar_token = db.Column(db.String(64), unique=True, nullable=True)
+
     # Prepayment balance
     lesson_price = db.Column(db.Float, nullable=True)
     prepaid_lessons = db.Column(db.Integer, default=0, nullable=False)
