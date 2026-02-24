@@ -3,8 +3,55 @@ from flask_login import login_required, current_user
 from extensions import db
 from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework
 from helpers import parse_datetime, user_has_role
+import os
+import asyncio
 
 tasks_bp = Blueprint('tasks', __name__)
+
+
+def _send_prepay_warning(student):
+    """Отправляет учителю уведомление в Telegram, если у ученика остался 1 оплаченный урок."""
+    try:
+        # Находим пользователей с ролью teacher или owner, у которых есть telegram_id
+        teacher_role = Role.query.filter(Role.name.in_(['teacher', 'owner', 'admin'])).all()
+        role_ids = [r.id for r in teacher_role]
+        if not role_ids:
+            return
+        from models import UserRole as UR
+        teacher_user_ids = [ur.user_id for ur in UR.query.filter(UR.role_id.in_(role_ids)).all()]
+        teachers = User.query.filter(
+            User.id.in_(teacher_user_ids),
+            User.telegram_id.isnot(None),
+            User.telegram_notifications == True
+        ).all()
+
+        if not teachers:
+            return
+
+        token = os.environ.get('TELEGRAM_BOT_TOKEN')
+        if not token:
+            return
+
+        tg_username = f'@{student.telegram_username}' if student.telegram_username else ''
+        text = (
+            f'⚠️ Внимание! У ученика <b>{student.display_name}</b>'
+            + (f' ({tg_username})' if tg_username else '')
+            + f' остался <b>1 оплаченный урок</b>.'
+        )
+
+        import telegram
+
+        async def _send():
+            bot = telegram.Bot(token=token)
+            for teacher in teachers:
+                try:
+                    await bot.send_message(chat_id=teacher.telegram_id, text=text, parse_mode='HTML')
+                except Exception:
+                    pass
+
+        asyncio.run(_send())
+    except Exception:
+        pass
 
 
 @tasks_bp.route('/api/tasks', methods=['GET'])
@@ -155,6 +202,7 @@ def update_task(task_id):
             task.homework_id = data['homework_id']
         if 'homework_required' in data:
             task.homework_required = bool(data['homework_required'])
+        old_status_id = task.status_id
         if 'status_id' in data:
             task.status_id = data['status_id']
         if 'task_type_id' in data:
@@ -170,6 +218,24 @@ def update_task(task_id):
             task.closing_date = parse_datetime(data['closing_date'])
 
         db.session.commit()
+
+        # Проверяем, стал ли статус "Проведён" — уменьшаем баланс предоплаты
+        new_status_id = task.status_id
+        if new_status_id and new_status_id != old_status_id:
+            conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
+            lesson_type = TaskType.query.filter_by(name='Урок').first()
+            if (conducted_status and conducted_status.id == new_status_id
+                    and lesson_type and task.task_type_id == lesson_type.id
+                    and task.student_id):
+                student = db.session.get(User, task.student_id)
+                if (student and (student.prepaid_lessons or 0) > 0
+                        and student.prepaid_since
+                        and task.start_date and task.start_date >= student.prepaid_since):
+                    student.prepaid_lessons -= 1
+                    db.session.commit()
+                    if student.prepaid_lessons == 1:
+                        _send_prepay_warning(student)
+
         return jsonify(task.to_dict())
     except Exception as e:
         db.session.rollback()

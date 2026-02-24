@@ -22,7 +22,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType
+from models import User, UserRole, Role, TaskType, StudentPayment
 
 
 # ========== Flask-Login Callbacks ==========
@@ -67,12 +67,14 @@ from routes_tasks import tasks_bp
 from routes_references import references_bp
 from routes_users import users_bp
 from routes_telegram import telegram_bp
+from routes_payments import payments_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(tasks_bp)
 app.register_blueprint(references_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(telegram_bp)
+app.register_blueprint(payments_bp)
 
 
 # ========== Database Initialization ==========
@@ -82,6 +84,16 @@ with app.app_context():
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+
+    # Миграция таблицы user
+    user_columns = [col[1] for col in cursor.execute('PRAGMA table_info(user)').fetchall()]
+    if 'lesson_price' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN lesson_price REAL')
+    if 'prepaid_lessons' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN prepaid_lessons INTEGER DEFAULT 0')
+    if 'prepaid_since' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN prepaid_since DATETIME')
+
     existing_columns = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
     if 'start_date' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN start_date DATETIME')

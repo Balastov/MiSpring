@@ -177,6 +177,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const formUserIsActive = document.getElementById('form-user-is-active');
     const formUserRoles = document.getElementById('form-user-roles');
     const userSubmitBtn = document.getElementById('user-submit-btn');
+    const formUserLessonPriceRow = document.getElementById('form-user-lesson-price-row');
+    const formUserLessonPrice = document.getElementById('form-user-lesson-price');
+
+    // Balance modal elements
+    const balanceModal = document.getElementById('balance-modal');
+    const balanceModalTitle = document.getElementById('balance-modal-title');
+    const balanceModalClose = document.getElementById('balance-modal-close');
+    const balanceModalBody = document.getElementById('balance-modal-body');
+
+    // Payment modal elements
+    const paymentModal = document.getElementById('payment-modal');
+    const paymentModalClose = document.getElementById('payment-modal-close');
+    const paymentModalCancel = document.getElementById('payment-modal-cancel');
+    const paymentForm = document.getElementById('payment-form');
+    const formPaymentLessons = document.getElementById('form-payment-lessons');
+    const formPaymentAmount = document.getElementById('form-payment-amount');
+    const formPaymentDate = document.getElementById('form-payment-date');
+    const formPaymentNotes = document.getElementById('form-payment-notes');
+
+    // Reports page elements
+    const reportsPage = document.getElementById('reports-page');
+    const backToMainFromReportsBtn = document.getElementById('back-to-main-from-reports-btn');
+    const reportYearSelect = document.getElementById('report-year-select');
+    const reportLoadBtn = document.getElementById('report-load-btn');
+    const reportContent = document.getElementById('report-content');
 
     // Filter elements
     const filterStudentId = document.getElementById('filter-student-id');
@@ -215,6 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingHomeworkId = null;
     let currentUsersPage = 1;
     let editingUserId = null;
+    let currentBalanceStudentId = null;
+    let currentBalanceStudentName = null;
+    let currentPaymentStudentLessonPrice = null;
 
     // ========== Auth: Fetch Current User ==========
 
@@ -237,8 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
             changePasswordBtn.style.display = 'none';
         }
 
-        // Settings button: only admin/owner
-        if (hasRole('admin', 'owner')) {
+        // Settings button: admin/owner/teacher
+        if (hasRole('admin', 'owner', 'teacher')) {
             settingsBtn.style.display = '';
         } else {
             settingsBtn.style.display = 'none';
@@ -1193,6 +1221,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Open settings modal
     settingsBtn.addEventListener('click', () => {
+        // For teachers (non-admin/owner): only show Users and Reports
+        const allOptionBtns = settingsModal.querySelectorAll('.settings-option-btn');
+        const isAdminOrOwner = hasRole('admin', 'owner');
+        allOptionBtns.forEach(btn => {
+            if (isAdminOrOwner) {
+                btn.style.display = '';
+            } else {
+                btn.style.display = ['users', 'reports'].includes(btn.dataset.option) ? '' : 'none';
+            }
+        });
         settingsModal.classList.remove('hidden');
     });
 
@@ -1223,6 +1261,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showHomeworkPage();
             } else if (option === 'telegram') {
                 showTelegramPage();
+            } else if (option === 'reports') {
+                showReportsPage();
             }
         });
     });
@@ -1252,6 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         homeworkPage.classList.add('hidden');
         usersPage.classList.add('hidden');
         flashcardsPage.classList.add('hidden');
+        reportsPage.classList.add('hidden');
     }
 
     function showMainPage() {
@@ -2124,13 +2165,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUsers(users) {
         usersTbody.innerHTML = '';
         if (users.length === 0) {
-            usersTbody.innerHTML = '<tr><td colspan="13" class="empty-msg">Пользователей нет</td></tr>';
+            usersTbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Пользователей нет</td></tr>';
             return;
         }
 
         const sourceLabels = { local: 'Локальный', yandex: 'Яндекс', vk: 'ВКонтакте' };
+        const canManageBalance = hasRole('admin', 'owner', 'teacher');
 
         users.forEach(user => {
+            const isStudent = user.roles.includes('student');
+            const balanceBtn = (isStudent && canManageBalance)
+                ? `<button class="btn-balance" data-id="${user.id}" data-name="${escapeHtml(user.display_name)}">Баланс</button>`
+                : '';
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${user.id}</td>
@@ -2146,6 +2192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
                 <td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>
                 <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
+                <td>${balanceBtn}</td>
             `;
             usersTbody.appendChild(tr);
         });
@@ -2200,6 +2247,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Render role checkboxes
                 renderRoleCheckboxes(rolesData.roles, []);
+
+                // Hide lesson_price for new users
+                formUserLessonPriceRow.classList.add('hidden');
+                formUserLessonPrice.value = '';
 
                 userModal.classList.remove('hidden');
             });
@@ -2259,14 +2310,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (editingUserId) {
             // Update
-            fetch(`/api/users/${editingUserId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData)
-            })
-            .then(r => {
-                if (r.ok) return r.json();
-                return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+            const updateRequests = [
+                fetch(`/api/users/${editingUserId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                })
+            ];
+            // Save lesson_price if visible
+            if (!formUserLessonPriceRow.classList.contains('hidden')) {
+                const priceVal = formUserLessonPrice.value;
+                updateRequests.push(
+                    fetch(`/api/students/${editingUserId}/lesson-price`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lesson_price: priceVal === '' ? null : parseFloat(priceVal) })
+                    })
+                );
+            }
+            Promise.all(updateRequests)
+            .then(responses => {
+                const failed = responses.find(r => !r.ok);
+                if (failed) return failed.json().then(err => { throw new Error(err.error || 'Ошибка'); });
             })
             .then(() => {
                 closeUserModal();
@@ -2327,6 +2392,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     renderRoleCheckboxes(rolesData.roles, user.roles);
 
+                    // Show lesson_price for students (teacher/admin only)
+                    const isStudent = user.roles.includes('student');
+                    const canManage = hasRole('admin', 'owner', 'teacher');
+                    if (isStudent && canManage) {
+                        formUserLessonPriceRow.classList.remove('hidden');
+                        formUserLessonPrice.value = user.lesson_price != null ? user.lesson_price : '';
+                    } else {
+                        formUserLessonPriceRow.classList.add('hidden');
+                        formUserLessonPrice.value = '';
+                    }
+
                     userModal.classList.remove('hidden');
                 });
         }
@@ -2357,5 +2433,286 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
         }
+
+        const balBtn = e.target.closest('.btn-balance');
+        if (balBtn) {
+            const id = parseInt(balBtn.dataset.id);
+            const name = balBtn.dataset.name;
+            openBalanceModal(id, name);
+        }
     });
+
+    // ========== Balance Modal Logic ==========
+
+    function openBalanceModal(studentId, studentName) {
+        currentBalanceStudentId = studentId;
+        currentBalanceStudentName = studentName;
+        balanceModalTitle.textContent = `Баланс: ${studentName}`;
+        balanceModalBody.innerHTML = '<p class="loading">Загрузка...</p>';
+        balanceModal.classList.remove('hidden');
+        loadBalanceData(studentId, studentName);
+    }
+
+    function loadBalanceData(studentId, studentName) {
+        fetch(`/api/students/${studentId}/balance`)
+            .then(r => r.json())
+            .then(data => renderBalanceContent(data, studentId, studentName))
+            .catch(() => {
+                balanceModalBody.innerHTML = '<p>Ошибка загрузки</p>';
+            });
+    }
+
+    function renderBalanceContent(data, studentId, studentName) {
+        const canManage = hasRole('admin', 'owner', 'teacher');
+        const remaining = data.remaining || 0;
+        const remainingClass = remaining <= 1 ? 'balance-stat--warning' : '';
+
+        let lessonPriceHtml = '';
+        if (canManage) {
+            lessonPriceHtml = `
+            <div class="balance-lesson-price">
+                <label>Стоимость урока (₽):</label>
+                <div class="lesson-price-row">
+                    <input type="number" id="balance-lesson-price-input" class="form-control" value="${data.lesson_price != null ? data.lesson_price : ''}" min="0" step="1" placeholder="не задана">
+                    <button type="button" class="btn-primary btn-sm" id="save-lesson-price-btn">Сохранить</button>
+                </div>
+            </div>`;
+        }
+
+        let paymentsHtml = '';
+        if (data.payments && data.payments.length > 0) {
+            paymentsHtml = data.payments.map(p => `
+                <div class="payment-item">
+                    <span class="payment-date">${p.payment_date || '—'}</span>
+                    <span class="payment-lessons">${p.lessons_count} ур.</span>
+                    <span class="payment-amount">${p.amount != null ? p.amount.toFixed(0) + ' ₽' : '—'}</span>
+                    <span class="payment-notes">${escapeHtml(p.notes || '')}</span>
+                    ${canManage ? `<button class="btn-delete-payment" data-payment-id="${p.id}" title="Удалить">×</button>` : ''}
+                </div>
+            `).join('');
+        } else {
+            paymentsHtml = '<p class="empty-msg">Платежей нет</p>';
+        }
+
+        balanceModalBody.innerHTML = `
+            ${lessonPriceHtml}
+            <div class="balance-stats">
+                <div class="balance-stat">
+                    <span class="balance-stat-label">Всего оплачено</span>
+                    <span class="balance-stat-value">${data.total_paid}</span>
+                    <span class="balance-stat-unit">уроков</span>
+                </div>
+                <div class="balance-stat">
+                    <span class="balance-stat-label">Проведено</span>
+                    <span class="balance-stat-value">${data.conducted}</span>
+                    <span class="balance-stat-unit">уроков</span>
+                </div>
+                <div class="balance-stat ${remainingClass}">
+                    <span class="balance-stat-label">Остаток</span>
+                    <span class="balance-stat-value">${remaining}</span>
+                    <span class="balance-stat-unit">уроков</span>
+                </div>
+                ${data.prepaid_since ? `
+                <div class="balance-stat">
+                    <span class="balance-stat-label">Предоплата с</span>
+                    <span class="balance-stat-value balance-stat-value--date">${data.prepaid_since}</span>
+                </div>` : ''}
+            </div>
+            <div class="payments-section">
+                <h3 class="payments-title">История платежей</h3>
+                <div id="payments-list">${paymentsHtml}</div>
+                ${canManage ? `<button type="button" class="btn-primary btn-sm" id="add-payment-btn" style="margin-top:12px">+ Добавить оплату</button>` : ''}
+            </div>
+        `;
+
+        if (canManage) {
+            document.getElementById('save-lesson-price-btn').addEventListener('click', () => {
+                const price = document.getElementById('balance-lesson-price-input').value;
+                fetch(`/api/students/${studentId}/lesson-price`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lesson_price: price === '' ? null : parseFloat(price) })
+                })
+                .then(r => r.json())
+                .then(() => loadBalanceData(studentId, studentName))
+                .catch(() => alert('Ошибка сохранения'));
+            });
+
+            document.getElementById('add-payment-btn').addEventListener('click', () => {
+                openPaymentModal(studentId, data.lesson_price);
+            });
+
+            document.getElementById('payments-list').addEventListener('click', (e) => {
+                const deletePayBtn = e.target.closest('.btn-delete-payment');
+                if (deletePayBtn) {
+                    if (!confirm('Удалить этот платёж?')) return;
+                    const paymentId = deletePayBtn.dataset.paymentId;
+                    fetch(`/api/students/${studentId}/payment/${paymentId}`, { method: 'DELETE' })
+                        .then(r => r.json())
+                        .then(() => loadBalanceData(studentId, studentName))
+                        .catch(() => alert('Ошибка удаления'));
+                }
+            });
+        }
+    }
+
+    balanceModalClose.addEventListener('click', () => balanceModal.classList.add('hidden'));
+    balanceModal.addEventListener('click', (e) => {
+        if (e.target === balanceModal) balanceModal.classList.add('hidden');
+    });
+
+    // ========== Payment Modal Logic ==========
+
+    function openPaymentModal(studentId, lessonPrice) {
+        currentBalanceStudentId = studentId;
+        currentPaymentStudentLessonPrice = lessonPrice;
+
+        const today = new Date();
+        formPaymentDate.value = today.toISOString().split('T')[0];
+        formPaymentLessons.value = '';
+        formPaymentAmount.value = '';
+        formPaymentNotes.value = '';
+
+        paymentModal.classList.remove('hidden');
+    }
+
+    formPaymentLessons.addEventListener('input', () => {
+        const count = parseInt(formPaymentLessons.value);
+        if (count > 0 && currentPaymentStudentLessonPrice > 0) {
+            formPaymentAmount.value = Math.round(count * currentPaymentStudentLessonPrice);
+        }
+    });
+
+    function closePaymentModal() {
+        paymentModal.classList.add('hidden');
+        paymentForm.reset();
+    }
+
+    paymentModalClose.addEventListener('click', closePaymentModal);
+    paymentModalCancel.addEventListener('click', closePaymentModal);
+    paymentModal.addEventListener('click', (e) => {
+        if (e.target === paymentModal) closePaymentModal();
+    });
+
+    paymentForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const lessonsCount = parseInt(formPaymentLessons.value);
+        if (!lessonsCount || lessonsCount <= 0) {
+            alert('Укажите количество уроков (больше 0)');
+            return;
+        }
+        const amount = formPaymentAmount.value;
+        const paymentDate = formPaymentDate.value;
+        const notes = formPaymentNotes.value.trim();
+
+        fetch(`/api/students/${currentBalanceStudentId}/payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lessons_count: lessonsCount,
+                amount: amount ? parseFloat(amount) : null,
+                payment_date: paymentDate || null,
+                notes: notes || null
+            })
+        })
+        .then(r => {
+            if (r.ok) return r.json();
+            return r.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+        })
+        .then(() => {
+            closePaymentModal();
+            loadBalanceData(currentBalanceStudentId, currentBalanceStudentName);
+        })
+        .catch(err => alert(err.message));
+    });
+
+    // ========== Reports Page Logic ==========
+
+    function showReportsPage() {
+        hideAllPages();
+        reportsPage.classList.remove('hidden');
+
+        const currentYear = new Date().getFullYear();
+        reportYearSelect.innerHTML = '';
+        for (let y = currentYear; y >= currentYear - 3; y--) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            reportYearSelect.appendChild(opt);
+        }
+
+        loadEarningsReport(currentYear);
+    }
+
+    backToMainFromReportsBtn.addEventListener('click', showMainPage);
+
+    reportLoadBtn.addEventListener('click', () => {
+        const year = parseInt(reportYearSelect.value);
+        if (year) loadEarningsReport(year);
+    });
+
+    function loadEarningsReport(year) {
+        reportContent.innerHTML = '<p class="loading">Загрузка...</p>';
+        fetch(`/api/reports/earnings?year=${year}`)
+            .then(r => r.json())
+            .then(data => renderEarningsReport(data))
+            .catch(() => { reportContent.innerHTML = '<p>Ошибка загрузки</p>'; });
+    }
+
+    function renderEarningsReport(data) {
+        if (!data.months || data.months.length === 0) {
+            reportContent.innerHTML = '<p class="empty-msg">Данных за этот год нет</p>';
+            return;
+        }
+
+        const totalAmount = data.months.reduce((s, m) => s + m.total_amount, 0);
+        const totalLessons = data.months.reduce((s, m) => s + m.total_lessons, 0);
+
+        let html = `
+            <div class="report-summary">
+                Итого за ${data.year}: <strong>${totalLessons} уроков</strong>, <strong>${totalAmount.toFixed(0)} ₽</strong>
+            </div>
+            <div class="report-months">
+        `;
+
+        data.months.forEach(month => {
+            html += `
+            <div class="report-month">
+                <div class="report-month-header">
+                    <span class="report-month-name">${month.month_name}</span>
+                    <span class="report-month-stats">${month.total_lessons} уроков &mdash; ${month.total_amount.toFixed(0)} ₽</span>
+                </div>
+                <table class="data-table report-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Ученик</th>
+                            <th>Уроков</th>
+                            <th>Сумма</th>
+                            <th>Заметка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            month.payments.forEach(p => {
+                html += `
+                        <tr>
+                            <td>${p.payment_date || '—'}</td>
+                            <td>${escapeHtml(p.student_name || '—')}</td>
+                            <td>${p.lessons_count}</td>
+                            <td>${p.amount != null ? p.amount.toFixed(0) + ' ₽' : '—'}</td>
+                            <td>${escapeHtml(p.notes || '—')}</td>
+                        </tr>
+                `;
+            });
+            html += `
+                    </tbody>
+                </table>
+            </div>
+            `;
+        });
+
+        html += '</div>';
+        reportContent.innerHTML = html;
+    }
 });

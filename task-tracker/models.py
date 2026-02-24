@@ -20,6 +20,11 @@ class User(UserMixin, db.Model):
     telegram_code = db.Column(db.String(10), unique=True, nullable=True)
     telegram_notifications = db.Column(db.Boolean, default=True)
 
+    # Prepayment balance
+    lesson_price = db.Column(db.Float, nullable=True)
+    prepaid_lessons = db.Column(db.Integer, default=0, nullable=False)
+    prepaid_since = db.Column(db.DateTime, nullable=True)
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -57,6 +62,10 @@ class User(UserMixin, db.Model):
             'telegram_id': self.telegram_id,
             'telegram_username': self.telegram_username,
             'telegram_notifications': self.telegram_notifications,
+            'lesson_price': self.lesson_price,
+            'prepaid_lessons': self.prepaid_lessons or 0,
+            'prepaid_since': self.prepaid_since.strftime('%d.%m.%Y') if self.prepaid_since else None,
+            'prepaid_since_iso': self.prepaid_since.strftime('%Y-%m-%d') if self.prepaid_since else None,
         }
 
 
@@ -160,4 +169,26 @@ class Role(db.Model):
         return {
             'id': self.id,
             'name': self.name,
+        }
+
+
+class StudentPayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    lessons_count = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Float, nullable=True)
+    payment_date = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    notes = db.Column(db.String(300), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'lessons_count': self.lessons_count,
+            'amount': self.amount,
+            'payment_date': self.payment_date.strftime('%d.%m.%Y') if self.payment_date else None,
+            'payment_date_iso': self.payment_date.strftime('%Y-%m-%d') if self.payment_date else None,
+            'notes': self.notes,
+            'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
         }

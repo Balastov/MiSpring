@@ -209,6 +209,7 @@
                 <button class="settings-option-btn" data-option="homework">Домашнее задание</button>
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
                 <button class="settings-option-btn" data-option="telegram">Telegram</button>
+                <button class="settings-option-btn" data-option="reports">Отчёты</button>
             </div>
         </div>
     </div>
@@ -475,6 +476,7 @@
                             <th></th>
                             <th></th>
                             <th></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="users-tbody"></tbody>
@@ -515,6 +517,10 @@
                 <div class="form-row">
                     <label>Роли</label>
                     <div id="form-user-roles" class="checkbox-group"></div>
+                </div>
+                <div class="form-row hidden" id="form-user-lesson-price-row">
+                    <label>Стоимость урока (₽)</label>
+                    <input type="number" id="form-user-lesson-price" min="0" step="1" placeholder="не задана">
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn-primary" id="user-submit-btn">Подтвердить и создать</button>
@@ -601,6 +607,69 @@
                     <button type="button" class="btn-secondary" id="change-password-modal-cancel">Отмена</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Balance Modal -->
+    <div id="balance-modal" class="modal hidden">
+        <div class="modal-content balance-modal-content">
+            <div class="modal-header">
+                <h2 id="balance-modal-title">Баланс</h2>
+                <button class="modal-close" id="balance-modal-close">&times;</button>
+            </div>
+            <div id="balance-modal-body">
+                <p class="loading">Загрузка...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Add Modal -->
+    <div id="payment-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Добавить оплату</h2>
+                <button class="modal-close" id="payment-modal-close">&times;</button>
+            </div>
+            <form id="payment-form" class="task-form">
+                <div class="form-row">
+                    <label>Кол-во уроков*</label>
+                    <input type="number" id="form-payment-lessons" min="1" required>
+                </div>
+                <div class="form-row">
+                    <label>Сумма (₽)</label>
+                    <input type="number" id="form-payment-amount" min="0" step="1">
+                </div>
+                <div class="form-row">
+                    <label>Дата оплаты</label>
+                    <input type="date" id="form-payment-date">
+                </div>
+                <div class="form-row">
+                    <label>Заметка</label>
+                    <input type="text" id="form-payment-notes" maxlength="300">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" id="payment-submit-btn">Добавить</button>
+                    <button type="button" class="btn-secondary" id="payment-modal-cancel">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reports Page -->
+    <div id="reports-page" class="page hidden">
+        <div class="page-header">
+            <h2>Отчёты</h2>
+            <div class="page-actions">
+                <button id="back-to-main-from-reports-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div class="reports-section">
+            <div class="report-filters">
+                <label>Год:</label>
+                <select id="report-year-select" class="filter-control"></select>
+                <button id="report-load-btn" class="btn-primary">Загрузить</button>
+            </div>
+            <div id="report-content"></div>
         </div>
     </div>
 
