@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Main elements
     const addTaskBtn = document.getElementById('add-task-btn');
+    const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
     // allTasksBtn removed — task list is always visible
     const taskListSection = document.getElementById('task-list-section');
     const tasksTbody = document.getElementById('tasks-tbody');
@@ -509,6 +510,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Open modal and auto-fill fields
+    toggleFiltersBtn.addEventListener('click', () => {
+        const filtersBar = document.getElementById('filters-bar');
+        const isHidden = filtersBar.classList.toggle('hidden');
+        toggleFiltersBtn.classList.toggle('btn-toggle-filters--active', !isHidden);
+    });
+
     addTaskBtn.addEventListener('click', () => {
         editingTaskId = null;
         originalStudentId = null;

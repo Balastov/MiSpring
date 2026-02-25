@@ -121,6 +121,30 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
+/* Toggle filters button */
+.btn-toggle-filters {
+    display: inline-block;
+    margin-right: 10px;
+    background-color: var(--color-bg);
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    padding: 10px 22px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 15px;
+    transition: all var(--transition);
+}
+
+.btn-toggle-filters:hover {
+    background-color: var(--color-primary);
+    color: #fff;
+}
+
+.btn-toggle-filters--active {
+    background-color: var(--color-primary);
+    color: #fff;
+}
+
 /* "Все задачи" toggle button */
 #all-tasks-btn {
     display: inline-block;
