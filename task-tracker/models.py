@@ -98,6 +98,8 @@ class Task(db.Model):
     comment = db.Column(db.String(500), nullable=True)
     closing_date = db.Column(db.DateTime, nullable=True)
     student_confirmed = db.Column(db.Boolean, default=False)
+    notified_24h = db.Column(db.Boolean, default=False)
+    notified_1h = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         return {
@@ -173,6 +175,28 @@ class Role(db.Model):
             'id': self.id,
             'name': self.name,
         }
+
+
+class Setting(db.Model):
+    """Глобальные настройки приложения (key-value)."""
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=True)
+
+    @staticmethod
+    def get(key, default=None):
+        row = Setting.query.filter_by(key=key).first()
+        return row.value if row else default
+
+    @staticmethod
+    def set(key, value):
+        from extensions import db as _db
+        row = Setting.query.filter_by(key=key).first()
+        if row:
+            row.value = value
+        else:
+            _db.session.add(Setting(key=key, value=value))
+        _db.session.commit()
 
 
 class StudentPayment(db.Model):

@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required
 from extensions import db
-from models import TaskStatus, TaskType, Role, Homework
+from models import TaskStatus, TaskType, Role, Homework, Setting
 from helpers import require_role, sanitize_comment_html
 
 references_bp = Blueprint('references', __name__)
@@ -281,3 +281,20 @@ def delete_homework(hw_id):
     db.session.delete(hw)
     db.session.commit()
     return '', 204
+
+
+# ========== App Settings Endpoints ==========
+
+@references_bp.route('/api/settings/<key>', methods=['GET'])
+@login_required
+def get_setting(key):
+    return jsonify({'key': key, 'value': Setting.get(key, '')})
+
+
+@references_bp.route('/api/settings/<key>', methods=['PUT'])
+@login_required
+@require_role('admin', 'owner')
+def set_setting(key):
+    value = request.json.get('value', '')
+    Setting.set(key, value)
+    return jsonify({'key': key, 'value': value})

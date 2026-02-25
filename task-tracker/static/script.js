@@ -197,6 +197,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const formPayDate = document.getElementById('form-pay-date');
     const formPayNotes = document.getElementById('form-pay-notes');
 
+    // Lesson settings page elements
+    const lessonSettingsPage = document.getElementById('lesson-settings-page');
+    const backToMainFromLessonSettingsBtn = document.getElementById('back-to-main-from-lesson-settings-btn');
+    const meetingLinkInput = document.getElementById('meeting-link-input');
+    const saveMeetingLinkBtn = document.getElementById('save-meeting-link-btn');
+    const meetingLinkStatus = document.getElementById('meeting-link-status');
+
     // Reports page elements
     const reportsPage = document.getElementById('reports-page');
     const backToMainFromReportsBtn = document.getElementById('back-to-main-from-reports-btn');
@@ -1258,9 +1265,15 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsBtn.addEventListener('click', () => {
         const allOptionBtns = settingsModal.querySelectorAll('.settings-option-btn');
         const isPrivileged = hasRole('admin', 'owner', 'teacher');
+        const isAdminOrOwner = hasRole('admin', 'owner');
         allOptionBtns.forEach(btn => {
             if (isPrivileged) {
-                btn.style.display = '';
+                // lesson-settings только для admin/owner
+                if (btn.dataset.option === 'lesson-settings') {
+                    btn.style.display = isAdminOrOwner ? '' : 'none';
+                } else {
+                    btn.style.display = '';
+                }
             } else {
                 btn.style.display = ['users', 'telegram'].includes(btn.dataset.option) ? '' : 'none';
             }
@@ -1297,6 +1310,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showTelegramPage();
             } else if (option === 'reports') {
                 showReportsPage();
+            } else if (option === 'lesson-settings') {
+                showLessonSettingsPage();
             }
         });
     });
@@ -1328,6 +1343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         flashcardsPage.classList.add('hidden');
         if (reportsPage) reportsPage.classList.add('hidden');
         if (telegramPage) telegramPage.classList.add('hidden');
+        if (lessonSettingsPage) lessonSettingsPage.classList.add('hidden');
     }
 
     function showMainPage() {
@@ -2741,6 +2757,37 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => alert(err.message));
     });
+
+    // ========== Lesson Settings Page Logic ==========
+
+    function showLessonSettingsPage() {
+        hideAllPages();
+        lessonSettingsPage.classList.remove('hidden');
+        // Load current value
+        fetch('/api/settings/meeting_link')
+            .then(r => r.json())
+            .then(data => { meetingLinkInput.value = data.value || ''; });
+    }
+
+    if (backToMainFromLessonSettingsBtn) {
+        backToMainFromLessonSettingsBtn.addEventListener('click', showMainPage);
+    }
+
+    if (saveMeetingLinkBtn) {
+        saveMeetingLinkBtn.addEventListener('click', () => {
+            fetch('/api/settings/meeting_link', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value: meetingLinkInput.value.trim() }),
+            })
+            .then(r => r.json())
+            .then(() => {
+                meetingLinkStatus.textContent = 'Сохранено ✓';
+                setTimeout(() => { meetingLinkStatus.textContent = ''; }, 3000);
+            })
+            .catch(() => { meetingLinkStatus.textContent = 'Ошибка сохранения'; });
+        });
+    }
 
     // ========== Reports Page Logic ==========
 

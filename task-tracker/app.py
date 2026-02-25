@@ -22,7 +22,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, StudentPayment
+from models import User, UserRole, Role, TaskType, StudentPayment, Setting
 
 
 # ========== Flask-Login Callbacks ==========
@@ -114,7 +114,18 @@ with app.app_context():
         cursor.execute('ALTER TABLE task RENAME COLUMN client_id TO student_id')
     elif 'student_id' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN student_id INTEGER')
+    if 'notified_24h' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN notified_24h BOOLEAN DEFAULT 0')
+    if 'notified_1h' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN notified_1h BOOLEAN DEFAULT 0')
     conn.commit()
+
+    # Миграция таблицы setting (создаётся через db.create_all, но на всякий случай)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='setting'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE TABLE setting (id INTEGER PRIMARY KEY, key VARCHAR(100) UNIQUE NOT NULL, value TEXT)')
+        conn.commit()
+
     conn.close()
 
     # Запилит типы задач, если их нет
@@ -142,6 +153,12 @@ with app.app_context():
         if admin_role:
             db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
             db.session.commit()
+
+# ========== Lesson Reminder Scheduler ==========
+
+from notifications import start_scheduler
+start_scheduler(app)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
