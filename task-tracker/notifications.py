@@ -91,8 +91,8 @@ def send_lesson_reminders(app):
         _claim_and_notify(
             ids_24h,
             Task.notified_24h,
-            lambda t: f'Здравствуйте!\n Напоминаю, завтра у вас урок английского языка '
-                      f'{t.start_date.day} {MONTHS_RU[t.start_date.month]} в {t.start_date.strftime("%H:%M")}.',
+            lambda t: f'Здравствуйте!\n Напоминаю, завтра {t.start_date.day} {MONTHS_RU[t.start_date.month]} '
+                      f'в {t.start_date.strftime("%H:%M")} у вас урок английского языка.',
         )
 
         # ── Часовое напоминание ─────────────────────────────────────────────
