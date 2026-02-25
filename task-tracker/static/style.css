@@ -1379,7 +1379,8 @@ select.filter-control {
     }
 
     #add-task-btn,
-    #flashcards-btn {
+    #flashcards-btn,
+    .btn-toggle-filters {
         padding: 7px 14px;
         font-size: 13px;
     }
@@ -1388,10 +1389,9 @@ select.filter-control {
         margin-top: 8px;
     }
 
-    /* Recalculate calendar height for compact landscape layout:
-       40px body-top + ~36px buttons + 8px margin-top + ~38px filters + 8px margin-bottom + 12px calendar-margin ≈ 142px */
+    /* 40px body-top + ~30px buttons + 8px margin-top = 78px → 90px с запасом */
     #task-list-section.view-calendar {
-        height: calc(100vh - 150px);
+        height: calc(100vh - 90px);
     }
 
     /* Compact filter bar: hide labels, reduce padding */
