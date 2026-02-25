@@ -50,51 +50,66 @@ def send_lesson_reminders(app):
 
         now = datetime.now()
 
+        def _claim_and_notify(task_ids, flag_column, build_text):
+            """
+            Атомарно помечает задачу как уведомлённую через UPDATE ... WHERE notified = False.
+            SQLite гарантирует: только один worker получит rowcount=1.
+            Остальные получат rowcount=0 и пропустят отправку — дублей не будет.
+            """
+            for task_id in task_ids:
+                result = db.session.execute(
+                    db.update(Task)
+                    .where(Task.id == task_id, flag_column == False)  # noqa: E712
+                    .values({flag_column.key: True})
+                )
+                db.session.commit()
+                if result.rowcount == 0:
+                    continue  # другой worker уже обработал эту задачу
+
+                task = db.session.get(Task, task_id)
+                if not task:
+                    continue
+                student = db.session.get(User, task.student_id)
+                if not student or not student.telegram_id or not student.telegram_notifications:
+                    continue
+
+                text = build_text(task)
+                if meeting_link:
+                    text += f'\nСсылка на подключение — {meeting_link}'
+                _send_tg_message(token, student.telegram_id, text)
+                logger.info(f'Reminder sent: task={task_id}, student={student.id}')
+
         # ── 24-часовое напоминание ──────────────────────────────────────────
-        # Окно: [now + 23ч45м, now + 24ч15м]
-        tasks_24h = Task.query.filter(
+        ids_24h = [row.id for row in Task.query.filter(
             Task.task_type_id == lesson_type.id,
             Task.start_date >= now + timedelta(hours=23, minutes=45),
             Task.start_date <= now + timedelta(hours=24, minutes=15),
             Task.notified_24h == False,  # noqa: E712
             Task.student_id.isnot(None),
-        ).all()
+        ).with_entities(Task.id).all()]
 
-        for task in tasks_24h:
-            task.notified_24h = True          # помечаем сразу, чтобы не задвоить
-            student = db.session.get(User, task.student_id)
-            if not student or not student.telegram_id or not student.telegram_notifications:
-                continue
-            date_str = f'{task.start_date.day} {MONTHS_RU[task.start_date.month]}'
-            text = f'Напоминаю, завтра у вас урок английского языка {date_str}.'
-            if meeting_link:
-                text += f'\nСсылка на подключение — {meeting_link}'
-            _send_tg_message(token, student.telegram_id, text)
-            logger.info(f'24h reminder sent: task={task.id}, student={student.id}')
+        _claim_and_notify(
+            ids_24h,
+            Task.notified_24h,
+            lambda t: f'Напоминаю, завтра у вас урок английского языка '
+                      f'{t.start_date.day} {MONTHS_RU[t.start_date.month]}.',
+        )
 
         # ── Часовое напоминание ─────────────────────────────────────────────
-        # Окно: [now + 45м, now + 1ч15м]
-        tasks_1h = Task.query.filter(
+        ids_1h = [row.id for row in Task.query.filter(
             Task.task_type_id == lesson_type.id,
             Task.start_date >= now + timedelta(minutes=45),
             Task.start_date <= now + timedelta(hours=1, minutes=15),
             Task.notified_1h == False,  # noqa: E712
             Task.student_id.isnot(None),
-        ).all()
+        ).with_entities(Task.id).all()]
 
-        for task in tasks_1h:
-            task.notified_1h = True
-            student = db.session.get(User, task.student_id)
-            if not student or not student.telegram_id or not student.telegram_notifications:
-                continue
-            time_str = task.start_date.strftime('%H:%M')
-            text = f'Напоминаю, через час у вас урок английского языка в {time_str}.'
-            if meeting_link:
-                text += f'\nСсылка на подключение — {meeting_link}'
-            _send_tg_message(token, student.telegram_id, text)
-            logger.info(f'1h reminder sent: task={task.id}, student={student.id}')
-
-        db.session.commit()
+        _claim_and_notify(
+            ids_1h,
+            Task.notified_1h,
+            lambda t: f'Напоминаю, через час у вас урок английского языка в '
+                      f'{t.start_date.strftime("%H:%M")}.',
+        )
 
 
 def start_scheduler(app):
