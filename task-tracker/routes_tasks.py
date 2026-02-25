@@ -9,6 +9,29 @@ import asyncio
 tasks_bp = Blueprint('tasks', __name__)
 
 
+def _send_homework_notification(student, task, homework):
+    """Отправляет ученику домашнее задание после проведённого урока."""
+    if not homework.comment or not student.telegram_id or not student.telegram_notifications:
+        return
+    try:
+        token = os.environ.get('TELEGRAM_BOT_TOKEN')
+        if not token:
+            return
+
+        date_str = task.start_date.strftime('%d.%m') if task.start_date else ''
+        text = f'📚 Домашнее задание к уроку {date_str}:\n\n{homework.comment}'
+
+        import telegram
+
+        async def _send():
+            bot = telegram.Bot(token=token)
+            await bot.send_message(chat_id=student.telegram_id, text=text)
+
+        asyncio.run(_send())
+    except Exception:
+        pass
+
+
 def _send_prepay_warning(student):
     """Отправляет учителю уведомление в Telegram, если у ученика остался 1 оплаченный урок."""
     try:
@@ -219,7 +242,7 @@ def update_task(task_id):
 
         db.session.commit()
 
-        # Проверяем, стал ли статус "Проведён" — уменьшаем баланс предоплаты
+        # Проверяем, стал ли статус "Проведён"
         new_status_id = task.status_id
         if new_status_id and new_status_id != old_status_id:
             conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
@@ -228,13 +251,21 @@ def update_task(task_id):
                     and lesson_type and task.task_type_id == lesson_type.id
                     and task.student_id):
                 student = db.session.get(User, task.student_id)
-                if (student and (student.prepaid_lessons or 0) > 0
-                        and student.prepaid_since
-                        and task.start_date and task.start_date >= student.prepaid_since):
-                    student.prepaid_lessons -= 1
-                    db.session.commit()
-                    if student.prepaid_lessons == 1:
-                        _send_prepay_warning(student)
+                if student:
+                    # Уменьшаем баланс предоплаты
+                    if ((student.prepaid_lessons or 0) > 0
+                            and student.prepaid_since
+                            and task.start_date and task.start_date >= student.prepaid_since):
+                        student.prepaid_lessons -= 1
+                        db.session.commit()
+                        if student.prepaid_lessons == 1:
+                            _send_prepay_warning(student)
+
+                    # Отправляем домашнее задание ученику
+                    if task.homework_id:
+                        homework = db.session.get(Homework, task.homework_id)
+                        if homework:
+                            _send_homework_notification(student, task, homework)
 
         return jsonify(task.to_dict())
     except Exception as e:
