@@ -187,6 +187,10 @@ body {
 }
 
 /* ========== Filters Bar ========== */
+.filters-bar.hidden {
+    display: none;
+}
+
 .filters-bar {
     display: flex;
     flex-wrap: wrap;
