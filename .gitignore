@@ -41,3 +41,4 @@ Thumbs.db
 data.json  # если это локальная БД
 *.db       # SQLite database files
 instance/  # папка экземпляра Flask
+task-tracker/Helper.txt
