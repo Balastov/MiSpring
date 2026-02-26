@@ -14,6 +14,7 @@ def _clean_html_for_telegram(html):
     """Удаляет атрибуты, неподдерживаемые Telegram HTML-парсером (target, rel и др.)"""
     html = re.sub(r'\s+target=["\'][^"\']*["\']', '', html)
     html = re.sub(r'\s+rel=["\'][^"\']*["\']', '', html)
+    html = html.replace('&nbsp;', ' ')
     return html
 
 
