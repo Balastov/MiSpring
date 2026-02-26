@@ -5,8 +5,16 @@ from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework
 from helpers import parse_datetime, user_has_role
 import os
 import asyncio
+import re
 
 tasks_bp = Blueprint('tasks', __name__)
+
+
+def _clean_html_for_telegram(html):
+    """Удаляет атрибуты, неподдерживаемые Telegram HTML-парсером (target, rel и др.)"""
+    html = re.sub(r'\s+target=["\'][^"\']*["\']', '', html)
+    html = re.sub(r'\s+rel=["\'][^"\']*["\']', '', html)
+    return html
 
 
 def _send_homework_notification(student, task, homework):
@@ -19,13 +27,13 @@ def _send_homework_notification(student, task, homework):
             return
 
         date_str = task.start_date.strftime('%d.%m') if task.start_date else ''
-        text = f'📚 Домашнее задание к уроку {date_str}:\n\n{homework.comment}'
+        text = f'📚 Домашнее задание к уроку {date_str}:\n\n{_clean_html_for_telegram(homework.comment)}'
 
         import telegram
 
         async def _send():
             bot = telegram.Bot(token=token)
-            await bot.send_message(chat_id=student.telegram_id, text=text)
+            await bot.send_message(chat_id=student.telegram_id, text=text, parse_mode='HTML')
 
         asyncio.run(_send())
     except Exception:
