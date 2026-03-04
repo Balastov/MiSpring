@@ -28,6 +28,10 @@ class User(UserMixin, db.Model):
     prepaid_lessons = db.Column(db.Integer, default=0, nullable=False)
     prepaid_since = db.Column(db.DateTime, nullable=True)
 
+    # Teacher assignment (for students) and photo (for teachers)
+    teacher_id = db.Column(db.Integer, nullable=True)
+    teacher_photo = db.Column(db.String(200), nullable=True)
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -69,6 +73,8 @@ class User(UserMixin, db.Model):
             'prepaid_lessons': self.prepaid_lessons or 0,
             'prepaid_since': self.prepaid_since.strftime('%d.%m.%Y') if self.prepaid_since else None,
             'prepaid_since_iso': self.prepaid_since.strftime('%Y-%m-%d') if self.prepaid_since else None,
+            'teacher_id': self.teacher_id,
+            'teacher_photo': self.teacher_photo,
         }
 
 

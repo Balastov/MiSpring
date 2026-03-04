@@ -27,6 +27,16 @@
         <div class="logo-banner">
             <img src="{{ url_for('static', filename='logo-banner.svg') }}" alt="EngSpring">
         </div>
+        <div id="my-teacher-card" class="my-teacher-card hidden">
+            <div class="my-teacher-photo-wrap">
+                <img id="my-teacher-photo" src="" alt="" class="my-teacher-photo">
+                <div id="my-teacher-no-photo" class="my-teacher-no-photo hidden">Фото<br>скоро будет</div>
+            </div>
+            <div class="my-teacher-info">
+                <span class="my-teacher-label">Ваш учитель</span>
+                <span id="my-teacher-name" class="my-teacher-name"></span>
+            </div>
+        </div>
         <button id="add-task-btn">Добавить задачу</button>
         <button id="flashcards-btn">Карточки</button>
         <button id="my-plan-btn" class="btn-my-plan hidden">📚 Мой план</button>
@@ -543,6 +553,23 @@
                 <div class="form-row hidden" id="form-user-lesson-price-row">
                     <label>Стоимость урока (₽)</label>
                     <input type="number" id="form-user-lesson-price" min="0" step="1" placeholder="не задана">
+                </div>
+                <div class="form-row hidden" id="form-user-teacher-row">
+                    <label>Учитель</label>
+                    <select id="form-user-teacher-id">
+                        <option value="">— не назначен —</option>
+                    </select>
+                </div>
+                <div class="form-row hidden" id="form-user-photo-row">
+                    <label>Фото учителя</label>
+                    <div class="teacher-photo-upload-row">
+                        <img id="form-user-photo-preview" src="" alt="" class="teacher-photo-preview hidden">
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                            <button type="button" id="form-user-photo-btn" class="btn-secondary" style="width:fit-content;">Загрузить фото</button>
+                            <span id="form-user-photo-name" style="font-size:12px;color:var(--color-text-muted);">макс. 5 МБ</span>
+                        </div>
+                        <input type="file" id="form-user-photo-input" accept="image/jpeg,image/png,image/webp" style="display:none;">
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn-primary" id="user-submit-btn">Подтвердить и создать</button>

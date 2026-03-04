@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify
-from flask_login import current_user
+from flask import Blueprint, request, jsonify, current_app
+from flask_login import current_user, login_required
 from extensions import db
 from models import User, UserRole, Role
 from helpers import require_role
 import secrets
+import os
 
 users_bp = Blueprint('users', __name__)
 
@@ -85,6 +86,9 @@ def update_user(user_id):
             if Role.query.get(role_id):
                 db.session.add(UserRole(user_id=user.id, role_id=role_id))
 
+    if 'teacher_id' in data:
+        user.teacher_id = data['teacher_id'] or None
+
     db.session.commit()
     return jsonify(user.to_dict())
 
@@ -111,3 +115,57 @@ def reset_user_password(user_id):
     user.set_password(new_password)
     db.session.commit()
     return jsonify({'new_password': new_password})
+
+
+@users_bp.route('/api/teachers', methods=['GET'])
+@login_required
+def get_teachers():
+    teacher_role = Role.query.filter_by(name='teacher').first()
+    if not teacher_role:
+        return jsonify({'teachers': []})
+    teacher_ids = [ur.user_id for ur in UserRole.query.filter_by(role_id=teacher_role.id).all()]
+    teachers = User.query.filter(User.id.in_(teacher_ids)).order_by(User.display_name).all()
+    return jsonify({'teachers': [
+        {'id': t.id, 'display_name': t.display_name, 'teacher_photo': t.teacher_photo}
+        for t in teachers
+    ]})
+
+
+@users_bp.route('/api/users/<int:user_id>/photo', methods=['POST'])
+@require_role('admin', 'owner')
+def upload_teacher_photo(user_id):
+    user = db.get_or_404(User, user_id)
+    if 'photo' not in request.files:
+        return jsonify({'error': 'Файл не найден'}), 400
+    file = request.files['photo']
+    data = file.read()
+    if len(data) > 5 * 1024 * 1024:
+        return jsonify({'error': 'Файл слишком большой (макс. 5 МБ)'}), 400
+    ext = os.path.splitext(file.filename or '')[1].lower() or '.jpg'
+    if ext not in ('.jpg', '.jpeg', '.png', '.webp', '.gif'):
+        return jsonify({'error': 'Недопустимый формат файла'}), 400
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'teacher_photos')
+    os.makedirs(upload_dir, exist_ok=True)
+    # Remove old photo if different extension
+    if user.teacher_photo:
+        old_path = os.path.join(upload_dir, user.teacher_photo)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    filename = f'teacher_{user_id}{ext}'
+    with open(os.path.join(upload_dir, filename), 'wb') as f:
+        f.write(data)
+    user.teacher_photo = filename
+    db.session.commit()
+    return jsonify({'teacher_photo': filename})
+
+
+@users_bp.route('/api/my-teacher', methods=['GET'])
+@login_required
+def get_my_teacher():
+    if not current_user.teacher_id:
+        return jsonify({'teacher': None})
+    teacher = db.session.get(User, current_user.teacher_id)
+    if not teacher:
+        return jsonify({'teacher': None})
+    photo_url = f'/static/uploads/teacher_photos/{teacher.teacher_photo}' if teacher.teacher_photo else None
+    return jsonify({'teacher': {'id': teacher.id, 'display_name': teacher.display_name, 'photo_url': photo_url}})

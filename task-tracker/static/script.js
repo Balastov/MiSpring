@@ -184,6 +184,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const userSubmitBtn = document.getElementById('user-submit-btn');
     const formUserLessonPriceRow = document.getElementById('form-user-lesson-price-row');
     const formUserLessonPrice = document.getElementById('form-user-lesson-price');
+    const formUserTeacherRow = document.getElementById('form-user-teacher-row');
+    const formUserTeacherId = document.getElementById('form-user-teacher-id');
+    const formUserPhotoRow = document.getElementById('form-user-photo-row');
+    const formUserPhotoBtn = document.getElementById('form-user-photo-btn');
+    const formUserPhotoInput = document.getElementById('form-user-photo-input');
+    const formUserPhotoPreview = document.getElementById('form-user-photo-preview');
+    const formUserPhotoName = document.getElementById('form-user-photo-name');
+    let _pendingPhotoFile = null;
+
+    // Teacher card (main page)
+    const myTeacherCard = document.getElementById('my-teacher-card');
+    const myTeacherPhoto = document.getElementById('my-teacher-photo');
+    const myTeacherNoPhoto = document.getElementById('my-teacher-no-photo');
+    const myTeacherName = document.getElementById('my-teacher-name');
 
     // Balance modal elements
     const balanceModal = document.getElementById('balance-modal');
@@ -303,6 +317,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hasRole('student') && myPlanBtn) {
                 fetch('/api/my-plan')
                     .then(r => { if (r.ok) myPlanBtn.classList.remove('hidden'); })
+                    .catch(() => {});
+            }
+            // Show teacher card for students
+            if (hasRole('student') && myTeacherCard) {
+                fetch('/api/my-teacher')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.teacher) return;
+                        myTeacherCard.classList.remove('hidden');
+                        myTeacherName.textContent = data.teacher.display_name;
+                        if (data.teacher.photo_url) {
+                            myTeacherPhoto.src = data.teacher.photo_url;
+                            myTeacherPhoto.classList.remove('hidden');
+                            myTeacherNoPhoto.classList.add('hidden');
+                        } else {
+                            myTeacherPhoto.classList.add('hidden');
+                            myTeacherNoPhoto.classList.remove('hidden');
+                        }
+                    })
                     .catch(() => {});
             }
             // Load task list immediately
@@ -2478,9 +2511,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Render role checkboxes
                 renderRoleCheckboxes(rolesData.roles, []);
 
-                // Hide lesson_price for new users
+                // Hide lesson_price, teacher, photo for new users
                 formUserLessonPriceRow.classList.add('hidden');
                 formUserLessonPrice.value = '';
+                formUserTeacherRow.classList.add('hidden');
+                formUserPhotoRow.classList.add('hidden');
+                formUserPhotoPreview.classList.add('hidden');
+                _pendingPhotoFile = null;
 
                 userModal.classList.remove('hidden');
             });
@@ -2508,6 +2545,32 @@ document.addEventListener('DOMContentLoaded', () => {
         userModal.classList.add('hidden');
         userForm.reset();
         editingUserId = null;
+        _pendingPhotoFile = null;
+        formUserPhotoPreview.classList.add('hidden');
+        formUserPhotoName.textContent = 'макс. 5 МБ';
+    }
+
+    if (formUserPhotoBtn) {
+        formUserPhotoBtn.addEventListener('click', () => formUserPhotoInput.click());
+    }
+    if (formUserPhotoInput) {
+        formUserPhotoInput.addEventListener('change', () => {
+            const file = formUserPhotoInput.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Файл слишком большой (макс. 5 МБ)');
+                formUserPhotoInput.value = '';
+                return;
+            }
+            _pendingPhotoFile = file;
+            formUserPhotoName.textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                formUserPhotoPreview.src = ev.target.result;
+                formUserPhotoPreview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
     userModalClose.addEventListener('click', closeUserModal);
@@ -2540,6 +2603,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (editingUserId) {
             // Update
+            if (!formUserTeacherRow.classList.contains('hidden')) {
+                userData.teacher_id = formUserTeacherId.value ? parseInt(formUserTeacherId.value) : null;
+            }
             const updateRequests = [
                 fetch(`/api/users/${editingUserId}`, {
                     method: 'PUT',
@@ -2556,6 +2622,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ lesson_price: priceVal === '' ? null : parseFloat(priceVal) })
                     })
+                );
+            }
+            // Upload photo if selected
+            if (_pendingPhotoFile) {
+                const fd = new FormData();
+                fd.append('photo', _pendingPhotoFile);
+                updateRequests.push(
+                    fetch(`/api/users/${editingUserId}/photo`, { method: 'POST', body: fd })
                 );
             }
             Promise.all(updateRequests)
@@ -2624,13 +2698,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Show lesson_price for students (teacher/admin only)
                     const isStudent = user.roles.includes('student');
+                    const isTeacher = user.roles.includes('teacher');
                     const canManage = hasRole('admin', 'owner', 'teacher');
+                    const canManageAdmin = hasRole('admin', 'owner');
                     if (isStudent && canManage) {
                         formUserLessonPriceRow.classList.remove('hidden');
                         formUserLessonPrice.value = user.lesson_price != null ? user.lesson_price : '';
                     } else {
                         formUserLessonPriceRow.classList.add('hidden');
                         formUserLessonPrice.value = '';
+                    }
+
+                    // Teacher selector for students (admin/owner only)
+                    if (isStudent && canManageAdmin) {
+                        fetch('/api/teachers').then(r => r.json()).then(td => {
+                            formUserTeacherId.innerHTML = '<option value="">— не назначен —</option>'
+                                + (td.teachers || []).map(t => `<option value="${t.id}">${t.display_name}</option>`).join('');
+                            if (user.teacher_id) formUserTeacherId.value = user.teacher_id;
+                        });
+                        formUserTeacherRow.classList.remove('hidden');
+                    } else {
+                        formUserTeacherRow.classList.add('hidden');
+                        formUserTeacherId.innerHTML = '<option value="">— не назначен —</option>';
+                    }
+
+                    // Photo upload for teachers (admin/owner only)
+                    if (isTeacher && canManageAdmin) {
+                        formUserPhotoRow.classList.remove('hidden');
+                        _pendingPhotoFile = null;
+                        formUserPhotoInput.value = '';
+                        formUserPhotoName.textContent = 'макс. 5 МБ';
+                        if (user.teacher_photo) {
+                            formUserPhotoPreview.src = `/static/uploads/teacher_photos/${user.teacher_photo}`;
+                            formUserPhotoPreview.classList.remove('hidden');
+                        } else {
+                            formUserPhotoPreview.classList.add('hidden');
+                        }
+                    } else {
+                        formUserPhotoRow.classList.add('hidden');
+                        formUserPhotoPreview.classList.add('hidden');
+                        _pendingPhotoFile = null;
                     }
 
                     userModal.classList.remove('hidden');

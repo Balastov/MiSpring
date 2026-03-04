@@ -99,6 +99,16 @@ with app.app_context():
         cursor.execute('ALTER TABLE user ADD COLUMN prepaid_since DATETIME')
     if 'calendar_token' not in user_columns:
         cursor.execute('ALTER TABLE user ADD COLUMN calendar_token VARCHAR(64)')
+    if 'teacher_id' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN teacher_id INTEGER')
+    if 'teacher_photo' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN teacher_photo VARCHAR(200)')
+    conn.commit()
+
+    # Создаём папку для фото учителей
+    import os as _os
+    uploads_dir = _os.path.join(_os.path.dirname(db_path), 'static', 'uploads', 'teacher_photos')
+    _os.makedirs(uploads_dir, exist_ok=True)
 
     existing_columns = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
     if 'start_date' not in existing_columns:
