@@ -27,6 +27,30 @@
         <div class="logo-banner">
             <img src="{{ url_for('static', filename='logo-banner.svg') }}" alt="EngSpring">
         </div>
+        <div id="next-lesson-timer" class="next-lesson-timer hidden">
+            <span class="timer-label">До следующего урока</span>
+            <div class="timer-units">
+                <div class="timer-unit">
+                    <span id="timer-days" class="timer-num">00</span>
+                    <span class="timer-uname">дн</span>
+                </div>
+                <div class="timer-sep">:</div>
+                <div class="timer-unit">
+                    <span id="timer-hours" class="timer-num">00</span>
+                    <span class="timer-uname">ч</span>
+                </div>
+                <div class="timer-sep">:</div>
+                <div class="timer-unit">
+                    <span id="timer-minutes" class="timer-num">00</span>
+                    <span class="timer-uname">мин</span>
+                </div>
+                <div class="timer-sep">:</div>
+                <div class="timer-unit">
+                    <span id="timer-seconds" class="timer-num">00</span>
+                    <span class="timer-uname">сек</span>
+                </div>
+            </div>
+        </div>
         <div id="my-teacher-card" class="my-teacher-card hidden">
             <div class="my-teacher-photo-wrap">
                 <img id="my-teacher-photo" src="" alt="" class="my-teacher-photo hidden">

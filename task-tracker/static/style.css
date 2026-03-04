@@ -1434,6 +1434,69 @@ select.filter-control {
     }
 }
 
+/* ===== Next Lesson Countdown Timer ===== */
+
+.next-lesson-timer {
+    display: inline-flex;
+    vertical-align: middle;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, #1A515F 0%, #2d9da8 100%);
+    border-radius: var(--radius-lg);
+    margin-right: 10px;
+    box-shadow: 0 4px 16px rgba(26, 81, 95, 0.25);
+}
+
+.timer-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+}
+
+.timer-units {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.timer-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 32px;
+}
+
+.timer-num {
+    font-size: 24px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: #fff;
+    letter-spacing: -0.02em;
+}
+
+.timer-uname {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.timer-sep {
+    font-size: 20px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.4);
+    padding-bottom: 14px;
+    margin: 0 1px;
+}
+
 /* ===== Teacher Card ===== */
 
 .my-teacher-card {

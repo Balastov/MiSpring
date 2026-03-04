@@ -199,6 +199,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const myTeacherNoPhoto = document.getElementById('my-teacher-no-photo');
     const myTeacherName = document.getElementById('my-teacher-name');
 
+    // Next lesson countdown timer
+    const nextLessonTimer = document.getElementById('next-lesson-timer');
+    const timerDays = document.getElementById('timer-days');
+    const timerHours = document.getElementById('timer-hours');
+    const timerMinutes = document.getElementById('timer-minutes');
+    const timerSeconds = document.getElementById('timer-seconds');
+    let _timerInterval = null;
+    let _timerTarget = null;
+
+    function _startCountdown(isoDate) {
+        _timerTarget = new Date(isoDate);
+        if (_timerInterval) clearInterval(_timerInterval);
+        function _tick() {
+            const diff = Math.max(0, _timerTarget - Date.now());
+            if (diff === 0) {
+                clearInterval(_timerInterval);
+                nextLessonTimer.classList.add('hidden');
+                return;
+            }
+            const totalSec = Math.floor(diff / 1000);
+            const d = Math.floor(totalSec / 86400);
+            const h = Math.floor((totalSec % 86400) / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            timerDays.textContent = String(d).padStart(2, '0');
+            timerHours.textContent = String(h).padStart(2, '0');
+            timerMinutes.textContent = String(m).padStart(2, '0');
+            timerSeconds.textContent = String(s).padStart(2, '0');
+        }
+        _tick();
+        _timerInterval = setInterval(_tick, 1000);
+        nextLessonTimer.classList.remove('hidden');
+    }
+
     // Balance modal elements
     const balanceModal = document.getElementById('balance-modal');
     const balanceModalTitle = document.getElementById('balance-modal-title');
@@ -317,6 +351,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hasRole('student') && myPlanBtn) {
                 fetch('/api/my-plan')
                     .then(r => { if (r.ok) myPlanBtn.classList.remove('hidden'); })
+                    .catch(() => {});
+            }
+            // Countdown timer for students
+            if (hasRole('student') && nextLessonTimer) {
+                fetch('/api/my-next-lesson')
+                    .then(r => r.json())
+                    .then(data => { if (data.lesson) _startCountdown(data.lesson.start_date_iso); })
                     .catch(() => {});
             }
             // Show teacher card for students

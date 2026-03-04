@@ -419,3 +419,27 @@ def get_all_students():
     return jsonify({
         'students': [{'id': u.id, 'display_name': u.display_name} for u in students]
     })
+
+
+@tasks_bp.route('/api/my-next-lesson', methods=['GET'])
+@login_required
+def get_my_next_lesson():
+    from datetime import datetime
+    from sqlalchemy import or_
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return jsonify({'lesson': None})
+    excluded = TaskStatus.query.filter(TaskStatus.name.in_(['Отменён', 'Проведён'])).all()
+    excluded_ids = [s.id for s in excluded]
+    now = datetime.now()
+    q = Task.query.filter(
+        Task.student_id == current_user.id,
+        Task.task_type_id == lesson_type.id,
+        Task.start_date > now,
+        or_(Task.status_id.is_(None), ~Task.status_id.in_(excluded_ids))
+    ).order_by(Task.start_date.asc())
+    task = q.first()
+    if not task:
+        return jsonify({'lesson': None})
+    return jsonify({'lesson': {'start_date_iso': task.start_date.strftime('%Y-%m-%dT%H:%M:%S')}})
+
