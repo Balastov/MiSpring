@@ -2602,40 +2602,35 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         if (editingUserId) {
-            // Update
+            // Update — sequential to avoid SQLite locking
             if (!formUserTeacherRow.classList.contains('hidden')) {
                 userData.teacher_id = formUserTeacherId.value ? parseInt(formUserTeacherId.value) : null;
             }
-            const updateRequests = [
-                fetch(`/api/users/${editingUserId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                })
-            ];
-            // Save lesson_price if visible
-            if (!formUserLessonPriceRow.classList.contains('hidden')) {
-                const priceVal = formUserLessonPrice.value;
-                updateRequests.push(
-                    fetch(`/api/students/${editingUserId}/lesson-price`, {
+
+            const checkOk = r => r.ok ? Promise.resolve() : r.json().then(e => { throw new Error(e.error || 'Ошибка'); });
+
+            fetch(`/api/users/${editingUserId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            })
+            .then(checkOk)
+            .then(() => {
+                if (!formUserLessonPriceRow.classList.contains('hidden')) {
+                    const priceVal = formUserLessonPrice.value;
+                    return fetch(`/api/students/${editingUserId}/lesson-price`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ lesson_price: priceVal === '' ? null : parseFloat(priceVal) })
-                    })
-                );
-            }
-            // Upload photo if selected
-            if (_pendingPhotoFile) {
-                const fd = new FormData();
-                fd.append('photo', _pendingPhotoFile);
-                updateRequests.push(
-                    fetch(`/api/users/${editingUserId}/photo`, { method: 'POST', body: fd })
-                );
-            }
-            Promise.all(updateRequests)
-            .then(responses => {
-                const failed = responses.find(r => !r.ok);
-                if (failed) return failed.json().then(err => { throw new Error(err.error || 'Ошибка'); });
+                    }).then(checkOk);
+                }
+            })
+            .then(() => {
+                if (_pendingPhotoFile) {
+                    const fd = new FormData();
+                    fd.append('photo', _pendingPhotoFile);
+                    return fetch(`/api/users/${editingUserId}/photo`, { method: 'POST', body: fd }).then(checkOk);
+                }
             })
             .then(() => {
                 closeUserModal();
