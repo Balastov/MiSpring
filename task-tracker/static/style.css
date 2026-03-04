@@ -1433,3 +1433,279 @@ select.filter-control {
         font-size: 12px !important;
     }
 }
+
+/* ===== Learning Plan ===== */
+
+.btn-my-plan {
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all var(--transition);
+}
+
+.btn-my-plan:hover {
+    background: var(--color-primary-hover);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-back {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+
+.btn-back:hover { opacity: 0.7; }
+
+.plan-container {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+
+.plan-progress-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+.plan-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+    font-size: 15px;
+    color: var(--color-text-secondary);
+}
+
+#plan-progress-percent {
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--color-primary);
+    line-height: 1;
+}
+
+.plan-progress-track {
+    height: 12px;
+    background: var(--color-border-light);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.plan-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-primary) 0%, #2d9da8 100%);
+    border-radius: 999px;
+    transition: width 0.8s cubic-bezier(.4, 0, .2, 1);
+}
+
+.plan-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.plan-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 18px;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    transition: background 0.15s;
+    border-left: 3px solid transparent;
+}
+
+.plan-step--done {
+    background: #f0faf5;
+    color: var(--color-text-secondary);
+}
+
+.plan-step--current {
+    background: rgba(26, 81, 95, 0.07);
+    color: var(--color-text);
+    font-weight: 600;
+    border-left-color: var(--color-primary);
+}
+
+.plan-step--pending {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-muted);
+}
+
+.plan-step-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.plan-step--done .plan-step-icon {
+    background: var(--color-success);
+    color: #fff;
+}
+
+.plan-step--current .plan-step-icon {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.plan-step--pending .plan-step-icon {
+    border: 2px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 12px;
+}
+
+/* Templates management page */
+
+.plan-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.plan-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 8px;
+}
+
+.plan-card h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--color-primary);
+}
+
+.template-step-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--color-border-light);
+    font-size: 14px;
+}
+
+.template-step-row:last-of-type { border-bottom: none; }
+
+.template-step-num {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    width: 22px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.template-step-title {
+    flex: 1;
+    color: var(--color-text);
+}
+
+.template-add-step {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.template-add-step input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: var(--font-family);
+    transition: all var(--transition);
+}
+
+.template-add-step input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(26, 81, 95, 0.12);
+}
+
+.student-assign-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border-light);
+    font-size: 14px;
+}
+
+.student-assign-row:last-child { border-bottom: none; }
+
+.student-assign-row select {
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: var(--font-family);
+    min-width: 160px;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+/* ===== Conducted Dialog ===== */
+
+.conducted-q {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.conducted-q-label {
+    margin: 0;
+    font-weight: 500;
+    color: var(--color-text);
+    font-size: 15px;
+}
+
+.toggle-answer {
+    display: flex;
+    gap: 8px;
+}
+
+.toggle-ans-btn {
+    padding: 8px 28px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all var(--transition);
+}
+
+.toggle-ans-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.toggle-ans-btn.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: #fff;
+}

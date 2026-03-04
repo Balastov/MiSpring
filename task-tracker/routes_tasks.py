@@ -196,6 +196,7 @@ def add_task():
         duration=data.get('duration'),
         comment=comment,
         closing_date=parse_datetime(data.get('closing_date')),
+        plan_step_id=data.get('plan_step_id'),
     )
     db.session.add(task)
     db.session.commit()
@@ -248,6 +249,8 @@ def update_task(task_id):
             task.comment = comment
         if 'closing_date' in data:
             task.closing_date = parse_datetime(data['closing_date'])
+        if 'plan_step_id' in data:
+            task.plan_step_id = data['plan_step_id']
 
         db.session.commit()
 
@@ -275,6 +278,24 @@ def update_task(task_id):
                         homework = db.session.get(Homework, task.homework_id)
                         if homework:
                             _send_homework_notification(student, task, homework)
+
+                    # Обновляем следующий шаг плана (ответ из диалога)
+                    if 'advance_plan_step' in data and task.plan_step_id:
+                        from models import UserPlan, PlanStep
+                        user_plan = UserPlan.query.filter_by(student_id=task.student_id).first()
+                        if user_plan:
+                            current_step = db.session.get(PlanStep, task.plan_step_id)
+                            if current_step:
+                                if data['advance_plan_step']:
+                                    next_step = PlanStep.query.filter_by(
+                                        template_id=current_step.template_id
+                                    ).filter(
+                                        PlanStep.order_num > current_step.order_num
+                                    ).order_by(PlanStep.order_num).first()
+                                    user_plan.next_step_id = next_step.id if next_step else current_step.id
+                                else:
+                                    user_plan.next_step_id = current_step.id
+                                db.session.commit()
 
         return jsonify(task.to_dict())
     except Exception as e:

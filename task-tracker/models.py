@@ -100,6 +100,7 @@ class Task(db.Model):
     student_confirmed = db.Column(db.Boolean, default=False)
     notified_24h = db.Column(db.Boolean, default=False)
     notified_1h = db.Column(db.Boolean, default=False)
+    plan_step_id = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {
@@ -126,6 +127,7 @@ class Task(db.Model):
             'closing_date': self.closing_date.strftime('%d.%m.%Y %H:%M') if self.closing_date else None,
             'closing_date_iso': self.closing_date.strftime('%Y-%m-%dT%H:%M') if self.closing_date else None,
             'student_confirmed': self.student_confirmed,
+            'plan_step_id': self.plan_step_id,
         }
 
 
@@ -197,6 +199,38 @@ class Setting(db.Model):
         else:
             _db.session.add(Setting(key=key, value=value))
         _db.session.commit()
+
+
+class PlanTemplate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    steps = db.relationship('PlanStep', backref='template',
+                            cascade='all, delete-orphan', order_by='PlanStep.order_num')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'steps': [s.to_dict() for s in self.steps],
+        }
+
+
+class PlanStep(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('plan_template.id'), nullable=False)
+    order_num = db.Column(db.Integer, nullable=False, default=0)
+    title = db.Column(db.String(300), nullable=False)
+
+    def to_dict(self):
+        return {'id': self.id, 'template_id': self.template_id,
+                'order_num': self.order_num, 'title': self.title}
+
+
+class UserPlan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('plan_template.id'), nullable=False)
+    next_step_id = db.Column(db.Integer, nullable=True)
 
 
 class StudentPayment(db.Model):

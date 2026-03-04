@@ -29,6 +29,7 @@
         </div>
         <button id="add-task-btn">Добавить задачу</button>
         <button id="flashcards-btn">Карточки</button>
+        <button id="my-plan-btn" class="btn-my-plan hidden">📚 Мой план</button>
         <button id="toggle-filters-btn" class="btn-toggle-filters">Фильтры</button>
         <div id="task-list-section" class="view-calendar">
             <div class="filters-bar hidden" id="filters-bar">
@@ -177,6 +178,17 @@
                         <option value="">-- Выберите --</option>
                     </select>
                 </div>
+                <div class="form-row" id="plan-step-row">
+                    <label>Этап плана</label>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                        <select id="form-plan-step-id" class="form-select">
+                            <option value="">-- Выберите этап --</option>
+                        </select>
+                        <span id="plan-step-warning" class="hidden" style="color:var(--color-warning);font-size:13px;">
+                            Необходимо назначить план обучения этому ученику
+                        </span>
+                    </div>
+                </div>
                 <div class="form-row">
                     <label>Статус</label>
                     <select id="form-status-id" class="form-select">
@@ -219,6 +231,7 @@
                 <button class="settings-option-btn" data-option="telegram">Telegram</button>
                 <button class="settings-option-btn" data-option="reports">Отчёты</button>
                 <button class="settings-option-btn" data-option="lesson-settings" id="lesson-settings-btn">Настройки урока</button>
+                <button class="settings-option-btn" data-option="plan-templates" id="plan-templates-settings-btn">Планы обучения</button>
             </div>
         </div>
     </div>
@@ -735,6 +748,78 @@
         </div>
         <div class="placeholder-message">
             <p>Здесь будет мини-игра «Карточки»</p>
+        </div>
+    </div>
+
+    <!-- Conducted Dialog -->
+    <div id="conducted-dialog-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:460px;">
+            <div class="modal-header">
+                <h2>Урок проведён</h2>
+            </div>
+            <div style="padding:24px;display:flex;flex-direction:column;gap:24px;">
+                <div class="conducted-q">
+                    <p class="conducted-q-label">Отправляем тест ученику?</p>
+                    <div class="toggle-answer" data-q="test">
+                        <button class="toggle-ans-btn" data-val="yes">Да</button>
+                        <button class="toggle-ans-btn" data-val="no">Нет</button>
+                    </div>
+                    <div id="test-soon-msg" class="hidden"
+                         style="color:var(--color-text-secondary);font-size:13px;
+                                margin-top:8px;padding:10px;
+                                background:var(--color-bg-subtle);
+                                border-radius:var(--radius-sm);">
+                        скоро настроим тесты
+                    </div>
+                </div>
+                <div class="conducted-q">
+                    <p class="conducted-q-label">Переходим к следующей теме?</p>
+                    <div class="toggle-answer" data-q="advance">
+                        <button class="toggle-ans-btn" data-val="yes">Да</button>
+                        <button class="toggle-ans-btn" data-val="no">Нет</button>
+                    </div>
+                </div>
+                <div class="form-actions" style="margin-top:0;padding-top:0;border-top:none;">
+                    <button id="conducted-confirm-btn" class="btn-primary" disabled>Подтвердить</button>
+                    <button id="conducted-cancel-btn" class="btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Plan Page (student) -->
+    <div id="my-plan-page" class="page hidden">
+        <div class="plan-container">
+            <div class="page-header">
+                <button id="plan-back-btn" class="btn-back">← Назад</button>
+                <h2 id="plan-title">Мой план обучения</h2>
+            </div>
+            <div class="plan-progress-card">
+                <div class="plan-progress-header">
+                    <span id="plan-progress-label">— из — тем пройдено</span>
+                    <span id="plan-progress-percent">0%</span>
+                </div>
+                <div class="plan-progress-track">
+                    <div class="plan-progress-fill" id="plan-progress-fill" style="width:0%"></div>
+                </div>
+            </div>
+            <div class="plan-steps-list" id="plan-steps-list"></div>
+        </div>
+    </div>
+
+    <!-- Plan Templates Page (admin/owner/teacher) -->
+    <div id="plan-templates-page" class="page hidden">
+        <div class="plan-container">
+            <div class="page-header">
+                <button id="plan-templates-back-btn" class="btn-back">← Назад</button>
+                <h2>Планы обучения</h2>
+                <button id="add-template-btn" class="btn-primary">+ Новый шаблон</button>
+            </div>
+            <div id="templates-list"></div>
+            <div class="plan-card">
+                <h3>Назначение планов ученикам</h3>
+                <div id="student-plan-assignments"></div>
+            </div>
         </div>
     </div>
 

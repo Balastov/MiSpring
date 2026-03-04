@@ -50,6 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const formHomeworkRequired = document.getElementById('form-homework-required');
     const homeworkRequiredRow = document.getElementById('homework-required-row');
     const homeworkRow = document.getElementById('homework-row');
+    const formPlanStepId = document.getElementById('form-plan-step-id');
+    const planStepRow = document.getElementById('plan-step-row');
+    const planStepWarning = document.getElementById('plan-step-warning');
+    let _pendingAdvancePlanStep = null;
     const formStatusId = document.getElementById('form-status-id');
     const formTaskTypeId = document.getElementById('form-task-type-id');
     const formDuration = document.getElementById('form-duration');
@@ -211,6 +215,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportLoadBtn = document.getElementById('report-load-btn');
     const reportContent = document.getElementById('report-content');
 
+    // My Plan page
+    const myPlanPage = document.getElementById('my-plan-page');
+    const myPlanBtn = document.getElementById('my-plan-btn');
+    const planTemplatesPage = document.getElementById('plan-templates-page');
+
     // Filter elements
     const filterStudentId = document.getElementById('filter-student-id');
     const filterTaskTypeId = document.getElementById('filter-task-type-id');
@@ -290,6 +299,12 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(user => {
             currentUserData = user;
             applyRBAC();
+            // Show "Мой план" button if student has a plan
+            if (hasRole('student') && myPlanBtn) {
+                fetch('/api/my-plan')
+                    .then(r => { if (r.ok) myPlanBtn.classList.remove('hidden'); })
+                    .catch(() => {});
+            }
             // Load task list immediately
             loadFilterStudents();
             loadFilterTaskTypes().then(() => {
@@ -442,6 +457,44 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    // Load plan steps for selected student into #form-plan-step-id
+    function loadPlanStepsForStudent(studentId, currentPlanStepId = null) {
+        if (!formPlanStepId) return;
+        const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
+        const isLesson = sel && sel.textContent === 'Урок';
+        if (!isLesson || !studentId) {
+            formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
+            if (planStepWarning) planStepWarning.classList.add('hidden');
+            return;
+        }
+        fetch(`/api/students/${studentId}/plan`)
+            .then(r => r.json())
+            .then(data => {
+                formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
+                if (data.error || !data.template) {
+                    formPlanStepId.disabled = true;
+                    if (planStepWarning) planStepWarning.classList.remove('hidden');
+                    return;
+                }
+                if (planStepWarning) planStepWarning.classList.add('hidden');
+                formPlanStepId.disabled = hasRole('student');
+                data.steps.forEach(step => {
+                    const opt = document.createElement('option');
+                    opt.value = step.id;
+                    opt.textContent = step.title;
+                    formPlanStepId.appendChild(opt);
+                });
+                if (currentPlanStepId) {
+                    formPlanStepId.value = currentPlanStepId;
+                } else if (data.next_step_id) {
+                    formPlanStepId.value = data.next_step_id;
+                } else if (data.steps.length > 0) {
+                    formPlanStepId.value = data.steps[0].id;
+                }
+            })
+            .catch(() => {});
+    }
+
     // Show/hide lesson-specific fields based on task type
     function updateLessonFieldsVisibility() {
         const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
@@ -451,11 +504,17 @@ document.addEventListener('DOMContentLoaded', () => {
         studentRow.style.display = isLesson ? '' : 'none';
         homeworkRequiredRow.style.display = isLesson ? '' : 'none';
         homeworkRow.style.display = isLesson ? '' : 'none';
+        if (planStepRow) planStepRow.style.display = isLesson ? '' : 'none';
 
         if (!isLesson) {
             formStudentId.value = '';
             formHomeworkRequired.checked = true; // Reset to default
             formHomeworkId.value = '';
+            if (formPlanStepId) {
+                formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
+                formPlanStepId.disabled = false;
+            }
+            if (planStepWarning) planStepWarning.classList.add('hidden');
         } else {
             // When switching to lesson type, set homework_required to true by default
             formHomeworkRequired.checked = true;
@@ -484,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         autoFillNextHomework();
         checkAndApplyPrepaid();
+        loadPlanStepsForStudent(formStudentId.value);
     });
 
     function checkAndApplyPrepaid() {
@@ -562,6 +622,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formHomeworkRequired.checked = true;
                 formComment.value = '';
                 formClosingDate.value = '';
+                if (formPlanStepId) formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
+                if (planStepWarning) planStepWarning.classList.add('hidden');
 
                 // Fetch and populate student, status, task type, and homework dropdowns
                 return Promise.all([
@@ -896,6 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             formHomeworkId.value = task.homework_id || '';
 
+            loadPlanStepsForStudent(task.student_id, task.plan_step_id);
             updateQuickStatusButtons();
             checkAndApplyPrepaid();
             modal.classList.remove('hidden');
@@ -1042,6 +1105,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Домашнее задание обязательно, если включена опция "ДЗ обязательно" и статус "Завершён"');
                 return;
             }
+
+            // Plan step required for new lessons when student has a plan
+            if (!editingTaskId && formPlanStepId && !formPlanStepId.disabled && !formPlanStepId.value
+                    && formPlanStepId.options.length > 1) {
+                alert('Этап плана обучения обязателен');
+                return;
+            }
         }
 
         // Collect form data
@@ -1058,8 +1128,14 @@ document.addEventListener('DOMContentLoaded', () => {
             status_id: formStatusId.value ? parseInt(formStatusId.value) : null,
             task_type_id: formTaskTypeId.value ? parseInt(formTaskTypeId.value) : null,
             comment: formComment.value.trim() || null,
-            closing_date: formClosingDate.value || null
+            closing_date: formClosingDate.value || null,
+            plan_step_id: formPlanStepId && formPlanStepId.value ? parseInt(formPlanStepId.value) : null,
         };
+
+        if (_pendingAdvancePlanStep !== null) {
+            taskData.advance_plan_step = _pendingAdvancePlanStep;
+            _pendingAdvancePlanStep = null;
+        }
 
         const isEditing = !!editingTaskId;
         const method = isEditing ? 'PUT' : 'POST';
@@ -1123,8 +1199,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnStatusCompleted) {
         btnStatusCompleted.addEventListener('click', () => {
-            updateTaskStatus('Проведён');
+            showConductedDialog();
         });
+    }
+
+    function showConductedDialog() {
+        const dlg = document.getElementById('conducted-dialog-modal');
+        if (!dlg) { updateTaskStatus('Проведён'); return; }
+
+        // Reset state
+        dlg.querySelectorAll('.toggle-ans-btn').forEach(b => b.classList.remove('active'));
+        const testMsg = document.getElementById('test-soon-msg');
+        if (testMsg) testMsg.classList.add('hidden');
+        const confirmBtn = document.getElementById('conducted-confirm-btn');
+        if (confirmBtn) confirmBtn.disabled = true;
+        dlg.classList.remove('hidden');
+
+        const answers = { test: null, advance: null };
+
+        function checkBothAnswered() {
+            if (confirmBtn) confirmBtn.disabled = answers.test === null || answers.advance === null;
+        }
+
+        dlg.querySelectorAll('.toggle-ans-btn').forEach(btn => {
+            btn.onclick = () => {
+                const q = btn.closest('.toggle-answer').dataset.q;
+                btn.closest('.toggle-answer').querySelectorAll('.toggle-ans-btn')
+                    .forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                answers[q] = btn.dataset.val;
+                if (q === 'test' && testMsg) {
+                    testMsg.classList.toggle('hidden', btn.dataset.val !== 'yes');
+                }
+                checkBothAnswered();
+            };
+        });
+
+        if (confirmBtn) {
+            confirmBtn.onclick = () => {
+                dlg.classList.add('hidden');
+                _pendingAdvancePlanStep = answers.advance === 'yes';
+                updateTaskStatus('Проведён');
+            };
+        }
+
+        const cancelBtn = document.getElementById('conducted-cancel-btn');
+        if (cancelBtn) {
+            cancelBtn.onclick = () => dlg.classList.add('hidden');
+        }
     }
 
     if (btnStatusCancelled) {
@@ -1232,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     formHomeworkId.value = task.homework_id || '';
 
+                    loadPlanStepsForStudent(task.student_id, task.plan_step_id);
                     modal.classList.remove('hidden');
                 });
         }
@@ -1278,6 +1401,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.style.display = ['users', 'telegram'].includes(btn.dataset.option) ? '' : 'none';
             }
         });
+        // plan-templates никогда не показываем не-привилегированным
+        const planTemplatesBtn = settingsModal.querySelector('[data-option="plan-templates"]');
+        if (planTemplatesBtn) planTemplatesBtn.style.display = isPrivileged ? '' : 'none';
         settingsModal.classList.remove('hidden');
     });
 
@@ -1312,6 +1438,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showReportsPage();
             } else if (option === 'lesson-settings') {
                 showLessonSettingsPage();
+            } else if (option === 'plan-templates') {
+                showPlanTemplatesPage();
             }
         });
     });
@@ -1344,6 +1472,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (reportsPage) reportsPage.classList.add('hidden');
         if (telegramPage) telegramPage.classList.add('hidden');
         if (lessonSettingsPage) lessonSettingsPage.classList.add('hidden');
+        if (myPlanPage) myPlanPage.classList.add('hidden');
+        if (planTemplatesPage) planTemplatesPage.classList.add('hidden');
     }
 
     function showMainPage() {
@@ -2788,6 +2918,207 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => { meetingLinkStatus.textContent = 'Ошибка сохранения'; });
         });
     }
+
+    // ========== My Plan Page Logic ==========
+
+    function showMyPlanPage() {
+        hideAllPages();
+        if (!myPlanPage) return;
+        myPlanPage.classList.remove('hidden');
+        fetch('/api/my-plan')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) return;
+                document.getElementById('plan-title').textContent = data.template.name;
+                const p = data.progress;
+                const done = Math.min(p.conducted, p.total);
+                document.getElementById('plan-progress-label').textContent =
+                    `${done} из ${p.total} тем пройдено`;
+                document.getElementById('plan-progress-percent').textContent = `${p.percent}%`;
+                setTimeout(() => {
+                    document.getElementById('plan-progress-fill').style.width = p.percent + '%';
+                }, 50);
+                const list = document.getElementById('plan-steps-list');
+                list.innerHTML = '';
+                data.steps.forEach((step, i) => {
+                    const isDone = i < p.conducted;
+                    const isCurrent = i === p.conducted && p.conducted < p.total;
+                    const cls = isDone ? 'done' : isCurrent ? 'current' : 'pending';
+                    const icon = isDone ? '✓' : isCurrent ? '→' : String(i + 1);
+                    const el = document.createElement('div');
+                    el.className = `plan-step plan-step--${cls}`;
+                    el.innerHTML = `<span class="plan-step-icon">${icon}</span>
+                        <span class="plan-step-title">${step.title}</span>`;
+                    list.appendChild(el);
+                });
+            });
+    }
+
+    if (document.getElementById('plan-back-btn')) {
+        document.getElementById('plan-back-btn').addEventListener('click', showMainPage);
+    }
+    if (myPlanBtn) {
+        myPlanBtn.addEventListener('click', showMyPlanPage);
+    }
+
+    // ========== Plan Templates Page Logic ==========
+
+    function renderTemplates(templates) {
+        const container = document.getElementById('templates-list');
+        container.innerHTML = '';
+        if (!templates.length) {
+            container.innerHTML = '<p style="color:var(--color-text-muted);font-size:14px;">Нет шаблонов</p>';
+            return;
+        }
+        templates.forEach(t => {
+            const card = document.createElement('div');
+            card.className = 'plan-card';
+            const stepsHtml = t.steps.map((s, i) => `
+                <div class="template-step-row">
+                    <span class="template-step-num">${i + 1}.</span>
+                    <span class="template-step-title">${s.title}</span>
+                    <button class="btn-delete btn-delete-step" data-id="${s.id}" style="padding:3px 8px;font-size:12px;">✕</button>
+                </div>`).join('');
+            card.innerHTML = `
+                <div class="plan-card-header">
+                    <h3>${t.name}</h3>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn-edit btn-rename-template" data-id="${t.id}" data-name="${t.name}">Переименовать</button>
+                        <button class="btn-delete btn-delete-template" data-id="${t.id}">Удалить</button>
+                    </div>
+                </div>
+                <div class="template-steps">${stepsHtml}</div>
+                <div class="template-add-step">
+                    <input type="text" class="new-step-input" placeholder="Новый шаг плана..." data-template-id="${t.id}">
+                    <button class="btn-primary btn-add-step" data-template-id="${t.id}" style="padding:8px 14px;font-size:13px;">+ Добавить</button>
+                </div>`;
+            container.appendChild(card);
+        });
+    }
+
+    function renderStudentAssignments(students, templates) {
+        const container = document.getElementById('student-plan-assignments');
+        if (!students.length) {
+            container.innerHTML = '<p style="color:var(--color-text-muted);font-size:14px;">Нет учеников</p>';
+            return;
+        }
+        const tmplOptions = ['<option value="">— без плана —</option>',
+            ...templates.map(t => `<option value="${t.id}">${t.name}</option>`)
+        ].join('');
+        container.innerHTML = students.map(s => `
+            <div class="student-assign-row">
+                <span>${s.display_name}</span>
+                <select class="student-plan-select" data-student-id="${s.id}">
+                    ${tmplOptions}
+                </select>
+            </div>`).join('');
+        // Set current values
+        students.forEach(s => {
+            const sel = container.querySelector(`.student-plan-select[data-student-id="${s.id}"]`);
+            if (sel && s.template_id) sel.value = s.template_id;
+        });
+        // Save on change
+        container.querySelectorAll('.student-plan-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const studentId = sel.dataset.studentId;
+                const templateId = sel.value ? parseInt(sel.value) : null;
+                fetch(`/api/students/${studentId}/plan`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ template_id: templateId }),
+                });
+            });
+        });
+    }
+
+    function loadPlanTemplatesPage() {
+        Promise.all([
+            fetch('/api/plan-templates').then(r => r.json()),
+            fetch('/api/students-with-plans').then(r => r.json()),
+        ]).then(([tData, sData]) => {
+            renderTemplates(tData.templates || []);
+            renderStudentAssignments(sData.students || [], tData.templates || []);
+        });
+    }
+
+    function showPlanTemplatesPage() {
+        hideAllPages();
+        if (!planTemplatesPage) return;
+        planTemplatesPage.classList.remove('hidden');
+        loadPlanTemplatesPage();
+    }
+
+    if (document.getElementById('plan-templates-back-btn')) {
+        document.getElementById('plan-templates-back-btn').addEventListener('click', showMainPage);
+    }
+
+    if (document.getElementById('add-template-btn')) {
+        document.getElementById('add-template-btn').addEventListener('click', () => {
+            const name = prompt('Название шаблона:');
+            if (!name || !name.trim()) return;
+            fetch('/api/plan-templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() }),
+            }).then(r => r.json()).then(() => loadPlanTemplatesPage());
+        });
+    }
+
+    // Event delegation for templates list
+    document.addEventListener('click', e => {
+        // Delete step
+        if (e.target.closest('.btn-delete-step')) {
+            const btn = e.target.closest('.btn-delete-step');
+            if (!confirm('Удалить шаг?')) return;
+            fetch(`/api/plan-steps/${btn.dataset.id}`, { method: 'DELETE' })
+                .then(() => loadPlanTemplatesPage());
+        }
+        // Delete template
+        if (e.target.closest('.btn-delete-template')) {
+            const btn = e.target.closest('.btn-delete-template');
+            if (!confirm('Удалить шаблон и все его шаги?')) return;
+            fetch(`/api/plan-templates/${btn.dataset.id}`, { method: 'DELETE' })
+                .then(() => loadPlanTemplatesPage());
+        }
+        // Rename template
+        if (e.target.closest('.btn-rename-template')) {
+            const btn = e.target.closest('.btn-rename-template');
+            const newName = prompt('Новое название:', btn.dataset.name);
+            if (!newName || !newName.trim()) return;
+            fetch(`/api/plan-templates/${btn.dataset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName.trim() }),
+            }).then(() => loadPlanTemplatesPage());
+        }
+        // Add step button
+        if (e.target.closest('.btn-add-step')) {
+            const btn = e.target.closest('.btn-add-step');
+            const tid = btn.dataset.templateId;
+            const input = document.querySelector(`.new-step-input[data-template-id="${tid}"]`);
+            const title = (input?.value || '').trim();
+            if (!title) return;
+            fetch(`/api/plan-templates/${tid}/steps`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title }),
+            }).then(() => loadPlanTemplatesPage());
+        }
+    });
+
+    // Add step on Enter key in step input
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && e.target.classList.contains('new-step-input')) {
+            const tid = e.target.dataset.templateId;
+            const title = e.target.value.trim();
+            if (!title) return;
+            fetch(`/api/plan-templates/${tid}/steps`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title }),
+            }).then(() => loadPlanTemplatesPage());
+        }
+    });
 
     // ========== Reports Page Logic ==========
 

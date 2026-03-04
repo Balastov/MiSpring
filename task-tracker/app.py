@@ -69,6 +69,7 @@ from routes_users import users_bp
 from routes_telegram import telegram_bp
 from routes_payments import payments_bp
 from routes_calendar import calendar_bp
+from routes_plans import plans_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(tasks_bp)
@@ -77,6 +78,7 @@ app.register_blueprint(users_bp)
 app.register_blueprint(telegram_bp)
 app.register_blueprint(payments_bp)
 app.register_blueprint(calendar_bp)
+app.register_blueprint(plans_bp)
 
 
 # ========== Database Initialization ==========
@@ -118,12 +120,40 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN notified_24h BOOLEAN DEFAULT 0')
     if 'notified_1h' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN notified_1h BOOLEAN DEFAULT 0')
+    if 'plan_step_id' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN plan_step_id INTEGER')
     conn.commit()
+
+    up_cols = [col[1] for col in cursor.execute('PRAGMA table_info(user_plan)').fetchall()]
+    if 'next_step_id' not in up_cols:
+        cursor.execute('ALTER TABLE user_plan ADD COLUMN next_step_id INTEGER')
+        conn.commit()
 
     # Миграция таблицы setting (создаётся через db.create_all, но на всякий случай)
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='setting'")
     if not cursor.fetchone():
         cursor.execute('CREATE TABLE setting (id INTEGER PRIMARY KEY, key VARCHAR(100) UNIQUE NOT NULL, value TEXT)')
+        conn.commit()
+
+    # Таблицы плана обучения
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_template'")
+    if not cursor.fetchone():
+        cursor.execute('CREATE TABLE plan_template (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)')
+        conn.commit()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_step'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE plan_step (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL REFERENCES plan_template(id),
+            order_num INTEGER NOT NULL DEFAULT 0,
+            title TEXT NOT NULL)''')
+        conn.commit()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_plan'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE user_plan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL UNIQUE REFERENCES user(id),
+            template_id INTEGER NOT NULL REFERENCES plan_template(id))''')
         conn.commit()
 
     conn.close()
