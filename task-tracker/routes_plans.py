@@ -120,6 +120,21 @@ def delete_plan_step(sid):
     return '', 204
 
 
+@plans_bp.route('/api/plan-templates/<int:tid>/steps/reorder', methods=['PUT'])
+@login_required
+def reorder_plan_steps(tid):
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+    db.get_or_404(PlanTemplate, tid)
+    step_ids = request.json.get('step_ids', [])
+    for i, sid in enumerate(step_ids):
+        step = db.session.get(PlanStep, sid)
+        if step and step.template_id == tid:
+            step.order_num = i
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 # ── Назначение плана студенту ─────────────────────────────────────────────────
 
 @plans_bp.route('/api/students/<int:student_id>/plan', methods=['GET'])

@@ -2963,6 +2963,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Plan Templates Page Logic ==========
 
+    function _makeStepRow(s, i, templateId, stepsContainer) {
+        const row = document.createElement('div');
+        row.className = 'template-step-row';
+        row.draggable = true;
+        row.dataset.stepId = s.id;
+        row.innerHTML = `
+            <span class="drag-handle" title="Перетащить">⠿</span>
+            <span class="template-step-num">${i + 1}.</span>
+            <span class="template-step-title">${s.title}</span>
+            <button class="btn-delete btn-delete-step" data-id="${s.id}" style="padding:3px 8px;font-size:12px;">✕</button>`;
+
+        row.addEventListener('dragstart', (e) => {
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', s.id);
+        });
+
+        row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            stepsContainer.querySelectorAll('.template-step-row').forEach(r => r.classList.remove('drag-over'));
+            const stepIds = [...stepsContainer.querySelectorAll('.template-step-row')]
+                .map(r => parseInt(r.dataset.stepId));
+            fetch(`/api/plan-templates/${templateId}/steps/reorder`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ step_ids: stepIds }),
+            }).then(() => {
+                stepsContainer.querySelectorAll('.template-step-row').forEach((r, idx) => {
+                    r.querySelector('.template-step-num').textContent = `${idx + 1}.`;
+                });
+            });
+        });
+
+        row.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const dragging = stepsContainer.querySelector('.dragging');
+            if (!dragging || dragging === row) return;
+            const rect = row.getBoundingClientRect();
+            if (e.clientY < rect.top + rect.height / 2) {
+                stepsContainer.insertBefore(dragging, row);
+            } else {
+                stepsContainer.insertBefore(dragging, row.nextSibling);
+            }
+        });
+
+        row.addEventListener('drop', (e) => { e.preventDefault(); });
+
+        return row;
+    }
+
     function renderTemplates(templates) {
         const container = document.getElementById('templates-list');
         container.innerHTML = '';
@@ -2973,12 +3024,6 @@ document.addEventListener('DOMContentLoaded', () => {
         templates.forEach(t => {
             const card = document.createElement('div');
             card.className = 'plan-card';
-            const stepsHtml = t.steps.map((s, i) => `
-                <div class="template-step-row">
-                    <span class="template-step-num">${i + 1}.</span>
-                    <span class="template-step-title">${s.title}</span>
-                    <button class="btn-delete btn-delete-step" data-id="${s.id}" style="padding:3px 8px;font-size:12px;">✕</button>
-                </div>`).join('');
             card.innerHTML = `
                 <div class="plan-card-header">
                     <h3>${t.name}</h3>
@@ -2987,11 +3032,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn-delete btn-delete-template" data-id="${t.id}">Удалить</button>
                     </div>
                 </div>
-                <div class="template-steps">${stepsHtml}</div>
+                <div class="template-steps"></div>
                 <div class="template-add-step">
                     <input type="text" class="new-step-input" placeholder="Новый шаг плана..." data-template-id="${t.id}">
                     <button class="btn-primary btn-add-step" data-template-id="${t.id}" style="padding:8px 14px;font-size:13px;">+ Добавить</button>
                 </div>`;
+            const stepsContainer = card.querySelector('.template-steps');
+            t.steps.forEach((s, i) => stepsContainer.appendChild(_makeStepRow(s, i, t.id, stepsContainer)));
             container.appendChild(card);
         });
     }
