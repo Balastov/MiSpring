@@ -839,6 +839,18 @@ select.filter-control {
     margin-top: 4px;
 }
 
+.richtext-tools {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-richtext-link {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
 /* Clickable links in homework table */
 .homework-comment a {
     color: var(--color-primary);

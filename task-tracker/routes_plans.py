@@ -183,6 +183,8 @@ def get_student_plan(student_id):
     template = db.session.get(PlanTemplate, up.template_id)
     if not template:
         return jsonify({'error': 'План не найден', 'template': None, 'steps': [], 'progress': None})
+    if template.parent_id is None:
+        return jsonify({'error': 'Назначен только 1-й уровень плана. Назначьте 2-й уровень.', 'template': None, 'steps': [], 'progress': None})
     progress = _get_progress(student_id, template)
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': [s.to_dict() for s in template.steps],
@@ -224,6 +226,8 @@ def my_plan():
     template = db.session.get(PlanTemplate, up.template_id)
     if not template:
         return jsonify({'error': 'План не найден'}), 404
+    if template.parent_id is None:
+        return jsonify({'error': 'Назначен только 1-й уровень плана. Обратитесь к учителю для назначения 2-го уровня.'}), 400
     progress = _get_progress(current_user.id, template)
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': [s.to_dict() for s in template.steps],

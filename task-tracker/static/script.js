@@ -147,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formHomeworkIdDisplay = document.getElementById('form-homework-id-display');
     const formHomeworkName = document.getElementById('form-homework-name');
     const formHomeworkComment = document.getElementById('form-homework-comment');
+    const insertHomeworkLinkBtn = document.getElementById('insert-homework-link-btn');
     const homeworkSubmitBtn = document.getElementById('homework-submit-btn');
 
     // Flashcards page elements
@@ -2228,6 +2229,36 @@ document.addEventListener('DOMContentLoaded', () => {
             document.execCommand('insertHTML', false, autoLinkUrls(text));
         }
     });
+
+    function _escapeAttr(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    if (insertHomeworkLinkBtn) {
+        insertHomeworkLinkBtn.addEventListener('click', () => {
+            const selection = window.getSelection();
+            let selectedText = '';
+            if (selection && selection.rangeCount > 0) {
+                selectedText = selection.toString().trim();
+            }
+            const visibleText = prompt('Видимый текст ссылки:', selectedText || 'Открыть материал');
+            if (!visibleText || !visibleText.trim()) return;
+            let url = prompt('URL ссылки (https://...):', 'https://');
+            if (!url || !url.trim()) return;
+            url = url.trim();
+            if (!/^https?:\/\//i.test(url)) {
+                url = `https://${url}`;
+            }
+            const safeText = escapeHtml(visibleText.trim());
+            const safeHref = _escapeAttr(url);
+            formHomeworkComment.focus();
+            document.execCommand('insertHTML', false, `<a href="${safeHref}" target="_blank" rel="noopener">${safeText}</a>`);
+        });
+    }
 
     // ========== Homework Page Logic ==========
 
