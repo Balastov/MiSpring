@@ -53,12 +53,24 @@ def inject_cache_bust():
     return dict(cache_bust=cache_bust)
 
 
-# ========== Main Route ==========
+# ========== Main Routes ==========
 
 @app.route('/')
 @login_required
 def index():
+    from helpers import user_has_role
+    if user_has_role('student'):
+        return redirect(url_for('student_dashboard'))
     return render_template('index.html')
+
+
+@app.route('/student')
+@login_required
+def student_dashboard():
+    from helpers import user_has_role
+    if not user_has_role('student'):
+        return redirect(url_for('index'))
+    return render_template('student_dashboard.html')
 
 
 # ========== Register Blueprints ==========

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MiSpring — Личный кабинет</title>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="MiSpring">
+    <meta name="theme-color" content="#1A515F">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=cache_bust('style.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='student_dashboard.css', v=cache_bust('student_dashboard.css')) }}">
+</head>
+<body class="sd-body">
+
+    <!-- ===== Top Bar ===== -->
+    <header class="sd-topbar">
+        <!-- Left: countdown + next lesson topic -->
+        <div class="sd-topbar-left">
+            <div class="sd-timer-block sd-hidden" id="sd-timer-block">
+                <span class="sd-timer-label">До следующего урока</span>
+                <div class="sd-timer-units" id="sd-timer-units">
+                    <span id="sd-timer-days" class="sd-timer-num">--</span><span class="sd-timer-sep">д</span>
+                    <span id="sd-timer-hours" class="sd-timer-num">--</span><span class="sd-timer-sep">ч</span>
+                    <span id="sd-timer-minutes" class="sd-timer-num">--</span><span class="sd-timer-sep">м</span>
+                    <span id="sd-timer-seconds" class="sd-timer-num">--</span><span class="sd-timer-sep">с</span>
+                </div>
+            </div>
+            <div class="sd-next-topic sd-hidden" id="sd-next-topic">
+                <span class="sd-next-topic-label">Тема следующего урока</span>
+                <span class="sd-next-topic-value" id="sd-next-topic-value">—</span>
+            </div>
+        </div>
+
+        <!-- Center: teacher button + logo -->
+        <div class="sd-topbar-center">
+            <button class="sd-btn-teacher" id="sd-teacher-btn" title="Мой учитель">
+                <span id="sd-teacher-btn-name">Мой учитель</span>
+            </button>
+            <div class="sd-logo-wrap">
+                <img src="{{ url_for('static', filename='logo-banner.svg') }}" alt="EngSpring" class="sd-logo">
+            </div>
+        </div>
+
+        <!-- Right: user name + profile button -->
+        <div class="sd-topbar-right">
+            <span class="sd-username" id="sd-username">…</span>
+            <button class="sd-btn-profile" id="sd-profile-btn">Личный кабинет</button>
+        </div>
+    </header>
+
+    <!-- ===== Main Content ===== -->
+    <main class="sd-main">
+
+        <!-- Left column: Homework -->
+        <section class="sd-col sd-col-homework">
+            <div class="sd-card">
+                <div class="sd-card-header">
+                    <h2 class="sd-card-title">Домашнее задание</h2>
+                    <label class="sd-toggle-done">
+                        <input type="checkbox" id="sd-show-done-cb">
+                        <span>Показать выполненные</span>
+                    </label>
+                </div>
+
+                <div id="sd-homework-list" class="sd-homework-list">
+                    <p class="sd-loading">Загрузка…</p>
+                </div>
+
+                <!-- Legend -->
+                <div class="sd-hw-legend">
+                    <span class="sd-legend-item sd-legend-queue">В очереди</span>
+                    <span class="sd-legend-item sd-legend-inprogress">В работе</span>
+                    <span class="sd-legend-item sd-legend-overdue">Просрочено</span>
+                    <span class="sd-legend-item sd-legend-done">Готово</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Middle column: placeholder -->
+        <section class="sd-col sd-col-middle">
+            <!-- Reserved for future features -->
+        </section>
+
+        <!-- Right column: Calendar + Plan -->
+        <section class="sd-col sd-col-right">
+            <div class="sd-card sd-card-calendar">
+                <h2 class="sd-card-title">Календарь</h2>
+                <div id="sd-mini-calendar" class="sd-mini-calendar"></div>
+            </div>
+
+            <div class="sd-card sd-card-plan" id="sd-plan-card">
+                <h2 class="sd-card-title">Мой план обучения</h2>
+                <div id="sd-plan-content" class="sd-plan-content">
+                    <p class="sd-loading">Загрузка…</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Teacher Info Modal -->
+    <div id="sd-teacher-modal" class="sd-modal hidden">
+        <div class="sd-modal-content">
+            <button class="sd-modal-close" id="sd-teacher-modal-close">&times;</button>
+            <div class="sd-teacher-modal-body" id="sd-teacher-modal-body">
+                <p class="sd-loading">Загрузка…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile / Settings Modal -->
+    <div id="sd-profile-modal" class="sd-modal hidden">
+        <div class="sd-modal-content">
+            <button class="sd-modal-close" id="sd-profile-modal-close">&times;</button>
+            <h2 class="sd-modal-title">Личный кабинет</h2>
+            <div class="sd-profile-actions">
+                <button class="sd-profile-link" id="sd-telegram-btn">Telegram уведомления</button>
+                <button class="sd-profile-link" id="sd-change-password-btn">Сменить пароль</button>
+                <button class="sd-profile-link sd-btn-danger" id="sd-logout-btn">Выйти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="sd-change-password-modal" class="sd-modal hidden">
+        <div class="sd-modal-content">
+            <button class="sd-modal-close" id="sd-cp-modal-close">&times;</button>
+            <h2 class="sd-modal-title">Сменить пароль</h2>
+            <form id="sd-change-password-form" class="sd-form">
+                <div class="sd-form-row">
+                    <label>Текущий пароль</label>
+                    <input type="password" id="sd-old-password" required>
+                </div>
+                <div class="sd-form-row">
+                    <label>Новый пароль</label>
+                    <input type="password" id="sd-new-password" required minlength="6">
+                </div>
+                <div class="sd-form-row">
+                    <label>Подтвердите</label>
+                    <input type="password" id="sd-confirm-password" required minlength="6">
+                </div>
+                <div class="sd-form-actions">
+                    <button type="submit" class="sd-btn-primary">Сменить пароль</button>
+                    <button type="button" class="sd-btn-secondary" id="sd-cp-cancel">Отмена</button>
+                </div>
+                <p id="sd-cp-error" class="sd-error hidden"></p>
+                <p id="sd-cp-success" class="sd-success hidden"></p>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='student_dashboard.js', v=cache_bust('student_dashboard.js')) }}"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js');
+      }
+    </script>
+</body>
+</html>

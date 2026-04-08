@@ -441,5 +441,61 @@ def get_my_next_lesson():
     task = q.first()
     if not task:
         return jsonify({'lesson': None})
-    return jsonify({'lesson': {'start_date_iso': task.start_date.strftime('%Y-%m-%dT%H:%M:%S')}})
+    plan_step_title = None
+    if task.plan_step_id:
+        from models import PlanStep
+        step = db.session.get(PlanStep, task.plan_step_id)
+        if step:
+            plan_step_title = step.title
+    return jsonify({'lesson': {
+        'start_date_iso': task.start_date.strftime('%Y-%m-%dT%H:%M:%S'),
+        'start_date': task.start_date.strftime('%d.%m.%Y %H:%M') if task.start_date else None,
+        'plan_step_title': plan_step_title,
+    }})
+
+
+@tasks_bp.route('/api/my-homework', methods=['GET'])
+@login_required
+def get_my_homework():
+    """Returns tasks with homework assigned to the current student."""
+    from datetime import datetime
+    from sqlalchemy import or_
+    show_done = request.args.get('show_done', '0') == '1'
+
+    done_status = TaskStatus.query.filter(TaskStatus.group == 'done').all()
+    done_ids = [s.id for s in done_status]
+
+    q = Task.query.filter(
+        Task.student_id == current_user.id,
+        Task.homework_id.isnot(None),
+    )
+    if not show_done and done_ids:
+        q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(done_ids)))
+
+    tasks = q.order_by(Task.start_date.desc()).limit(20).all()
+
+    homework_ids = {t.homework_id for t in tasks if t.homework_id}
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    homework_map = {hw.id: hw for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
+    status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
+
+    now = datetime.now()
+    result = []
+    for t in tasks:
+        hw = homework_map.get(t.homework_id)
+        st = status_map.get(t.status_id)
+        is_overdue = bool(
+            t.start_date and t.start_date < now and
+            (not st or (st.group or '').lower() not in ('done', 'completed', 'готово'))
+        )
+        result.append({
+            'task_id': t.id,
+            'homework_name': hw.name if hw else None,
+            'status_name': st.name if st else None,
+            'status_group': st.group if st else None,
+            'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
+            'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+            'is_overdue': is_overdue,
+        })
+    return jsonify({'homework': result})
 
