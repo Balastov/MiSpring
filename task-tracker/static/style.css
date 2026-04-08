@@ -1764,10 +1764,59 @@ select.filter-control {
     gap: 8px;
 }
 
+.plan-header-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
 .plan-card h3 {
     margin: 0;
     font-size: 16px;
     color: var(--color-primary);
+}
+
+.plan-collapse-toggle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    flex-shrink: 0;
+}
+
+.plan-collapse-toggle::before {
+    content: '▾';
+    font-size: 14px;
+    transform: rotate(0deg);
+    transition: transform var(--transition);
+    line-height: 1;
+}
+
+.plan-collapse-toggle:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: #eef5f7;
+}
+
+.plan-collapse-toggle.collapsed::before {
+    transform: rotate(-90deg);
+}
+
+.plan-accordion-body {
+    overflow: hidden;
+    transition: max-height 0.24s ease;
+}
+
+.plan-accordion-body.is-collapsed {
+    max-height: 0 !important;
 }
 
 .template-step-row {
@@ -1810,6 +1859,12 @@ select.filter-control {
 .template-step-title {
     flex: 1;
     color: var(--color-text);
+}
+
+.template-step-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .template-add-step {

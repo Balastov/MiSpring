@@ -3106,6 +3106,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Plan Templates Page Logic ==========
 
+    const collapsedRootTemplateIds = new Set();
+    const collapsedChildTemplateIds = new Set();
+
     function _makeStepRow(s, i, templateId, stepsContainer) {
         const row = document.createElement('div');
         row.className = 'template-step-row';
@@ -3115,7 +3118,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="drag-handle" title="Перетащить">⠿</span>
             <span class="template-step-num">${i + 1}.</span>
             <span class="template-step-title">${s.title}</span>
-            <button class="btn-delete btn-delete-step" data-id="${s.id}" style="padding:3px 8px;font-size:12px;">✕</button>`;
+            <div class="template-step-actions">
+                <button class="btn-edit btn-edit-step" data-id="${s.id}" style="padding:3px 8px;font-size:12px;">✎</button>
+                <button class="btn-delete btn-delete-step" data-id="${s.id}" style="padding:3px 8px;font-size:12px;">✕</button>
+            </div>`;
 
         row.addEventListener('dragstart', (e) => {
             row.classList.add('dragging');
@@ -3157,6 +3163,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return row;
     }
 
+    function _setAccordionState(btn, body, collapsed) {
+        if (!btn || !body) return;
+        btn.classList.toggle('collapsed', collapsed);
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        if (collapsed) {
+            body.classList.add('is-collapsed');
+            body.style.maxHeight = '0px';
+        } else {
+            body.classList.remove('is-collapsed');
+            body.style.maxHeight = `${body.scrollHeight}px`;
+            setTimeout(() => {
+                if (!btn.classList.contains('collapsed')) {
+                    body.style.maxHeight = 'none';
+                }
+            }, 240);
+        }
+    }
+
+    function _toggleAccordion(btn) {
+        const body = document.getElementById(btn.dataset.targetId);
+        if (!body) return;
+        const templateId = parseInt(btn.dataset.templateId);
+        const level = btn.dataset.level;
+        const isCollapsed = btn.classList.contains('collapsed');
+        if (isCollapsed) {
+            if (level === 'root') collapsedRootTemplateIds.delete(templateId);
+            if (level === 'child') collapsedChildTemplateIds.delete(templateId);
+            _setAccordionState(btn, body, false);
+            return;
+        }
+        if (body.style.maxHeight === 'none' || !body.style.maxHeight) {
+            body.style.maxHeight = `${body.scrollHeight}px`;
+        }
+        requestAnimationFrame(() => {
+            _setAccordionState(btn, body, true);
+        });
+        if (level === 'root') collapsedRootTemplateIds.add(templateId);
+        if (level === 'child') collapsedChildTemplateIds.add(templateId);
+    }
+
     function _flattenSecondLevelTemplates(roots) {
         const result = [];
         roots.forEach(root => {
@@ -3183,19 +3229,25 @@ document.addEventListener('DOMContentLoaded', () => {
         roots.forEach(root => {
             const rootCard = document.createElement('div');
             rootCard.className = 'plan-card';
+            const rootBodyId = `plan-root-body-${root.id}`;
             rootCard.innerHTML = `
                 <div class="plan-card-header">
-                    <h3>${root.name}</h3>
+                    <div class="plan-header-main">
+                        <button class="plan-collapse-toggle" data-level="root" data-template-id="${root.id}" data-target-id="${rootBodyId}" aria-expanded="true" title="Свернуть/развернуть"></button>
+                        <h3>${root.name}</h3>
+                    </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button class="btn-edit btn-rename-template" data-id="${root.id}" data-name="${root.name}">Переименовать</button>
                         <button class="btn-delete btn-delete-template" data-id="${root.id}">Удалить</button>
                     </div>
                 </div>
-                <div class="template-add-step" style="margin-bottom:10px;">
-                    <input type="text" class="new-child-input" placeholder="Новый план 2-го уровня..." data-root-id="${root.id}">
-                    <button class="btn-primary btn-add-child" data-root-id="${root.id}" style="padding:8px 14px;font-size:13px;">+ Добавить уровень</button>
+                <div class="plan-accordion-body" id="${rootBodyId}">
+                    <div class="template-add-step" style="margin-bottom:10px;">
+                        <input type="text" class="new-child-input" placeholder="Новый план 2-го уровня..." data-root-id="${root.id}">
+                        <button class="btn-primary btn-add-child" data-root-id="${root.id}" style="padding:8px 14px;font-size:13px;">+ Добавить уровень</button>
+                    </div>
+                    <div class="template-children"></div>
                 </div>
-                <div class="template-children"></div>
             `;
 
             const childrenContainer = rootCard.querySelector('.template-children');
@@ -3210,18 +3262,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     const childCard = document.createElement('div');
                     childCard.className = 'plan-card';
                     childCard.style.marginTop = '10px';
+                    const childBodyId = `plan-child-body-${child.id}`;
                     childCard.innerHTML = `
                         <div class="plan-card-header">
-                            <h3 style="font-size:16px;margin:0;">${child.name}</h3>
+                            <div class="plan-header-main">
+                                <button class="plan-collapse-toggle" data-level="child" data-template-id="${child.id}" data-target-id="${childBodyId}" aria-expanded="true" title="Свернуть/развернуть"></button>
+                                <h3 style="font-size:16px;margin:0;">${child.name}</h3>
+                            </div>
                             <div style="display:flex;gap:8px;">
                                 <button class="btn-edit btn-rename-template" data-id="${child.id}" data-name="${child.name}">Переименовать</button>
                                 <button class="btn-delete btn-delete-template" data-id="${child.id}">Удалить</button>
                             </div>
                         </div>
-                        <div class="template-steps"></div>
-                        <div class="template-add-step">
-                            <input type="text" class="new-step-input" placeholder="Новый шаг плана..." data-template-id="${child.id}">
-                            <button class="btn-primary btn-add-step" data-template-id="${child.id}" style="padding:8px 14px;font-size:13px;">+ Добавить шаг</button>
+                        <div class="plan-accordion-body" id="${childBodyId}">
+                            <div class="template-steps"></div>
+                            <div class="template-add-step">
+                                <input type="text" class="new-step-input" placeholder="Новый шаг плана..." data-template-id="${child.id}">
+                                <button class="btn-primary btn-add-step" data-template-id="${child.id}" style="padding:8px 14px;font-size:13px;">+ Добавить шаг</button>
+                            </div>
                         </div>
                     `;
                     const stepsContainer = childCard.querySelector('.template-steps');
@@ -3231,6 +3289,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             container.appendChild(rootCard);
+        });
+        container.querySelectorAll('.plan-collapse-toggle[data-level="root"]').forEach(btn => {
+            const body = document.getElementById(btn.dataset.targetId);
+            const isCollapsed = collapsedRootTemplateIds.has(parseInt(btn.dataset.templateId));
+            _setAccordionState(btn, body, isCollapsed);
+        });
+        container.querySelectorAll('.plan-collapse-toggle[data-level="child"]').forEach(btn => {
+            const body = document.getElementById(btn.dataset.targetId);
+            const isCollapsed = collapsedChildTemplateIds.has(parseInt(btn.dataset.templateId));
+            _setAccordionState(btn, body, isCollapsed);
         });
     }
 
@@ -3313,6 +3381,18 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/api/plan-steps/${btn.dataset.id}`, { method: 'DELETE' })
                 .then(() => loadPlanTemplatesPage());
         }
+        // Edit step
+        if (e.target.closest('.btn-edit-step')) {
+            const btn = e.target.closest('.btn-edit-step');
+            const currentTitle = btn.closest('.template-step-row')?.querySelector('.template-step-title')?.textContent || '';
+            const newTitle = prompt('Новое название шага:', currentTitle);
+            if (!newTitle || !newTitle.trim()) return;
+            fetch(`/api/plan-steps/${btn.dataset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle.trim() }),
+            }).then(() => loadPlanTemplatesPage());
+        }
         // Delete template
         if (e.target.closest('.btn-delete-template')) {
             const btn = e.target.closest('.btn-delete-template');
@@ -3356,6 +3436,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, parent_id: parseInt(rootId) }),
             }).then(() => loadPlanTemplatesPage());
+        }
+        // Accordion toggle
+        if (e.target.closest('.plan-collapse-toggle')) {
+            const btn = e.target.closest('.plan-collapse-toggle');
+            _toggleAccordion(btn);
         }
     });
 
