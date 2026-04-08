@@ -133,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Homework page elements
     const homeworkPage = document.getElementById('homework-page');
     const backToMainFromHomeworkBtn = document.getElementById('back-to-main-from-homework-btn');
-    const backToHomeworkCatalogsBtn = document.getElementById('back-to-homework-catalogs-btn');
     const addHomeworkBtn = document.getElementById('add-homework-btn');
     const homeworkCatalogSelect = document.getElementById('homework-catalog-select');
     const addHomeworkCatalogBtn = document.getElementById('add-homework-catalog-btn');
@@ -2381,15 +2380,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     backToMainFromHomeworkBtn.addEventListener('click', showMainPage);
-    if (backToHomeworkCatalogsBtn) {
-        backToHomeworkCatalogsBtn.addEventListener('click', () => {
-            closeHomeworkModal();
-            if (homeworkCatalogSelect) {
-                homeworkCatalogSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                homeworkCatalogSelect.focus();
-            }
-        });
-    }
 
     function fetchHomework(page) {
         if (page !== undefined) currentHomeworkPage = page;
