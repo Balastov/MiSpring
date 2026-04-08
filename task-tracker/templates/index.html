@@ -262,7 +262,7 @@
                 <button class="settings-option-btn" data-option="roles">Роли</button>
                 <button class="settings-option-btn" data-option="homework">Домашнее задание</button>
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
-                <button class="settings-option-btn" data-option="telegram">Telegram</button>
+                <button class="settings-option-btn" data-option="telegram">Ссылки и интеграции</button>
                 <button class="settings-option-btn" data-option="reports">Отчёты</button>
                 <button class="settings-option-btn" data-option="lesson-settings" id="lesson-settings-btn">Настройки урока</button>
                 <button class="settings-option-btn" data-option="plan-templates" id="plan-templates-settings-btn">Планы обучения</button>
@@ -446,11 +446,11 @@
 
     <!-- Homework Page (hidden by default) -->
     <div id="homework-page" class="page hidden">
-        <div class="page-header">
+        <div class="page-header page-header-left-nav">
+            <button id="back-to-main-from-homework-btn" class="btn-secondary">Назад к задачам</button>
             <h2>Справочник домашних заданий</h2>
             <div class="page-actions">
                 <button id="add-homework-btn" class="btn-primary">Добавить</button>
-                <button id="back-to-main-from-homework-btn" class="btn-secondary">Назад к задачам</button>
             </div>
         </div>
         <div class="homework-catalog-toolbar">
@@ -889,8 +889,8 @@
     <!-- Plan Templates Page (admin/owner/teacher) -->
     <div id="plan-templates-page" class="page hidden">
         <div class="plan-container">
-            <div class="page-header">
-                <button id="plan-templates-back-btn" class="btn-back">Назад к задачам</button>
+            <div class="page-header page-header-left-nav">
+                <button id="plan-templates-back-btn" class="btn-secondary">Назад к задачам</button>
                 <h2>Планы обучения</h2>
                 <button id="add-template-btn" class="btn-primary">+ Новый шаблон</button>
             </div>

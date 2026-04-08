@@ -678,6 +678,16 @@ select.filter-control {
     gap: 10px;
 }
 
+.page-header-left-nav {
+    justify-content: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.page-header-left-nav .page-actions {
+    margin-left: 0;
+}
+
 /* ========== Edit Button ========== */
 .btn-edit {
     background: none;
