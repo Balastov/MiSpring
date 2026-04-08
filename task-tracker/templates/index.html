@@ -264,7 +264,6 @@
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
                 <button class="settings-option-btn" data-option="telegram">Ссылки и интеграции</button>
                 <button class="settings-option-btn" data-option="reports">Отчёты</button>
-                <button class="settings-option-btn" data-option="lesson-settings" id="lesson-settings-btn">Настройки урока</button>
                 <button class="settings-option-btn" data-option="plan-templates" id="plan-templates-settings-btn">Планы обучения</button>
             </div>
         </div>
@@ -788,30 +787,6 @@
     </div>
 
     <!-- Reports Page -->
-    <!-- ========== Lesson Settings Page ========== -->
-    <div id="lesson-settings-page" class="page hidden">
-        <div class="page-header">
-            <h2>Настройки урока</h2>
-            <div class="page-actions">
-                <button id="back-to-main-from-lesson-settings-btn" class="btn-secondary">Назад к задачам</button>
-            </div>
-        </div>
-        <div class="telegram-section">
-            <div class="telegram-card">
-                <h3>Ссылка на подключение</h3>
-                <p>Ссылка отправляется ученику в напоминаниях за 24 часа и за 1 час до урока.</p>
-                <div class="form-row" style="margin-top:16px;">
-                    <label style="flex:0 0 auto;margin-right:12px;">Ссылка</label>
-                    <input type="url" id="meeting-link-input" class="filter-control" style="flex:1;" placeholder="https://zoom.us/j/...">
-                </div>
-                <div style="margin-top:16px;display:flex;gap:10px;align-items:center;">
-                    <button id="save-meeting-link-btn" class="btn-primary">Сохранить</button>
-                    <span id="meeting-link-status" style="font-size:13px;color:var(--color-text-secondary);"></span>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div id="reports-page" class="page hidden">
         <div class="page-header">
             <h2>Отчёты</h2>
