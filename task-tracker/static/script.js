@@ -309,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentHomeworkCatalogId = null;
     let homeworkCatalogsCache = [];
     let homeworkSecondLevelPlansCache = [];
+    let planRootTemplatesCache = [];
     let currentUsersPage = 1;
     let editingUserId = null;
     let currentBalanceStudentId = null;
@@ -3499,7 +3500,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button class="plan-collapse-toggle" data-level="child" data-template-id="${child.id}" data-target-id="${childBodyId}" aria-expanded="true" title="Свернуть/развернуть"></button>
                                 <h3 style="font-size:16px;margin:0;">${child.name}</h3>
                             </div>
-                            <div style="display:flex;gap:8px;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn-secondary btn-copy-template" data-id="${child.id}" data-name="${child.name}" data-root-id="${root.id}">Копировать</button>
                                 <button class="btn-edit btn-rename-template" data-id="${child.id}" data-name="${child.name}">Переименовать</button>
                                 <button class="btn-delete btn-delete-template" data-id="${child.id}">Удалить</button>
                             </div>
@@ -3573,6 +3575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch('/api/students-with-plans').then(r => r.json()),
         ]).then(([tData, sData]) => {
             const roots = tData.templates || [];
+            planRootTemplatesCache = roots.map(r => ({ id: r.id, name: r.name }));
             const secondLevel = _flattenSecondLevelTemplates(roots);
             renderTemplates(roots);
             renderStudentAssignments(sData.students || [], secondLevel);
@@ -3604,6 +3607,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event delegation for templates list
     document.addEventListener('click', e => {
+        // Copy second-level template with steps
+        if (e.target.closest('.btn-copy-template')) {
+            const btn = e.target.closest('.btn-copy-template');
+            const sourceTemplateId = parseInt(btn.dataset.id);
+            const sourceName = btn.dataset.name || '';
+            const defaultRootId = parseInt(btn.dataset.rootId);
+            const roots = planRootTemplatesCache || [];
+            if (!roots.length) {
+                alert('Нет доступных планов 1-го уровня');
+                return;
+            }
+            const rootsText = roots.map(r => `${r.id}: ${r.name}`).join('\n');
+            const rootInput = prompt(
+                `Выберите ID плана 1-го уровня, куда создать копию:\n${rootsText}`,
+                String(defaultRootId || roots[0].id)
+            );
+            if (!rootInput) return;
+            const targetRootId = parseInt(rootInput.trim());
+            if (!roots.some(r => r.id === targetRootId)) {
+                alert('Неверный ID плана 1-го уровня');
+                return;
+            }
+
+            const copyNameDefault = `Копия ${sourceName}`;
+            const copyNameInput = prompt('Название копии:', copyNameDefault);
+            if (!copyNameInput || !copyNameInput.trim()) return;
+
+            fetch(`/api/plan-templates/${sourceTemplateId}/copy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    parent_id: targetRootId,
+                    name: copyNameInput.trim(),
+                }),
+            })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.error || 'Не удалось создать копию');
+                        return;
+                    }
+                    loadPlanTemplatesPage();
+                })
+                .catch(() => alert('Ошибка при создании копии'));
+        }
         // Delete step
         if (e.target.closest('.btn-delete-step')) {
             const btn = e.target.closest('.btn-delete-step');

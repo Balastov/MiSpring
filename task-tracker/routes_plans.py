@@ -105,6 +105,46 @@ def delete_plan_template(tid):
     return '', 204
 
 
+@plans_bp.route('/api/plan-templates/<int:tid>/copy', methods=['POST'])
+@login_required
+def copy_second_level_template(tid):
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    source = db.get_or_404(PlanTemplate, tid)
+    if source.parent_id is None:
+        return jsonify({'error': 'Копировать можно только план 2-го уровня'}), 400
+
+    parent_id = request.json.get('parent_id')
+    if parent_id is None:
+        return jsonify({'error': 'Нужно выбрать план 1-го уровня'}), 400
+
+    parent = db.session.get(PlanTemplate, parent_id)
+    if not parent:
+        return jsonify({'error': 'План 1-го уровня не найден'}), 404
+    if parent.parent_id is not None:
+        return jsonify({'error': 'Копию можно создавать только в плане 1-го уровня'}), 400
+
+    name = (request.json.get('name') or f'Копия {source.name}').strip()
+    if not name:
+        return jsonify({'error': 'Название обязательно'}), 400
+
+    copied_template = PlanTemplate(name=name, parent_id=parent.id)
+    db.session.add(copied_template)
+    db.session.flush()
+
+    # Копируем все поля шагов (на текущий момент: title, order_num) в новый шаблон.
+    for step in source.steps:
+        db.session.add(PlanStep(
+            template_id=copied_template.id,
+            title=step.title,
+            order_num=step.order_num,
+        ))
+
+    db.session.commit()
+    return jsonify(copied_template.to_dict()), 201
+
+
 # ── Шаги шаблона ─────────────────────────────────────────────────────────────
 
 @plans_bp.route('/api/plan-templates/<int:tid>/steps', methods=['POST'])
