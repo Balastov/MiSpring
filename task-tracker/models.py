@@ -210,15 +210,26 @@ class Setting(db.Model):
 class PlanTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('plan_template.id'), nullable=True)
+    children = db.relationship(
+        'PlanTemplate',
+        backref=db.backref('parent', remote_side=[id]),
+        cascade='all, delete-orphan',
+        order_by='PlanTemplate.id'
+    )
     steps = db.relationship('PlanStep', backref='template',
                             cascade='all, delete-orphan', order_by='PlanStep.order_num')
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_children=True):
+        data = {
             'id': self.id,
             'name': self.name,
+            'parent_id': self.parent_id,
             'steps': [s.to_dict() for s in self.steps],
         }
+        if include_children:
+            data['children'] = [c.to_dict(include_children=False) for c in self.children]
+        return data
 
 
 class PlanStep(db.Model):

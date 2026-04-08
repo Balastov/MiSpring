@@ -8,6 +8,8 @@ plans_bp = Blueprint('plans', __name__)
 
 
 def _get_progress(student_id, template):
+    if not template:
+        return {'conducted': 0, 'total': 0, 'percent': 0}
     conducted = db.session.execute(
         db.select(db.func.count(Task.id))
         .join(TaskStatus, Task.status_id == TaskStatus.id)
@@ -23,6 +25,14 @@ def _get_progress(student_id, template):
     return {'conducted': conducted, 'total': total, 'percent': percent}
 
 
+def _template_full_name(template):
+    if not template:
+        return None
+    if template.parent_id and template.parent:
+        return f'{template.parent.name} / {template.name}'
+    return template.name
+
+
 # ── Шаблоны ──────────────────────────────────────────────────────────────────
 
 @plans_bp.route('/api/plan-templates', methods=['GET'])
@@ -30,8 +40,8 @@ def _get_progress(student_id, template):
 def get_plan_templates():
     if not user_has_role('admin', 'owner', 'teacher'):
         return jsonify({'error': 'Недостаточно прав'}), 403
-    templates = PlanTemplate.query.order_by(PlanTemplate.id).all()
-    return jsonify({'templates': [t.to_dict() for t in templates]})
+    roots = PlanTemplate.query.filter_by(parent_id=None).order_by(PlanTemplate.id).all()
+    return jsonify({'templates': [t.to_dict(include_children=True) for t in roots]})
 
 
 @plans_bp.route('/api/plan-templates', methods=['POST'])
@@ -42,7 +52,15 @@ def create_plan_template():
     name = (request.json.get('name') or '').strip()
     if not name:
         return jsonify({'error': 'Название обязательно'}), 400
-    t = PlanTemplate(name=name)
+    parent_id = request.json.get('parent_id')
+    parent = None
+    if parent_id is not None:
+        parent = db.session.get(PlanTemplate, parent_id)
+        if not parent:
+            return jsonify({'error': 'Родительский уровень не найден'}), 404
+        if parent.parent_id is not None:
+            return jsonify({'error': 'Разрешено только 2 уровня'}), 400
+    t = PlanTemplate(name=name, parent_id=parent.id if parent else None)
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201
@@ -58,6 +76,17 @@ def update_plan_template(tid):
     if not name:
         return jsonify({'error': 'Название обязательно'}), 400
     t.name = name
+    if 'parent_id' in request.json:
+        parent_id = request.json.get('parent_id')
+        if parent_id is None:
+            t.parent_id = None
+        else:
+            parent = db.session.get(PlanTemplate, parent_id)
+            if not parent:
+                return jsonify({'error': 'Родительский уровень не найден'}), 404
+            if parent.id == t.id or parent.parent_id is not None:
+                return jsonify({'error': 'Разрешено только 2 уровня'}), 400
+            t.parent_id = parent.id
     db.session.commit()
     return jsonify(t.to_dict())
 
@@ -68,8 +97,9 @@ def delete_plan_template(tid):
     if not user_has_role('admin', 'owner', 'teacher'):
         return jsonify({'error': 'Недостаточно прав'}), 403
     t = db.get_or_404(PlanTemplate, tid)
-    # Удаляем назначения этого шаблона студентам
-    UserPlan.query.filter_by(template_id=tid).delete()
+    # Удаляем назначения этого шаблона и его подуровней
+    template_ids = [t.id] + [c.id for c in t.children]
+    UserPlan.query.filter(UserPlan.template_id.in_(template_ids)).delete(synchronize_session=False)
     db.session.delete(t)
     db.session.commit()
     return '', 204
@@ -82,7 +112,9 @@ def delete_plan_template(tid):
 def add_plan_step(tid):
     if not user_has_role('admin', 'owner', 'teacher'):
         return jsonify({'error': 'Недостаточно прав'}), 403
-    db.get_or_404(PlanTemplate, tid)
+    template = db.get_or_404(PlanTemplate, tid)
+    if template.parent_id is None:
+        return jsonify({'error': 'Шаги добавляются только во 2-й уровень'}), 400
     title = (request.json.get('title') or '').strip()
     if not title:
         return jsonify({'error': 'Заголовок обязателен'}), 400
@@ -125,7 +157,9 @@ def delete_plan_step(sid):
 def reorder_plan_steps(tid):
     if not user_has_role('admin', 'owner', 'teacher'):
         return jsonify({'error': 'Недостаточно прав'}), 403
-    db.get_or_404(PlanTemplate, tid)
+    template = db.get_or_404(PlanTemplate, tid)
+    if template.parent_id is None:
+        return jsonify({'error': 'Шаги добавляются только во 2-й уровень'}), 400
     step_ids = request.json.get('step_ids', [])
     for i, sid in enumerate(step_ids):
         step = db.session.get(PlanStep, sid)
@@ -147,8 +181,10 @@ def get_student_plan(student_id):
     if not up:
         return jsonify({'error': 'План не назначен', 'template': None, 'steps': [], 'progress': None})
     template = db.session.get(PlanTemplate, up.template_id)
+    if not template:
+        return jsonify({'error': 'План не найден', 'template': None, 'steps': [], 'progress': None})
     progress = _get_progress(student_id, template)
-    return jsonify({'template': {'id': template.id, 'name': template.name},
+    return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': [s.to_dict() for s in template.steps],
                     'progress': progress,
                     'next_step_id': up.next_step_id})
@@ -166,7 +202,9 @@ def set_student_plan(student_id):
             db.session.delete(up)
             db.session.commit()
         return jsonify({'ok': True})
-    db.get_or_404(PlanTemplate, template_id)
+    template = db.get_or_404(PlanTemplate, template_id)
+    if template.parent_id is None:
+        return jsonify({'error': 'Назначать можно только план 2-го уровня'}), 400
     if up:
         up.template_id = template_id
     else:
@@ -184,8 +222,10 @@ def my_plan():
     if not up:
         return jsonify({'error': 'План не назначен'}), 404
     template = db.session.get(PlanTemplate, up.template_id)
+    if not template:
+        return jsonify({'error': 'План не найден'}), 404
     progress = _get_progress(current_user.id, template)
-    return jsonify({'template': {'id': template.id, 'name': template.name},
+    return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': [s.to_dict() for s in template.steps],
                     'progress': progress})
 

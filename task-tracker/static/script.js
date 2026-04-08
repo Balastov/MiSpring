@@ -3072,7 +3072,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (data.error) return;
-                document.getElementById('plan-title').textContent = data.template.name;
+                document.getElementById('plan-title').textContent = data.template.full_name || data.template.name;
                 const p = data.progress;
                 const done = Math.min(p.conducted, p.total);
                 document.getElementById('plan-progress-label').textContent =
@@ -3157,32 +3157,80 @@ document.addEventListener('DOMContentLoaded', () => {
         return row;
     }
 
-    function renderTemplates(templates) {
+    function _flattenSecondLevelTemplates(roots) {
+        const result = [];
+        roots.forEach(root => {
+            (root.children || []).forEach(child => {
+                result.push({
+                    ...child,
+                    root_id: root.id,
+                    root_name: root.name,
+                    full_name: `${root.name} / ${child.name}`,
+                });
+            });
+        });
+        return result;
+    }
+
+    function renderTemplates(roots) {
         const container = document.getElementById('templates-list');
         container.innerHTML = '';
-        if (!templates.length) {
-            container.innerHTML = '<p style="color:var(--color-text-muted);font-size:14px;">Нет шаблонов</p>';
+        if (!roots.length) {
+            container.innerHTML = '<p style="color:var(--color-text-muted);font-size:14px;">Нет корневых планов</p>';
             return;
         }
-        templates.forEach(t => {
-            const card = document.createElement('div');
-            card.className = 'plan-card';
-            card.innerHTML = `
+
+        roots.forEach(root => {
+            const rootCard = document.createElement('div');
+            rootCard.className = 'plan-card';
+            rootCard.innerHTML = `
                 <div class="plan-card-header">
-                    <h3>${t.name}</h3>
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn-edit btn-rename-template" data-id="${t.id}" data-name="${t.name}">Переименовать</button>
-                        <button class="btn-delete btn-delete-template" data-id="${t.id}">Удалить</button>
+                    <h3>${root.name}</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn-edit btn-rename-template" data-id="${root.id}" data-name="${root.name}">Переименовать</button>
+                        <button class="btn-delete btn-delete-template" data-id="${root.id}">Удалить</button>
                     </div>
                 </div>
-                <div class="template-steps"></div>
-                <div class="template-add-step">
-                    <input type="text" class="new-step-input" placeholder="Новый шаг плана..." data-template-id="${t.id}">
-                    <button class="btn-primary btn-add-step" data-template-id="${t.id}" style="padding:8px 14px;font-size:13px;">+ Добавить</button>
-                </div>`;
-            const stepsContainer = card.querySelector('.template-steps');
-            t.steps.forEach((s, i) => stepsContainer.appendChild(_makeStepRow(s, i, t.id, stepsContainer)));
-            container.appendChild(card);
+                <div class="template-add-step" style="margin-bottom:10px;">
+                    <input type="text" class="new-child-input" placeholder="Новый план 2-го уровня..." data-root-id="${root.id}">
+                    <button class="btn-primary btn-add-child" data-root-id="${root.id}" style="padding:8px 14px;font-size:13px;">+ Добавить уровень</button>
+                </div>
+                <div class="template-children"></div>
+            `;
+
+            const childrenContainer = rootCard.querySelector('.template-children');
+            const children = root.children || [];
+            if (!children.length) {
+                const empty = document.createElement('p');
+                empty.style.cssText = 'color:var(--color-text-muted);font-size:14px;';
+                empty.textContent = 'Нет планов 2-го уровня';
+                childrenContainer.appendChild(empty);
+            } else {
+                children.forEach(child => {
+                    const childCard = document.createElement('div');
+                    childCard.className = 'plan-card';
+                    childCard.style.marginTop = '10px';
+                    childCard.innerHTML = `
+                        <div class="plan-card-header">
+                            <h3 style="font-size:16px;margin:0;">${child.name}</h3>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn-edit btn-rename-template" data-id="${child.id}" data-name="${child.name}">Переименовать</button>
+                                <button class="btn-delete btn-delete-template" data-id="${child.id}">Удалить</button>
+                            </div>
+                        </div>
+                        <div class="template-steps"></div>
+                        <div class="template-add-step">
+                            <input type="text" class="new-step-input" placeholder="Новый шаг плана..." data-template-id="${child.id}">
+                            <button class="btn-primary btn-add-step" data-template-id="${child.id}" style="padding:8px 14px;font-size:13px;">+ Добавить шаг</button>
+                        </div>
+                    `;
+                    const stepsContainer = childCard.querySelector('.template-steps');
+                    (child.steps || []).forEach((s, i) => stepsContainer.appendChild(_makeStepRow(s, i, child.id, stepsContainer)));
+                    childrenContainer.appendChild(childCard);
+                });
+            }
+
+            container.appendChild(rootCard);
         });
     }
 
@@ -3193,7 +3241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const tmplOptions = ['<option value="">— без плана —</option>',
-            ...templates.map(t => `<option value="${t.id}">${t.name}</option>`)
+            ...templates.map(t => `<option value="${t.id}">${t.full_name || t.name}</option>`)
         ].join('');
         container.innerHTML = students.map(s => `
             <div class="student-assign-row">
@@ -3226,8 +3274,10 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch('/api/plan-templates').then(r => r.json()),
             fetch('/api/students-with-plans').then(r => r.json()),
         ]).then(([tData, sData]) => {
-            renderTemplates(tData.templates || []);
-            renderStudentAssignments(sData.students || [], tData.templates || []);
+            const roots = tData.templates || [];
+            const secondLevel = _flattenSecondLevelTemplates(roots);
+            renderTemplates(roots);
+            renderStudentAssignments(sData.students || [], secondLevel);
         });
     }
 
@@ -3244,7 +3294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (document.getElementById('add-template-btn')) {
         document.getElementById('add-template-btn').addEventListener('click', () => {
-            const name = prompt('Название шаблона:');
+            const name = prompt('Название корневого плана (1-й уровень):');
             if (!name || !name.trim()) return;
             fetch('/api/plan-templates', {
                 method: 'POST',
@@ -3294,6 +3344,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ title }),
             }).then(() => loadPlanTemplatesPage());
         }
+        // Add second-level plan
+        if (e.target.closest('.btn-add-child')) {
+            const btn = e.target.closest('.btn-add-child');
+            const rootId = btn.dataset.rootId;
+            const input = document.querySelector(`.new-child-input[data-root-id="${rootId}"]`);
+            const name = (input?.value || '').trim();
+            if (!name) return;
+            fetch('/api/plan-templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, parent_id: parseInt(rootId) }),
+            }).then(() => loadPlanTemplatesPage());
+        }
     });
 
     // Add step on Enter key in step input
@@ -3306,6 +3369,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title }),
+            }).then(() => loadPlanTemplatesPage());
+        }
+        if (e.key === 'Enter' && e.target.classList.contains('new-child-input')) {
+            const rootId = e.target.dataset.rootId;
+            const name = e.target.value.trim();
+            if (!name) return;
+            fetch('/api/plan-templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, parent_id: parseInt(rootId) }),
             }).then(() => loadPlanTemplatesPage());
         }
     });

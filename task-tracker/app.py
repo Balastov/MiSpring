@@ -23,7 +23,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, StudentPayment, Setting
+from models import User, UserRole, Role, TaskType, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task
 
 
 # ========== Flask-Login Callbacks ==========
@@ -163,6 +163,10 @@ with app.app_context():
     if not cursor.fetchone():
         cursor.execute('CREATE TABLE plan_template (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)')
         conn.commit()
+    pt_cols = [col[1] for col in cursor.execute('PRAGMA table_info(plan_template)').fetchall()]
+    if 'parent_id' not in pt_cols:
+        cursor.execute('ALTER TABLE plan_template ADD COLUMN parent_id INTEGER')
+        conn.commit()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_step'")
     if not cursor.fetchone():
         cursor.execute('''CREATE TABLE plan_step (
@@ -191,6 +195,15 @@ with app.app_context():
     if Role.query.count() == 0:
         for name in ['admin', 'owner', 'teacher', 'student', 'guest']:
             db.session.add(Role(name=name))
+        db.session.commit()
+
+    # Двухуровневые планы обучения:
+    # если планов ещё нет, создаём стартовый 1-й уровень.
+    # Дальше 1-й уровень полностью управляется из интерфейса
+    # (можно добавлять, менять и удалять без авто-восстановления).
+    if PlanTemplate.query.count() == 0:
+        for root_name in ['EF', 'Hang Out', 'USMLE', 'ОГЭ']:
+            db.session.add(PlanTemplate(name=root_name, parent_id=None))
         db.session.commit()
 
     # Запилит учётку одмина, если юзеров нет. И выдаст ей роль админа
