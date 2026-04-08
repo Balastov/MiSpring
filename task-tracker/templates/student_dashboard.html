@@ -35,11 +35,18 @@
             </div>
         </div>
 
-        <!-- Center: teacher button + logo -->
+        <!-- Center: teacher card + logo -->
         <div class="sd-topbar-center">
-            <button class="sd-btn-teacher" id="sd-teacher-btn" title="Мой учитель">
-                <span id="sd-teacher-btn-name">Мой учитель</span>
-            </button>
+            <div id="my-teacher-card" class="my-teacher-card hidden">
+                <div class="my-teacher-photo-wrap">
+                    <img id="my-teacher-photo" src="" alt="" class="my-teacher-photo hidden">
+                    <div id="my-teacher-no-photo" class="my-teacher-no-photo hidden">Фото<br>скоро будет</div>
+                </div>
+                <div class="my-teacher-info">
+                    <span class="my-teacher-label">Ваш учитель</span>
+                    <span id="my-teacher-name" class="my-teacher-name"></span>
+                </div>
+            </div>
             <div class="sd-logo-wrap">
                 <img src="{{ url_for('static', filename='logo-banner.svg') }}" alt="EngSpring" class="sd-logo">
             </div>
@@ -101,16 +108,6 @@
         </section>
 
     </main>
-
-    <!-- Teacher Info Modal -->
-    <div id="sd-teacher-modal" class="sd-modal hidden">
-        <div class="sd-modal-content">
-            <button class="sd-modal-close" id="sd-teacher-modal-close">&times;</button>
-            <div class="sd-teacher-modal-body" id="sd-teacher-modal-body">
-                <p class="sd-loading">Загрузка…</p>
-            </div>
-        </div>
-    </div>
 
     <!-- Profile / Settings Modal -->
     <div id="sd-profile-modal" class="sd-modal hidden">

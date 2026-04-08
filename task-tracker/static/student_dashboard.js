@@ -15,11 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdNextTopicValue = document.getElementById('sd-next-topic-value');
     const sdNextTopic = document.getElementById('sd-next-topic');
 
-    const sdTeacherBtn = document.getElementById('sd-teacher-btn');
-    const sdTeacherBtnName = document.getElementById('sd-teacher-btn-name');
-    const sdTeacherModal = document.getElementById('sd-teacher-modal');
-    const sdTeacherModalClose = document.getElementById('sd-teacher-modal-close');
-    const sdTeacherModalBody = document.getElementById('sd-teacher-modal-body');
+    const myTeacherCard = document.getElementById('my-teacher-card');
+    const myTeacherPhoto = document.getElementById('my-teacher-photo');
+    const myTeacherNoPhoto = document.getElementById('my-teacher-no-photo');
+    const myTeacherName = document.getElementById('my-teacher-name');
 
     const sdProfileBtn = document.getElementById('sd-profile-btn');
     const sdProfileModal = document.getElementById('sd-profile-modal');
@@ -245,24 +244,22 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (!data.teacher) {
-                    sdTeacherBtn.classList.add('sd-hidden');
+                    myTeacherCard.classList.add('hidden');
                     return;
                 }
-                sdTeacherBtnName.textContent = data.teacher.display_name || 'Мой учитель';
-                sdTeacherModalBody.innerHTML = `
-                    <div class="sd-teacher-info">
-                        ${data.teacher.photo_url
-                            ? `<img src="${data.teacher.photo_url}" alt="" class="sd-teacher-photo">`
-                            : `<div class="sd-teacher-no-photo">Фото<br>скоро будет</div>`}
-                        <div>
-                            <div class="sd-teacher-label">Ваш учитель</div>
-                            <div class="sd-teacher-name">${data.teacher.display_name}</div>
-                        </div>
-                    </div>
-                `;
+                myTeacherCard.classList.remove('hidden');
+                myTeacherName.textContent = data.teacher.display_name;
+                if (data.teacher.photo_url) {
+                    myTeacherPhoto.src = data.teacher.photo_url;
+                    myTeacherPhoto.classList.remove('hidden');
+                    myTeacherNoPhoto.classList.add('hidden');
+                } else {
+                    myTeacherPhoto.classList.add('hidden');
+                    myTeacherNoPhoto.classList.remove('hidden');
+                }
             })
             .catch(() => {
-                sdTeacherBtn.classList.add('sd-hidden');
+                myTeacherCard.classList.add('hidden');
             });
     }
 
@@ -341,12 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(() => showMsg(sdCpError, 'Ошибка при смене пароля', true));
     });
-
-    // ===== Teacher Modal =====
-
-    sdTeacherBtn.addEventListener('click', () => openModal(sdTeacherModal));
-    sdTeacherModalClose.addEventListener('click', () => closeModal(sdTeacherModal));
-    sdTeacherModal.addEventListener('click', e => { if (e.target === sdTeacherModal) closeModal(sdTeacherModal); });
 
     // ===== Homework Toggle =====
 
