@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
-from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework
+from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep
 from helpers import parse_datetime, user_has_role
 import os
 import asyncio
@@ -452,6 +452,64 @@ def get_my_next_lesson():
         'start_date': task.start_date.strftime('%d.%m.%Y %H:%M') if task.start_date else None,
         'plan_step_title': plan_step_title,
     }})
+
+
+@tasks_bp.route('/api/my-lessons-month', methods=['GET'])
+@login_required
+def get_my_lessons_month():
+    from datetime import datetime
+    from sqlalchemy import or_
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    if not year or not month or month < 1 or month > 12:
+        return jsonify({'error': 'Некорректные параметры year/month'}), 400
+
+    # Month boundaries
+    month_start = datetime(year, month, 1)
+    if month == 12:
+        month_end = datetime(year + 1, 1, 1)
+    else:
+        month_end = datetime(year, month + 1, 1)
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return jsonify({'lessons': []})
+
+    cancelled = TaskStatus.query.filter(TaskStatus.name == 'Отменён').all()
+    cancelled_ids = [s.id for s in cancelled]
+
+    q = Task.query.filter(
+        Task.student_id == current_user.id,
+        Task.task_type_id == lesson_type.id,
+        Task.start_date.isnot(None),
+        Task.start_date >= month_start,
+        Task.start_date < month_end,
+    )
+    if cancelled_ids:
+        q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(cancelled_ids)))
+
+    tasks = q.order_by(Task.start_date.asc()).all()
+    step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}
+    step_map = {}
+    if step_ids:
+        step_map = {s.id: s.title for s in PlanStep.query.filter(PlanStep.id.in_(step_ids)).all()}
+
+    lessons = []
+    for t in tasks:
+        duration = t.duration
+        if not duration and t.start_date and t.end_date:
+            duration = max(1, int((t.end_date - t.start_date).total_seconds() // 60))
+        lessons.append({
+            'id': t.id,
+            'date_iso': t.start_date.strftime('%Y-%m-%d') if t.start_date else None,
+            'start_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
+            'date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
+            'time': t.start_date.strftime('%H:%M') if t.start_date else None,
+            'duration': duration,
+            'topic': step_map.get(t.plan_step_id) or '—',
+            'is_paid': bool(t.is_paid),
+        })
+    return jsonify({'lessons': lessons})
 
 
 @tasks_bp.route('/api/my-homework', methods=['GET'])

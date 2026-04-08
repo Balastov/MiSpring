@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let homeworkData = [];
     let nextLessonStartAt = null;
     let meetingLinkUrl = '';
+    let monthLessons = [];
+    let lessonMapByDate = {};
 
     // ===== Element refs =====
     const sdUsername = document.getElementById('sd-username');
@@ -47,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sdPlanContent = document.getElementById('sd-plan-content');
     const sdMiniCalendar = document.getElementById('sd-mini-calendar');
+    const sdCenterContent = document.getElementById('sd-center-content');
 
     // ===== Helpers =====
 
@@ -89,6 +92,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    function normalizeDateKey(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function buildLessonMap(lessons) {
+        const map = {};
+        lessons.forEach(lesson => {
+            const key = lesson.date_iso;
+            if (!key) return;
+            if (!map[key]) map[key] = [];
+            map[key].push(lesson);
+        });
+        return map;
+    }
+
     // ===== Countdown Timer =====
 
     function startCountdown(isoDate) {
@@ -114,6 +135,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Mini Calendar =====
 
+    function renderLessonInfoForDate(dateKey) {
+        if (!sdCenterContent) return;
+        const lessons = lessonMapByDate[dateKey] || [];
+        if (!lessons.length) {
+            sdCenterContent.innerHTML = `
+                <div class="sd-center-empty">
+                    В этот день у вас нет уроков.
+                </div>
+            `;
+            return;
+        }
+
+        const cardsHtml = lessons.map(lesson => {
+            const durationText = lesson.duration ? `${lesson.duration} мин` : '—';
+            const paidClass = lesson.is_paid ? 'sd-paid-badge paid' : 'sd-paid-badge unpaid';
+            const paidText = lesson.is_paid ? 'Оплачено' : 'Не оплачено';
+            return `
+                <div class="sd-lesson-card">
+                    <div class="sd-lesson-row"><span>Дата</span><b>${lesson.date || '—'}</b></div>
+                    <div class="sd-lesson-row"><span>Время</span><b>${lesson.time || '—'}</b></div>
+                    <div class="sd-lesson-row"><span>Продолжительность</span><b>${durationText}</b></div>
+                    <div class="sd-lesson-row"><span>Тема</span><b>${lesson.topic || '—'}</b></div>
+                    <div class="sd-lesson-row"><span>Статус оплаты</span><span class="${paidClass}">${paidText}</span></div>
+                </div>
+            `;
+        }).join('');
+
+        sdCenterContent.innerHTML = cardsHtml;
+    }
+
     function renderMiniCalendar() {
         const now = new Date();
         const year = now.getFullYear();
@@ -124,11 +175,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
         const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
-        // days with homework lessons
+        // days with lessons in current month
         const lessonDays = new Set();
-        homeworkData.forEach(hw => {
-            if (hw.lesson_date_iso) {
-                const d = new Date(hw.lesson_date_iso);
+        monthLessons.forEach(lesson => {
+            if (lesson.start_date_iso) {
+                const d = new Date(lesson.start_date_iso);
                 if (d.getFullYear() === year && d.getMonth() === month) {
                     lessonDays.add(d.getDate());
                 }
@@ -155,12 +206,34 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let day = 1; day <= daysInMonth; day++) {
             let cls = 'sd-cal-cell sd-cal-day';
             if (day === today) cls += ' sd-cal-today';
+            if (day === today) cls += ' sd-cal-selected';
             if (lessonDays.has(day)) cls += ' sd-cal-has-lesson';
-            html += `<div class="${cls}">${day}</div>`;
+            const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            html += `<button type="button" class="${cls}" data-date-key="${key}">${day}</button>`;
         }
 
         html += '</div>';
         sdMiniCalendar.innerHTML = html;
+    }
+
+    function loadLessonsForCurrentMonth() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        return fetch(`/api/my-lessons-month?year=${year}&month=${month}`)
+            .then(r => r.json())
+            .then(data => {
+                monthLessons = data.lessons || [];
+                lessonMapByDate = buildLessonMap(monthLessons);
+                renderMiniCalendar();
+                renderLessonInfoForDate(normalizeDateKey(now));
+            })
+            .catch(() => {
+                monthLessons = [];
+                lessonMapByDate = {};
+                renderMiniCalendar();
+                renderLessonInfoForDate(normalizeDateKey(now));
+            });
     }
 
     // ===== Homework =====
@@ -212,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 homeworkData = data.homework || [];
                 renderHomework();
-                renderMiniCalendar();
             })
             .catch(() => {
                 sdHomeworkList.innerHTML = '<p class="sd-empty">Не удалось загрузить задания</p>';
@@ -370,6 +442,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== Homework Toggle =====
 
     sdShowDoneCb.addEventListener('change', loadHomework);
+    if (sdMiniCalendar) {
+        sdMiniCalendar.addEventListener('click', (e) => {
+            const cell = e.target.closest('.sd-cal-day[data-date-key]');
+            if (!cell) return;
+            sdMiniCalendar.querySelectorAll('.sd-cal-day').forEach(el => el.classList.remove('sd-cal-selected'));
+            cell.classList.add('sd-cal-selected');
+            renderLessonInfoForDate(cell.dataset.dateKey);
+        });
+    }
 
     // ===== Init =====
 
@@ -391,6 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadMeetingLink();
             loadTeacher();
             loadHomework();
+            loadLessonsForCurrentMonth();
             loadPlan();
         })
         .catch(() => {
