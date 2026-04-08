@@ -59,7 +59,7 @@ def inject_cache_bust():
 @login_required
 def index():
     from helpers import user_has_role
-    if user_has_role('student'):
+    if user_has_role('student') and not user_has_role('admin', 'owner', 'teacher'):
         return redirect(url_for('student_dashboard'))
     return render_template('index.html')
 
@@ -68,7 +68,7 @@ def index():
 @login_required
 def student_dashboard():
     from helpers import user_has_role
-    if not user_has_role('student'):
+    if not user_has_role('student') or user_has_role('admin', 'owner', 'teacher'):
         return redirect(url_for('index'))
     return render_template('student_dashboard.html')
 

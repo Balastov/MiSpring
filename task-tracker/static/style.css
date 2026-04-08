@@ -86,14 +86,19 @@ body {
     background-color: var(--color-banner);
     display: flex;
     justify-content: center;
-    padding: 0;
+    align-items: center;
+    min-height: 64px;
+    padding: 0 16px;
 }
 
-.logo-banner img {
-    width: 100%;
-    max-width: 600px;
-    height: auto;
-    display: block;
+.app-brand {
+    font-family: "Comic Sans MS", "Comic Sans", cursive;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: lowercase;
+    letter-spacing: 0.03em;
+    color: #ffffff;
 }
 
 .container {
@@ -1510,6 +1515,11 @@ select.filter-control {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     margin-right: 10px;
+}
+
+.top-bar .my-teacher-card {
+    margin-right: 0;
+    margin-left: 6px;
 }
 
 .my-teacher-photo-wrap {

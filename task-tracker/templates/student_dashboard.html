@@ -26,7 +26,6 @@
                     <span id="sd-timer-days" class="sd-timer-num">--</span><span class="sd-timer-sep">д</span>
                     <span id="sd-timer-hours" class="sd-timer-num">--</span><span class="sd-timer-sep">ч</span>
                     <span id="sd-timer-minutes" class="sd-timer-num">--</span><span class="sd-timer-sep">м</span>
-                    <span id="sd-timer-seconds" class="sd-timer-num">--</span><span class="sd-timer-sep">с</span>
                 </div>
             </div>
             <div class="sd-next-topic sd-hidden" id="sd-next-topic">
@@ -37,6 +36,13 @@
 
         <!-- Center: teacher card + logo -->
         <div class="sd-topbar-center">
+            <div class="sd-logo-wrap">
+                <span class="app-brand">engspring</span>
+            </div>
+        </div>
+
+        <!-- Right: user name + profile button -->
+        <div class="sd-topbar-right">
             <div id="my-teacher-card" class="my-teacher-card hidden">
                 <div class="my-teacher-photo-wrap">
                     <img id="my-teacher-photo" src="" alt="" class="my-teacher-photo hidden">
@@ -47,13 +53,6 @@
                     <span id="my-teacher-name" class="my-teacher-name"></span>
                 </div>
             </div>
-            <div class="sd-logo-wrap">
-                <img src="{{ url_for('static', filename='logo-banner.svg') }}" alt="EngSpring" class="sd-logo">
-            </div>
-        </div>
-
-        <!-- Right: user name + profile button -->
-        <div class="sd-topbar-right">
             <span class="sd-username" id="sd-username">…</span>
             <button class="sd-btn-profile" id="sd-profile-btn">Личный кабинет</button>
         </div>
@@ -75,14 +74,6 @@
 
                 <div id="sd-homework-list" class="sd-homework-list">
                     <p class="sd-loading">Загрузка…</p>
-                </div>
-
-                <!-- Legend -->
-                <div class="sd-hw-legend">
-                    <span class="sd-legend-item sd-legend-queue">В очереди</span>
-                    <span class="sd-legend-item sd-legend-inprogress">В работе</span>
-                    <span class="sd-legend-item sd-legend-overdue">Просрочено</span>
-                    <span class="sd-legend-item sd-legend-done">Готово</span>
                 </div>
             </div>
         </section>

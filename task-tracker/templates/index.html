@@ -18,6 +18,16 @@
 <body>
     <div class="top-bar" id="top-bar">
         <span id="user-display-name"></span>
+        <div id="my-teacher-card" class="my-teacher-card hidden">
+            <div class="my-teacher-photo-wrap">
+                <img id="my-teacher-photo" src="" alt="" class="my-teacher-photo hidden">
+                <div id="my-teacher-no-photo" class="my-teacher-no-photo hidden">Фото<br>скоро будет</div>
+            </div>
+            <div class="my-teacher-info">
+                <span class="my-teacher-label">Ваш учитель</span>
+                <span id="my-teacher-name" class="my-teacher-name"></span>
+            </div>
+        </div>
         <button id="settings-btn" class="btn-topbar">Настройки</button>
         <button id="change-password-btn" class="btn-topbar">Сменить пароль</button>
         <button id="logout-btn" class="btn-topbar btn-topbar-logout">Выйти</button>
@@ -25,7 +35,7 @@
 
     <div class="container">
         <div class="logo-banner">
-            <img src="{{ url_for('static', filename='logo-banner.svg') }}" alt="EngSpring">
+            <span class="app-brand">engspring</span>
         </div>
         <div id="next-lesson-timer" class="next-lesson-timer hidden">
             <span class="timer-label">До следующего урока</span>
@@ -49,16 +59,6 @@
                     <span id="timer-seconds" class="timer-num">00</span>
                     <span class="timer-uname">сек</span>
                 </div>
-            </div>
-        </div>
-        <div id="my-teacher-card" class="my-teacher-card hidden">
-            <div class="my-teacher-photo-wrap">
-                <img id="my-teacher-photo" src="" alt="" class="my-teacher-photo hidden">
-                <div id="my-teacher-no-photo" class="my-teacher-no-photo hidden">Фото<br>скоро будет</div>
-            </div>
-            <div class="my-teacher-info">
-                <span class="my-teacher-label">Ваш учитель</span>
-                <span id="my-teacher-name" class="my-teacher-name"></span>
             </div>
         </div>
         <button id="add-task-btn">Добавить задачу</button>

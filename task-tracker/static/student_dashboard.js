@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdTimerDays = document.getElementById('sd-timer-days');
     const sdTimerHours = document.getElementById('sd-timer-hours');
     const sdTimerMinutes = document.getElementById('sd-timer-minutes');
-    const sdTimerSeconds = document.getElementById('sd-timer-seconds');
     const sdNextTopicValue = document.getElementById('sd-next-topic-value');
     const sdNextTopic = document.getElementById('sd-next-topic');
 
@@ -71,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
             sdTimerDays.textContent = String(Math.floor(totalSec / 86400)).padStart(2, '0');
             sdTimerHours.textContent = String(Math.floor((totalSec % 86400) / 3600)).padStart(2, '0');
             sdTimerMinutes.textContent = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-            sdTimerSeconds.textContent = String(totalSec % 60).padStart(2, '0');
         }
         tick();
         timerInterval = setInterval(tick, 1000);
@@ -150,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         let html = '';
-        homeworkData.forEach((hw, idx) => {
+        homeworkData.forEach((hw) => {
             const cls = hwStatusClass(hw);
             const statusLabel = hwStatusLabel(hw);
             const dateLabel = hw.lesson_date
@@ -160,11 +158,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
             html += `
             <div class="sd-hw-card ${cls}">
-                <div class="sd-hw-num">Домашнее задание №${idx + 1}</div>
                 <div class="sd-hw-name">${hw.homework_name || '—'}</div>
                 <div class="sd-hw-meta">
                     <span>Статус: <b>${statusLabel}</b></span>
-                    <span class="sd-hw-result">Результат: <b>—</b></span>
                 </div>
                 <div class="sd-hw-date">${dateLabel}</div>
             </div>`;
@@ -190,51 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== Learning Plan =====
 
     function loadPlan() {
-        fetch('/api/my-plan')
-            .then(r => {
-                if (r.status === 404) return null;
-                if (!r.ok) throw new Error();
-                return r.json();
-            })
-            .then(data => {
-                if (!data || !data.template) {
-                    sdPlanContent.innerHTML = '<p class="sd-empty">План обучения ещё не назначен</p>';
-                    return;
-                }
-                const p = data.progress;
-                const pct = p ? p.percent : 0;
-                const done = p ? p.conducted : 0;
-                const total = p ? p.total : 0;
-
-                // Find next step
-                const steps = data.steps || [];
-                let nextStepTitle = null;
-                if (data.next_step_id) {
-                    const next = steps.find(s => s.id === data.next_step_id);
-                    if (next) nextStepTitle = next.title;
-                }
-
-                sdPlanContent.innerHTML = `
-                    <div class="sd-plan-name">${data.template.name}</div>
-                    <div class="sd-plan-progress-wrap">
-                        <div class="sd-plan-progress-label">
-                            <span>${done} из ${total} тем пройдено</span>
-                            <span>${pct}%</span>
-                        </div>
-                        <div class="sd-plan-progress-track">
-                            <div class="sd-plan-progress-fill" style="width:${pct}%"></div>
-                        </div>
-                    </div>
-                    ${nextStepTitle ? `<div class="sd-plan-next">Следующая тема: <b>${nextStepTitle}</b></div>` : ''}
-                    <button class="sd-btn-link" id="sd-view-plan-btn">Посмотреть весь план →</button>
-                `;
-                document.getElementById('sd-view-plan-btn')?.addEventListener('click', () => {
-                    window.location.href = '/?plan=1';
-                });
-            })
-            .catch(() => {
-                sdPlanContent.innerHTML = '<p class="sd-empty">Не удалось загрузить план</p>';
-            });
+        sdPlanContent.innerHTML = '<p class="sd-empty">Этот функционал на доработке</p>';
     }
 
     // ===== Teacher =====
