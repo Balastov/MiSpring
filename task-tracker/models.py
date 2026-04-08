@@ -165,12 +165,29 @@ class Homework(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     comment = db.Column(db.Text, nullable=True)
+    catalog_id = db.Column(db.Integer, nullable=True)
+    plan_step_id = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'comment': self.comment,
+            'catalog_id': self.catalog_id,
+            'plan_step_id': self.plan_step_id,
+        }
+
+
+class HomeworkCatalog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    plan_template_id = db.Column(db.Integer, db.ForeignKey('plan_template.id'), nullable=True, unique=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'plan_template_id': self.plan_template_id,
         }
 
 

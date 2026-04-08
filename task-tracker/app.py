@@ -23,7 +23,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task
+from models import User, UserRole, Role, TaskType, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog
 
 
 # ========== Flask-Login Callbacks ==========
@@ -183,6 +183,14 @@ with app.app_context():
             template_id INTEGER NOT NULL REFERENCES plan_template(id))''')
         conn.commit()
 
+    homework_cols = [col[1] for col in cursor.execute('PRAGMA table_info(homework)').fetchall()]
+    if 'catalog_id' not in homework_cols:
+        cursor.execute('ALTER TABLE homework ADD COLUMN catalog_id INTEGER')
+        conn.commit()
+    if 'plan_step_id' not in homework_cols:
+        cursor.execute('ALTER TABLE homework ADD COLUMN plan_step_id INTEGER')
+        conn.commit()
+
     conn.close()
 
     # Запилит типы задач, если их нет
@@ -195,6 +203,18 @@ with app.app_context():
     if Role.query.count() == 0:
         for name in ['admin', 'owner', 'teacher', 'student', 'guest']:
             db.session.add(Role(name=name))
+        db.session.commit()
+
+    # Справочники домашних заданий: создаём базовый, если отсутствует.
+    if HomeworkCatalog.query.count() == 0:
+        db.session.add(HomeworkCatalog(name='Основной справочник'))
+        db.session.commit()
+    default_catalog = HomeworkCatalog.query.order_by(HomeworkCatalog.id).first()
+    if default_catalog:
+        Homework.query.filter(Homework.catalog_id.is_(None)).update(
+            {Homework.catalog_id: default_catalog.id},
+            synchronize_session=False
+        )
         db.session.commit()
 
     # Двухуровневые планы обучения:

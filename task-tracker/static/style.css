@@ -1924,6 +1924,40 @@ select.filter-control {
     cursor: pointer;
 }
 
+/* Homework catalogs toolbar */
+.homework-catalog-toolbar {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.homework-catalog-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.homework-catalog-row label {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    min-width: 140px;
+}
+
+.catalog-binding-status {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.catalog-binding-status.unbound {
+    color: var(--color-warning);
+}
+
 /* ===== Conducted Dialog ===== */
 
 .conducted-q {

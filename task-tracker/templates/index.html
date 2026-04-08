@@ -453,6 +453,21 @@
                 <button id="back-to-main-from-homework-btn" class="btn-secondary">Назад к задачам</button>
             </div>
         </div>
+        <div class="homework-catalog-toolbar">
+            <div class="homework-catalog-row">
+                <label for="homework-catalog-select">Справочник:</label>
+                <select id="homework-catalog-select" class="filter-control"></select>
+                <button id="add-homework-catalog-btn" class="btn-primary">+ Справочник</button>
+                <button id="rename-homework-catalog-btn" class="btn-secondary">Переименовать</button>
+                <button id="delete-homework-catalog-btn" class="btn-danger">Удалить</button>
+            </div>
+            <div class="homework-catalog-row">
+                <label for="homework-catalog-plan-select">План 2-го уровня:</label>
+                <select id="homework-catalog-plan-select" class="filter-control"></select>
+                <button id="save-homework-catalog-binding-btn" class="btn-secondary">Привязать к плану обучения</button>
+                <span id="homework-catalog-binding-status" class="catalog-binding-status">Справочник не привязан к плану обучения</span>
+            </div>
+        </div>
         <div id="homework-list-section">
             <div id="homework-pagination-info" class="pagination-info"></div>
             <div class="table-wrapper">
@@ -461,6 +476,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Наименование</th>
+                            <th>Тема</th>
                             <th>Комментарий</th>
                             <th></th>
                             <th></th>
@@ -488,6 +504,15 @@
                 <div class="form-row">
                     <label>Наименование*</label>
                     <input type="text" id="form-homework-name" maxlength="100" required>
+                </div>
+                <div class="form-row">
+                    <label>Тема</label>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                        <select id="form-homework-topic-step-id" class="form-select">
+                            <option value="">-- Не выбрано --</option>
+                        </select>
+                        <span id="form-homework-topic-hint" class="hint">Справочник не привязан к плану обучения.</span>
+                    </div>
                 </div>
                 <div class="form-row form-row-richtext">
                     <label>Комментарий</label>

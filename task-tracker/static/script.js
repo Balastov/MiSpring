@@ -134,6 +134,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeworkPage = document.getElementById('homework-page');
     const backToMainFromHomeworkBtn = document.getElementById('back-to-main-from-homework-btn');
     const addHomeworkBtn = document.getElementById('add-homework-btn');
+    const homeworkCatalogSelect = document.getElementById('homework-catalog-select');
+    const addHomeworkCatalogBtn = document.getElementById('add-homework-catalog-btn');
+    const renameHomeworkCatalogBtn = document.getElementById('rename-homework-catalog-btn');
+    const deleteHomeworkCatalogBtn = document.getElementById('delete-homework-catalog-btn');
+    const homeworkCatalogPlanSelect = document.getElementById('homework-catalog-plan-select');
+    const saveHomeworkCatalogBindingBtn = document.getElementById('save-homework-catalog-binding-btn');
+    const homeworkCatalogBindingStatus = document.getElementById('homework-catalog-binding-status');
     const homeworkTbody = document.getElementById('homework-tbody');
     const homeworkPaginationInfo = document.getElementById('homework-pagination-info');
     const homeworkPaginationControls = document.getElementById('homework-pagination-controls');
@@ -146,6 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeworkForm = document.getElementById('homework-form');
     const formHomeworkIdDisplay = document.getElementById('form-homework-id-display');
     const formHomeworkName = document.getElementById('form-homework-name');
+    const formHomeworkTopicStepId = document.getElementById('form-homework-topic-step-id');
+    const formHomeworkTopicHint = document.getElementById('form-homework-topic-hint');
     const formHomeworkComment = document.getElementById('form-homework-comment');
     const insertHomeworkLinkBtn = document.getElementById('insert-homework-link-btn');
     const homeworkSubmitBtn = document.getElementById('homework-submit-btn');
@@ -304,6 +313,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingRoleId = null;
     let currentHomeworkPage = 1;
     let editingHomeworkId = null;
+    let currentHomeworkCatalogId = null;
+    let homeworkCatalogsCache = [];
+    let homeworkSecondLevelPlansCache = [];
     let currentUsersPage = 1;
     let editingUserId = null;
     let currentBalanceStudentId = null;
@@ -2262,18 +2274,118 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Homework Page Logic ==========
 
+    function getSelectedHomeworkCatalog() {
+        if (!homeworkCatalogsCache.length || !currentHomeworkCatalogId) return null;
+        return homeworkCatalogsCache.find(c => c.id === currentHomeworkCatalogId) || null;
+    }
+
+    function renderHomeworkCatalogStatus() {
+        if (!homeworkCatalogBindingStatus) return;
+        const c = getSelectedHomeworkCatalog();
+        if (!c || !c.plan_template_id) {
+            homeworkCatalogBindingStatus.textContent = 'Справочник не привязан к плану обучения';
+            homeworkCatalogBindingStatus.classList.add('unbound');
+            return;
+        }
+        homeworkCatalogBindingStatus.textContent = `Привязан к плану: ${c.plan_template_name || '—'}`;
+        homeworkCatalogBindingStatus.classList.remove('unbound');
+    }
+
+    function fillHomeworkCatalogPlanOptions() {
+        if (!homeworkCatalogPlanSelect) return;
+        const options = ['<option value="">— без привязки —</option>']
+            .concat(homeworkSecondLevelPlansCache.map(t => `<option value="${t.id}">${escapeHtml(t.full_name || t.name)}</option>`));
+        homeworkCatalogPlanSelect.innerHTML = options.join('');
+        const c = getSelectedHomeworkCatalog();
+        if (c && c.plan_template_id) {
+            homeworkCatalogPlanSelect.value = String(c.plan_template_id);
+        } else {
+            homeworkCatalogPlanSelect.value = '';
+        }
+    }
+
+    function fillHomeworkCatalogSelect() {
+        if (!homeworkCatalogSelect) return;
+        if (!homeworkCatalogsCache.length) {
+            homeworkCatalogSelect.innerHTML = '<option value="">Нет справочников</option>';
+            currentHomeworkCatalogId = null;
+            fillHomeworkCatalogPlanOptions();
+            renderHomeworkCatalogStatus();
+            return;
+        }
+        homeworkCatalogSelect.innerHTML = homeworkCatalogsCache
+            .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+            .join('');
+        const exists = homeworkCatalogsCache.some(c => c.id === currentHomeworkCatalogId);
+        if (!exists) currentHomeworkCatalogId = homeworkCatalogsCache[0].id;
+        homeworkCatalogSelect.value = String(currentHomeworkCatalogId);
+        fillHomeworkCatalogPlanOptions();
+        renderHomeworkCatalogStatus();
+    }
+
+    function loadHomeworkTopicSteps(selectedStepId = null) {
+        if (!formHomeworkTopicStepId || !formHomeworkTopicHint) return Promise.resolve();
+        if (!currentHomeworkCatalogId) {
+            formHomeworkTopicStepId.innerHTML = '<option value="">-- Не выбрано --</option>';
+            formHomeworkTopicStepId.disabled = true;
+            formHomeworkTopicHint.textContent = 'Сначала выберите справочник.';
+            return Promise.resolve();
+        }
+        return fetch(`/api/homework-catalogs/${currentHomeworkCatalogId}/plan-steps`)
+            .then(r => r.json())
+            .then(data => {
+                const steps = data.steps || [];
+                formHomeworkTopicStepId.innerHTML = '<option value="">-- Не выбрано --</option>';
+                if (!steps.length) {
+                    formHomeworkTopicStepId.disabled = true;
+                    formHomeworkTopicHint.textContent = 'Справочник не привязан к плану обучения.';
+                    return;
+                }
+                formHomeworkTopicStepId.disabled = false;
+                formHomeworkTopicHint.textContent = 'Выберите шаг из привязанного плана.';
+                steps.forEach(step => {
+                    const opt = document.createElement('option');
+                    opt.value = step.id;
+                    opt.textContent = step.title;
+                    formHomeworkTopicStepId.appendChild(opt);
+                });
+                if (selectedStepId) {
+                    formHomeworkTopicStepId.value = String(selectedStepId);
+                }
+            })
+            .catch(() => {
+                formHomeworkTopicStepId.innerHTML = '<option value="">-- Не выбрано --</option>';
+                formHomeworkTopicStepId.disabled = true;
+                formHomeworkTopicHint.textContent = 'Не удалось загрузить шаги плана.';
+            });
+    }
+
+    function loadHomeworkCatalogs(preferredCatalogId = null) {
+        return Promise.all([
+            fetch('/api/homework-catalogs').then(r => r.json()),
+            fetch('/api/plan-templates').then(r => r.json()),
+        ]).then(([catalogData, plansData]) => {
+            homeworkCatalogsCache = catalogData.catalogs || [];
+            homeworkSecondLevelPlansCache = _flattenSecondLevelTemplates(plansData.templates || []);
+            if (preferredCatalogId) currentHomeworkCatalogId = preferredCatalogId;
+            fillHomeworkCatalogSelect();
+        });
+    }
+
     function showHomeworkPage() {
         hideAllPages();
         homeworkPage.classList.remove('hidden');
         currentHomeworkPage = 1;
-        fetchHomework();
+        loadHomeworkCatalogs().then(() => fetchHomework()).catch(() => fetchHomework());
     }
 
     backToMainFromHomeworkBtn.addEventListener('click', showMainPage);
 
     function fetchHomework(page) {
         if (page !== undefined) currentHomeworkPage = page;
-        fetch(`/api/homework?page=${currentHomeworkPage}`)
+        const params = new URLSearchParams({ page: String(currentHomeworkPage) });
+        if (currentHomeworkCatalogId) params.set('catalog_id', String(currentHomeworkCatalogId));
+        fetch(`/api/homework?${params.toString()}`)
             .then(r => r.json())
             .then(data => {
                 renderHomework(data.homework);
@@ -2284,7 +2396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderHomework(items) {
         homeworkTbody.innerHTML = '';
         if (items.length === 0) {
-            homeworkTbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Домашних заданий нет</td></tr>';
+            homeworkTbody.innerHTML = '<tr><td colspan="6" class="empty-msg">Домашних заданий нет</td></tr>';
             return;
         }
         items.forEach(hw => {
@@ -2293,6 +2405,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = `
                 <td>${hw.id}</td>
                 <td>${escapeHtml(hw.name)}</td>
+                <td>${escapeHtml(hw.topic_title || '—')}</td>
                 <td class="col-comment homework-comment">${commentHtml}</td>
                 <td><button class="btn-edit" data-id="${hw.id}">Изменить</button></td>
                 <td><button class="btn-delete" data-id="${hw.id}">Удалить</button></td>
@@ -2332,7 +2445,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== Homework Modal Logic ==========
 
     addHomeworkBtn.addEventListener('click', () => {
-        fetch('/api/homework?page=1')
+        if (!currentHomeworkCatalogId) {
+            alert('Сначала создайте и выберите справочник домашних заданий');
+            return;
+        }
+        const params = new URLSearchParams({ page: '1', catalog_id: String(currentHomeworkCatalogId) });
+        fetch(`/api/homework?${params.toString()}`)
             .then(r => r.json())
             .then(data => {
                 editingHomeworkId = null;
@@ -2341,13 +2459,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 formHomeworkIdDisplay.value = data.next_id;
                 formHomeworkName.value = '';
                 formHomeworkComment.innerHTML = '';
-                homeworkModal.classList.remove('hidden');
+                loadHomeworkTopicSteps().then(() => {
+                    formHomeworkTopicStepId.value = '';
+                    homeworkModal.classList.remove('hidden');
+                });
             });
     });
 
     function closeHomeworkModal() {
         homeworkModal.classList.add('hidden');
         homeworkForm.reset();
+        if (formHomeworkTopicStepId) formHomeworkTopicStepId.innerHTML = '<option value="">-- Не выбрано --</option>';
         formHomeworkComment.innerHTML = '';
         editingHomeworkId = null;
     }
@@ -2370,6 +2492,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const hwData = {
             name: name,
             comment: rawComment || null,
+            catalog_id: currentHomeworkCatalogId,
+            plan_step_id: formHomeworkTopicStepId && formHomeworkTopicStepId.value ? parseInt(formHomeworkTopicStepId.value) : null,
         };
 
         const method = editingHomeworkId ? 'PUT' : 'POST';
@@ -2398,7 +2522,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (editBtn) {
             const id = parseInt(editBtn.dataset.id);
-            fetch(`/api/homework?page=${currentHomeworkPage}`)
+            const params = new URLSearchParams({ page: String(currentHomeworkPage) });
+            if (currentHomeworkCatalogId) params.set('catalog_id', String(currentHomeworkCatalogId));
+            fetch(`/api/homework?${params.toString()}`)
                 .then(r => r.json())
                 .then(data => {
                     const hw = data.homework.find(h => h.id === id);
@@ -2409,7 +2535,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     formHomeworkIdDisplay.value = hw.id;
                     formHomeworkName.value = hw.name;
                     formHomeworkComment.innerHTML = hw.comment || '';
-                    homeworkModal.classList.remove('hidden');
+                    loadHomeworkTopicSteps(hw.plan_step_id).then(() => {
+                        homeworkModal.classList.remove('hidden');
+                    });
                 });
         }
 
@@ -2420,6 +2548,80 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(() => fetchHomework(currentHomeworkPage));
         }
     });
+
+    if (homeworkCatalogSelect) {
+        homeworkCatalogSelect.addEventListener('change', () => {
+            currentHomeworkCatalogId = parseInt(homeworkCatalogSelect.value) || null;
+            fillHomeworkCatalogPlanOptions();
+            renderHomeworkCatalogStatus();
+            currentHomeworkPage = 1;
+            fetchHomework();
+        });
+    }
+
+    if (addHomeworkCatalogBtn) {
+        addHomeworkCatalogBtn.addEventListener('click', () => {
+            const name = prompt('Название нового справочника:');
+            if (!name || !name.trim()) return;
+            fetch('/api/homework-catalogs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() }),
+            }).then(r => r.json()).then(data => {
+                if (data.error) throw new Error(data.error);
+                return loadHomeworkCatalogs(data.id).then(() => fetchHomework(1));
+            }).catch(err => alert(err.message || 'Не удалось создать справочник'));
+        });
+    }
+
+    if (renameHomeworkCatalogBtn) {
+        renameHomeworkCatalogBtn.addEventListener('click', () => {
+            const c = getSelectedHomeworkCatalog();
+            if (!c) return;
+            const name = prompt('Новое название справочника:', c.name);
+            if (!name || !name.trim()) return;
+            fetch(`/api/homework-catalogs/${c.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() }),
+            }).then(r => r.json()).then(data => {
+                if (data.error) throw new Error(data.error);
+                return loadHomeworkCatalogs(c.id);
+            }).catch(err => alert(err.message || 'Не удалось переименовать справочник'));
+        });
+    }
+
+    if (deleteHomeworkCatalogBtn) {
+        deleteHomeworkCatalogBtn.addEventListener('click', () => {
+            const c = getSelectedHomeworkCatalog();
+            if (!c) return;
+            if (!confirm(`Удалить справочник "${c.name}" и все его домашние задания?`)) return;
+            fetch(`/api/homework-catalogs/${c.id}`, { method: 'DELETE' })
+                .then(() => loadHomeworkCatalogs().then(() => fetchHomework(1)))
+                .catch(() => alert('Не удалось удалить справочник'));
+        });
+    }
+
+    if (saveHomeworkCatalogBindingBtn) {
+        saveHomeworkCatalogBindingBtn.addEventListener('click', () => {
+            const c = getSelectedHomeworkCatalog();
+            if (!c) return;
+            const templateId = homeworkCatalogPlanSelect && homeworkCatalogPlanSelect.value
+                ? parseInt(homeworkCatalogPlanSelect.value)
+                : null;
+            fetch(`/api/homework-catalogs/${c.id}/binding`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_template_id: templateId }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    return loadHomeworkCatalogs(c.id);
+                })
+                .catch(err => alert(err.message || 'Не удалось сохранить привязку'));
+        });
+    }
 
     function handleStatusTableClick(e, apiBase, currentPageVal, fetchFn) {
         const editBtn = e.target.closest('.btn-edit');
