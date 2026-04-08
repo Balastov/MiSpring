@@ -65,8 +65,9 @@
 .sd-topbar-left {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 .sd-topbar-center {
@@ -145,6 +146,24 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.sd-btn-join {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.45);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--sd-transition);
+    white-space: nowrap;
+}
+
+.sd-btn-join:hover {
+    background: rgba(255,255,255,0.32);
+    transform: translateY(-1px);
 }
 
 /* Logo */

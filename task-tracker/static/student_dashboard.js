@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = null;
     let timerInterval = null;
     let homeworkData = [];
+    let nextLessonStartAt = null;
+    let meetingLinkUrl = '';
 
     // ===== Element refs =====
     const sdUsername = document.getElementById('sd-username');
@@ -13,6 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdTimerMinutes = document.getElementById('sd-timer-minutes');
     const sdNextTopicValue = document.getElementById('sd-next-topic-value');
     const sdNextTopic = document.getElementById('sd-next-topic');
+    const sdJoinLessonBtn = document.getElementById('sd-join-lesson-btn');
+    const sdJoinConfirmModal = document.getElementById('sd-join-confirm-modal');
+    const sdJoinConfirmYes = document.getElementById('sd-join-confirm-yes');
+    const sdJoinConfirmNo = document.getElementById('sd-join-confirm-no');
 
     const myTeacherCard = document.getElementById('my-teacher-card');
     const myTeacherPhoto = document.getElementById('my-teacher-photo');
@@ -51,6 +57,36 @@ document.addEventListener('DOMContentLoaded', () => {
         el.textContent = msg;
         el.classList.remove('hidden');
         setTimeout(() => el.classList.add('hidden'), 4000);
+    }
+
+    function updateJoinLessonButtonVisibility() {
+        if (!sdJoinLessonBtn) return;
+        if (meetingLinkUrl && nextLessonStartAt) {
+            sdJoinLessonBtn.classList.remove('sd-hidden');
+        } else {
+            sdJoinLessonBtn.classList.add('sd-hidden');
+        }
+    }
+
+    function openLessonLink() {
+        if (!meetingLinkUrl) {
+            alert('Ссылка на урок не настроена');
+            return;
+        }
+        window.open(meetingLinkUrl, '_blank', 'noopener,noreferrer');
+    }
+
+    function loadMeetingLink() {
+        return fetch('/api/settings/meeting_link')
+            .then(r => r.json())
+            .then(data => {
+                meetingLinkUrl = (data.value || '').trim();
+                updateJoinLessonButtonVisibility();
+            })
+            .catch(() => {
+                meetingLinkUrl = '';
+                updateJoinLessonButtonVisibility();
+            });
     }
 
     // ===== Countdown Timer =====
@@ -222,17 +258,23 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (data.lesson) {
+                    nextLessonStartAt = new Date(data.lesson.start_date_iso);
                     startCountdown(data.lesson.start_date_iso);
                     if (data.lesson.plan_step_title) {
                         sdNextTopicValue.textContent = data.lesson.plan_step_title;
                         sdNextTopic.classList.remove('sd-hidden');
                     }
+                    updateJoinLessonButtonVisibility();
                 } else {
+                    nextLessonStartAt = null;
                     sdTimerBlock.classList.add('sd-hidden');
+                    updateJoinLessonButtonVisibility();
                 }
             })
             .catch(() => {
+                nextLessonStartAt = null;
                 sdTimerBlock.classList.add('sd-hidden');
+                updateJoinLessonButtonVisibility();
             });
     }
 
@@ -291,6 +333,40 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => showMsg(sdCpError, 'Ошибка при смене пароля', true));
     });
 
+    if (sdJoinLessonBtn) {
+        sdJoinLessonBtn.addEventListener('click', () => {
+            if (!meetingLinkUrl) {
+                alert('Ссылка на урок не настроена');
+                return;
+            }
+            const now = Date.now();
+            const msToLesson = nextLessonStartAt ? (nextLessonStartAt.getTime() - now) : 0;
+            const fifteenMinutes = 15 * 60 * 1000;
+            if (msToLesson > fifteenMinutes) {
+                openModal(sdJoinConfirmModal);
+                return;
+            }
+            openLessonLink();
+        });
+    }
+
+    if (sdJoinConfirmYes) {
+        sdJoinConfirmYes.addEventListener('click', () => {
+            closeModal(sdJoinConfirmModal);
+            openLessonLink();
+        });
+    }
+
+    if (sdJoinConfirmNo) {
+        sdJoinConfirmNo.addEventListener('click', () => closeModal(sdJoinConfirmModal));
+    }
+
+    if (sdJoinConfirmModal) {
+        sdJoinConfirmModal.addEventListener('click', e => {
+            if (e.target === sdJoinConfirmModal) closeModal(sdJoinConfirmModal);
+        });
+    }
+
     // ===== Homework Toggle =====
 
     sdShowDoneCb.addEventListener('change', loadHomework);
@@ -312,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             loadNextLesson();
+            loadMeetingLink();
             loadTeacher();
             loadHomework();
             loadPlan();

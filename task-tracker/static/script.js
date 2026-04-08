@@ -1583,11 +1583,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const boundTelegramUsername = document.getElementById('bound-telegram-username');
     const notificationsToggle = document.getElementById('notifications-toggle');
     const unbindTelegramBtn = document.getElementById('unbind-telegram-btn');
+    const integrationMeetingLinkInput = document.getElementById('integration-meeting-link-input');
+    const integrationSaveMeetingLinkBtn = document.getElementById('integration-save-meeting-link-btn');
+    const integrationMeetingLinkStatus = document.getElementById('integration-meeting-link-status');
 
     function showTelegramPage() {
         hideAllPages();
         telegramPage.classList.remove('hidden');
         loadTelegramStatus();
+        loadIntegrationMeetingLink();
+    }
+
+    function loadIntegrationMeetingLink() {
+        if (!integrationMeetingLinkInput) return;
+        const canManageMeetingLink = hasRole('admin', 'owner', 'teacher');
+        integrationMeetingLinkInput.disabled = !canManageMeetingLink;
+        if (integrationSaveMeetingLinkBtn) integrationSaveMeetingLinkBtn.style.display = canManageMeetingLink ? '' : 'none';
+        fetch('/api/settings/meeting_link')
+            .then(r => r.json())
+            .then(data => {
+                integrationMeetingLinkInput.value = data.value || '';
+                if (!canManageMeetingLink && integrationMeetingLinkStatus) {
+                    integrationMeetingLinkStatus.textContent = 'Редактирование доступно учителю, владельцу и администратору.';
+                } else if (integrationMeetingLinkStatus) {
+                    integrationMeetingLinkStatus.textContent = '';
+                }
+            })
+            .catch(() => {
+                if (integrationMeetingLinkStatus) integrationMeetingLinkStatus.textContent = 'Ошибка загрузки ссылки';
+            });
     }
 
     function loadTelegramStatus() {
@@ -1703,6 +1727,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 unbindTelegramBtn.textContent = 'Отвязать Telegram';
             });
     });
+
+    if (integrationSaveMeetingLinkBtn) {
+        integrationSaveMeetingLinkBtn.addEventListener('click', () => {
+            fetch('/api/settings/meeting_link', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value: integrationMeetingLinkInput.value.trim() }),
+            })
+            .then(r => r.json())
+            .then(() => {
+                if (integrationMeetingLinkStatus) {
+                    integrationMeetingLinkStatus.textContent = 'Сохранено ✓';
+                    setTimeout(() => { integrationMeetingLinkStatus.textContent = ''; }, 3000);
+                }
+            })
+            .catch(() => {
+                if (integrationMeetingLinkStatus) integrationMeetingLinkStatus.textContent = 'Ошибка сохранения';
+            });
+        });
+    }
 
     // ========== ICS Calendar Sync ==========
 

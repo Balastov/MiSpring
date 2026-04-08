@@ -28,6 +28,7 @@
                     <span id="sd-timer-minutes" class="sd-timer-num">--</span><span class="sd-timer-sep">м</span>
                 </div>
             </div>
+            <button id="sd-join-lesson-btn" class="sd-btn-join sd-hidden">Подключиться к уроку</button>
             <div class="sd-next-topic sd-hidden" id="sd-next-topic">
                 <span class="sd-next-topic-label">Тема следующего урока</span>
                 <span class="sd-next-topic-value" id="sd-next-topic-value">—</span>
@@ -138,6 +139,19 @@
                 <p id="sd-cp-error" class="sd-error hidden"></p>
                 <p id="sd-cp-success" class="sd-success hidden"></p>
             </form>
+        </div>
+    </div>
+
+    <div id="sd-join-confirm-modal" class="sd-modal hidden">
+        <div class="sd-modal-content">
+            <h2 class="sd-modal-title">Подключение к уроку</h2>
+            <p style="margin:0 0 16px;color:var(--sd-text);line-height:1.45;">
+                Время урока ещё не наступило, учитель может быть занят. Вы точно хотите подключиться?
+            </p>
+            <div class="sd-form-actions">
+                <button type="button" id="sd-join-confirm-yes" class="sd-btn-primary">Да</button>
+                <button type="button" id="sd-join-confirm-no" class="sd-btn-secondary">Нет</button>
+            </div>
         </div>
     </div>
 

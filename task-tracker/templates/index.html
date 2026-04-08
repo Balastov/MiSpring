@@ -699,6 +699,18 @@
                     <li><strong>Добавить подписной календарь</strong> → вставьте ссылку → Сохранить</li>
                 </ol>
             </div>
+            <div class="telegram-card">
+                <h3>Ссылка на урок</h3>
+                <p>Эта ссылка используется учениками для кнопки «Подключиться к уроку».</p>
+                <div class="form-row" style="margin-top:12px;">
+                    <label style="flex:0 0 auto;margin-right:12px;">Ссылка</label>
+                    <input type="url" id="integration-meeting-link-input" class="filter-control" style="flex:1;" placeholder="https://zoom.us/j/...">
+                </div>
+                <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <button id="integration-save-meeting-link-btn" class="btn-primary">Сохранить</button>
+                    <span id="integration-meeting-link-status" style="font-size:13px;color:var(--color-text-secondary);"></span>
+                </div>
+            </div>
         </div>
     </div>
 
