@@ -603,6 +603,13 @@
     text-decoration: underline;
 }
 
+.sd-evidence-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--sd-text-muted);
+    line-height: 1.35;
+}
+
 .sd-toast {
     border-radius: 8px;
     padding: 10px 12px;

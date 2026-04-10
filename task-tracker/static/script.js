@@ -1470,6 +1470,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return escapeHtml(str).replace(/"/g, '&quot;');
     }
 
+    function showAppToast(message, isError = false) {
+        let stack = document.getElementById('app-toast-stack');
+        if (!stack) {
+            stack = document.createElement('div');
+            stack.id = 'app-toast-stack';
+            stack.className = 'app-toast-stack';
+            stack.setAttribute('aria-live', 'polite');
+            document.body.appendChild(stack);
+        }
+        const toast = document.createElement('div');
+        toast.className = `app-toast ${isError ? 'app-toast-error' : 'app-toast-success'}`;
+        toast.textContent = message;
+        stack.appendChild(toast);
+        setTimeout(() => toast.remove(), 2800);
+    }
+
     // ========== Settings Modal Logic ==========
 
     // Open settings modal
@@ -3857,13 +3873,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.error || 'Не удалось обновить статус');
+                        showAppToast(data.error || 'Не удалось обновить статус', true);
                         return;
                     }
-                    alert(action === 'approve' ? 'Задание отмечено как выполненное' : 'Задание отправлено на доработку');
+                    showAppToast(action === 'approve' ? 'Задание отмечено как выполненное' : 'Задание отправлено на доработку');
                     loadHomeworkReviewPage();
                 })
-                .catch(() => alert('Ошибка обновления статуса'));
+                .catch(() => showAppToast('Ошибка обновления статуса', true));
         });
     }
 

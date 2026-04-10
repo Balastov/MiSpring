@@ -199,6 +199,26 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => ({ files: [], totalSize: 0, limit: 5 * 1024 * 1024 }));
     }
 
+    function uploadEvidenceFiles(taskId, files) {
+        if (!files.length) return;
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+        fetch(`/api/tasks/${taskId}/evidence`, {
+            method: 'POST',
+            body: formData,
+        })
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showToast(data.error || 'Ошибка загрузки', true);
+                    return;
+                }
+                showToast(files.length === 1 ? 'Файл загружен' : 'Файлы загружены');
+                renderHomeworkCenter(taskId);
+            })
+            .catch(() => showToast('Ошибка загрузки файлов', true));
+    }
+
     function renderHomeworkCenter(taskId) {
         const hw = homeworkData.find(x => x.task_id === taskId);
         if (!hw || !sdCenterContent) return;
@@ -232,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span>${formatBytes(totalSize)} / ${formatBytes(limit)}</span>
                         </div>
                         <input type="file" id="sd-evidence-input" multiple>
-                        <button class="sd-btn-profile" id="sd-upload-evidence-btn">Загрузить файлы</button>
+                        <p class="sd-evidence-hint">Файлы загружаются сразу после выбора. Можно выбрать несколько за раз.</p>
                         <div class="sd-evidence-list">${filesHtml}</div>
                     </div>
                     <button class="sd-btn-join" id="sd-submit-homework-btn" ${submitDisabled ? 'disabled' : ''}>${submitLabel}</button>
@@ -555,6 +575,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     if (sdCenterContent) {
+        sdCenterContent.addEventListener('change', (e) => {
+            if (e.target.id !== 'sd-evidence-input' || !selectedHomeworkTaskId) return;
+            const input = e.target;
+            const files = input.files ? Array.from(input.files) : [];
+            input.value = '';
+            if (!files.length) return;
+            uploadEvidenceFiles(selectedHomeworkTaskId, files);
+        });
         sdCenterContent.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.sd-delete-evidence-btn');
             if (deleteBtn && selectedHomeworkTaskId) {
@@ -565,31 +593,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderHomeworkCenter(selectedHomeworkTaskId);
                     })
                     .catch(() => showToast('Не удалось удалить файл', true));
-                return;
-            }
-            if (e.target.id === 'sd-upload-evidence-btn' && selectedHomeworkTaskId) {
-                const input = document.getElementById('sd-evidence-input');
-                const files = input?.files ? Array.from(input.files) : [];
-                if (!files.length) {
-                    showToast('Выберите файлы', true);
-                    return;
-                }
-                const formData = new FormData();
-                files.forEach(file => formData.append('files', file));
-                fetch(`/api/tasks/${selectedHomeworkTaskId}/evidence`, {
-                    method: 'POST',
-                    body: formData,
-                })
-                    .then(r => r.json().then(data => ({ ok: r.ok, data })))
-                    .then(({ ok, data }) => {
-                        if (!ok) {
-                            showToast(data.error || 'Ошибка загрузки', true);
-                            return;
-                        }
-                        showToast('Файлы загружены');
-                        renderHomeworkCenter(selectedHomeworkTaskId);
-                    })
-                    .catch(() => showToast('Ошибка загрузки файлов', true));
                 return;
             }
             if (e.target.id === 'sd-submit-homework-btn' && selectedHomeworkTaskId) {
