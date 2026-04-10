@@ -6,10 +6,30 @@ from helpers import parse_datetime, user_has_role
 import os
 import asyncio
 import re
+import json
+import time
 from datetime import datetime
 from uuid import uuid4
 
 tasks_bp = Blueprint('tasks', __name__)
+
+
+def _agent_debug_log(hypothesis_id, location, message, data):
+    # region agent log
+    _p = '/Users/aleksejbalastov/My Pet Projects/MiSpring/.cursor/debug-e062f9.log'
+    try:
+        with open(_p, 'a', encoding='utf-8') as _f:
+            _f.write(json.dumps({
+                'sessionId': 'e062f9',
+                'hypothesisId': hypothesis_id,
+                'location': location,
+                'message': message,
+                'data': data,
+                'timestamp': int(time.time() * 1000),
+            }, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+    # endregion
 HOMEWORK_FILES_TOTAL_LIMIT = 5 * 1024 * 1024
 ALLOWED_HOMEWORK_FILE_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.gif',
@@ -706,6 +726,7 @@ def review_homework(task_id):
     if action not in ('rework', 'approve'):
         return jsonify({'error': 'Неверное действие'}), 400
 
+    old_status_id = task.status_id
     remarks = (data.get('remarks') or '').strip()
     if action == 'rework':
         if not remarks:
@@ -722,8 +743,22 @@ def review_homework(task_id):
     if not target_status:
         return jsonify({'error': f'Статус "{target_name}" не найден'}), 400
 
+    _agent_debug_log('H1', 'routes_tasks.review_homework', 'before_commit', {
+        'task_id': task.id,
+        'action': action,
+        'old_status_id': old_status_id,
+        'target_status_id': target_status.id,
+        'target_status_name': target_status.name,
+        'target_status_group': target_status.group,
+    })
     task.status_id = target_status.id
     db.session.commit()
+    db.session.refresh(task)
+    _agent_debug_log('H1', 'routes_tasks.review_homework', 'after_commit', {
+        'task_id': task.id,
+        'persisted_status_id': task.status_id,
+        'remarks_len': len((task.homework_teacher_remarks or '')),
+    })
     return jsonify(task.to_dict())
 
 
@@ -806,6 +841,18 @@ def get_homework_review_list():
             'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
             'homework_teacher_remarks': t.homework_teacher_remarks,
         })
+    _sample = [{
+        'task_id': x['task_id'],
+        'status_id': x['status_id'],
+        'status_name': x['status_name'],
+        'status_group': x['status_group'],
+        'has_remarks': bool(x.get('homework_teacher_remarks')),
+    } for x in items[:10]]
+    _agent_debug_log('H2', 'routes_tasks.get_homework_review_list', 'response_shape', {
+        'query_status_filter': status_id,
+        'n_items': len(items),
+        'sample': _sample,
+    })
     return jsonify({'items': items})
 
 
@@ -859,5 +906,20 @@ def get_my_homework():
             'homework_submitted_at_iso': t.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if t.homework_submitted_at else None,
             'homework_teacher_remarks': t.homework_teacher_remarks,
         })
+    _rows = []
+    for t in tasks[:8]:
+        st = status_map.get(t.status_id)
+        _rows.append({
+            'task_id': t.id,
+            'status_id': t.status_id,
+            'status_name': st.name if st else None,
+            'status_group': st.group if st else None,
+            'has_remarks': bool(t.homework_teacher_remarks),
+        })
+    _agent_debug_log('H5', 'routes_tasks.get_my_homework', 'rows', {
+        'student_id': current_user.id,
+        'show_done': show_done,
+        'rows': _rows,
+    })
     return jsonify({'homework': result})
 

@@ -3798,6 +3798,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 const items = data.items || [];
+                // #region agent log
+                fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e062f9' }, body: JSON.stringify({ sessionId: 'e062f9', hypothesisId: 'H2', location: 'script.js:loadHomeworkReviewPage', message: 'list_loaded', data: { n: items.length, statusFilter: homeworkReviewStatusFilter && homeworkReviewStatusFilter.value, sample: items.slice(0, 8).map(i => ({ task_id: i.task_id, status_id: i.status_id, status_name: i.status_name, status_group: i.status_group, has_remarks: !!(i.homework_teacher_remarks && String(i.homework_teacher_remarks).trim()) })) }, timestamp: Date.now() }) }).catch(() => {});
+                // #endregion
                 if (!items.length) {
                     homeworkReviewTbody.innerHTML = '<tr><td colspan="9">Нет заданий для проверки</td></tr>';
                     return;
@@ -3925,6 +3928,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         showAppToast(data.error || 'Не удалось обновить статус', true);
                         return;
                     }
+                    // #region agent log
+                    fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e062f9' }, body: JSON.stringify({ sessionId: 'e062f9', hypothesisId: 'H3', location: 'script.js:homework-review-action', message: 'review_ok', data: { taskId, action, response_status_id: data.status_id, remarks_len: (data.homework_teacher_remarks && String(data.homework_teacher_remarks).length) || 0 }, timestamp: Date.now() }) }).catch(() => {});
+                    // #endregion
                     showAppToast(action === 'approve' ? 'Задание отмечено как выполненное' : 'Задание отправлено на доработку');
                     loadHomeworkReviewPage();
                 })
