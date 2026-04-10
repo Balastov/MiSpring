@@ -538,6 +538,42 @@
     border: 1px solid #fca5a5;
 }
 
+.sd-homework-center-card {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Кнопка отправки ДЗ — как шапка (не общий .sd-btn-join для топбара) */
+.sd-homework-center-card .sd-btn-join {
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    background: var(--sd-banner);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 2px 6px rgba(26, 81, 95, 0.2);
+}
+
+.sd-homework-center-card .sd-btn-join:hover:not(:disabled) {
+    background: var(--sd-primary);
+    border-color: rgba(255, 255, 255, 0.45);
+    transform: translateY(-1px);
+}
+
+.sd-homework-center-card .sd-btn-join:active:not(:disabled) {
+    background: var(--sd-primary-hover);
+    transform: translateY(0);
+}
+
+.sd-homework-center-card .sd-btn-join:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+    transform: none;
+    background: var(--sd-banner);
+    color: #fff;
+}
+
 .sd-homework-center-card h3 {
     margin: 0 0 12px;
     color: var(--sd-primary);
