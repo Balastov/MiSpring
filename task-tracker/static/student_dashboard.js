@@ -63,6 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => el.classList.add('hidden'), 4000);
     }
 
+    function showToast(message, isError = false) {
+        if (!sdCenterContent) return;
+        const toast = document.createElement('div');
+        toast.className = `sd-toast ${isError ? 'sd-toast-error' : 'sd-toast-success'}`;
+        toast.textContent = message;
+        sdCenterContent.prepend(toast);
+        setTimeout(() => toast.remove(), 2600);
+    }
+
     function escapeHtml(value) {
         const div = document.createElement('div');
         div.textContent = String(value ?? '');
@@ -320,6 +329,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'В очереди';
     }
 
+    function hwStatusBadgeClass(hw) {
+        if (hw.status_group === 'in_review') return 'sd-status-badge inreview';
+        if (hw.status_group === 'done') return 'sd-status-badge done';
+        if (hw.is_overdue) return 'sd-status-badge overdue';
+        if (hw.status_group === 'active' || hw.status_group === 'in_progress') return 'sd-status-badge progress';
+        return 'sd-status-badge queue';
+    }
+
     function renderHomework() {
         if (homeworkData.length === 0) {
             sdHomeworkList.innerHTML = '<p class="sd-empty">Домашних заданий нет</p>';
@@ -329,6 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         homeworkData.forEach((hw) => {
             const cls = hwStatusClass(hw);
             const statusLabel = hwStatusLabel(hw);
+            const badgeCls = hwStatusBadgeClass(hw);
             const selectedClass = selectedHomeworkTaskId === hw.task_id ? ' sd-hw-selected' : '';
             const dateLabel = hw.lesson_date
                 ? (hw.is_overdue
@@ -339,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="sd-hw-card ${cls}${selectedClass}" data-task-id="${hw.task_id}">
                 <div class="sd-hw-name">${hw.homework_name || '—'}</div>
                 <div class="sd-hw-meta">
-                    <span>Статус: <b>${statusLabel}</b></span>
+                    <span>Статус: <span class="${badgeCls}">${statusLabel}</span></span>
                 </div>
                 <div class="sd-hw-date">${dateLabel}</div>
             </div>`;
@@ -542,15 +560,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deleteBtn && selectedHomeworkTaskId) {
                 const evidenceId = parseInt(deleteBtn.dataset.evidenceId);
                 fetch(`/api/tasks/${selectedHomeworkTaskId}/evidence/${evidenceId}`, { method: 'DELETE' })
-                    .then(() => renderHomeworkCenter(selectedHomeworkTaskId))
-                    .catch(() => alert('Не удалось удалить файл'));
+                    .then(() => {
+                        showToast('Файл удалён');
+                        renderHomeworkCenter(selectedHomeworkTaskId);
+                    })
+                    .catch(() => showToast('Не удалось удалить файл', true));
                 return;
             }
             if (e.target.id === 'sd-upload-evidence-btn' && selectedHomeworkTaskId) {
                 const input = document.getElementById('sd-evidence-input');
                 const files = input?.files ? Array.from(input.files) : [];
                 if (!files.length) {
-                    alert('Выберите файлы');
+                    showToast('Выберите файлы', true);
                     return;
                 }
                 const formData = new FormData();
@@ -562,12 +583,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     .then(r => r.json().then(data => ({ ok: r.ok, data })))
                     .then(({ ok, data }) => {
                         if (!ok) {
-                            alert(data.error || 'Ошибка загрузки');
+                            showToast(data.error || 'Ошибка загрузки', true);
                             return;
                         }
+                        showToast('Файлы загружены');
                         renderHomeworkCenter(selectedHomeworkTaskId);
                     })
-                    .catch(() => alert('Ошибка загрузки файлов'));
+                    .catch(() => showToast('Ошибка загрузки файлов', true));
                 return;
             }
             if (e.target.id === 'sd-submit-homework-btn' && selectedHomeworkTaskId) {
@@ -575,12 +597,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     .then(r => r.json().then(data => ({ ok: r.ok, data })))
                     .then(({ ok, data }) => {
                         if (!ok) {
-                            alert(data.error || 'Не удалось отправить задание');
+                            showToast(data.error || 'Не удалось отправить задание', true);
                             return;
                         }
+                        showToast('Задание отправлено учителю');
                         loadHomework();
                     })
-                    .catch(() => alert('Не удалось отправить задание'));
+                    .catch(() => showToast('Не удалось отправить задание', true));
             }
         });
     }

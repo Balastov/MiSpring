@@ -269,6 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const backToMainFromHomeworkReviewBtn = document.getElementById('back-to-main-from-homework-review-btn');
     const homeworkReviewRefreshBtn = document.getElementById('homework-review-refresh-btn');
     const homeworkReviewWithFilesOnly = document.getElementById('homework-review-with-files-only');
+    const homeworkReviewStudentFilter = document.getElementById('homework-review-student-filter');
+    const homeworkReviewStatusFilter = document.getElementById('homework-review-status-filter');
     const homeworkReviewTbody = document.getElementById('homework-review-tbody');
 
     // My Plan page
@@ -3766,14 +3768,17 @@ document.addEventListener('DOMContentLoaded', () => {
         hideAllPages();
         if (!homeworkReviewPage) return;
         homeworkReviewPage.classList.remove('hidden');
+        loadHomeworkReviewFilters();
         loadHomeworkReviewPage();
     }
 
     function loadHomeworkReviewPage() {
         if (!homeworkReviewTbody) return;
         const withFiles = homeworkReviewWithFilesOnly && homeworkReviewWithFilesOnly.checked ? '1' : '0';
+        const studentId = homeworkReviewStudentFilter && homeworkReviewStudentFilter.value ? `&student_id=${encodeURIComponent(homeworkReviewStudentFilter.value)}` : '';
+        const statusId = homeworkReviewStatusFilter && homeworkReviewStatusFilter.value ? `&status_id=${encodeURIComponent(homeworkReviewStatusFilter.value)}` : '';
         homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
-        fetch(`/api/homework-review?with_files=${withFiles}`)
+        fetch(`/api/homework-review?with_files=${withFiles}${studentId}${statusId}`)
             .then(r => r.json())
             .then(data => {
                 const items = data.items || [];
@@ -3811,9 +3816,33 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    function loadHomeworkReviewFilters() {
+        Promise.all([
+            fetch('/api/students/all').then(r => r.json()),
+            fetch('/api/task-statuses/all').then(r => r.json()),
+        ]).then(([studentsData, statusesData]) => {
+            if (homeworkReviewStudentFilter) {
+                const students = studentsData.students || [];
+                const prev = homeworkReviewStudentFilter.value;
+                homeworkReviewStudentFilter.innerHTML = '<option value="">Все ученики</option>'
+                    + students.map(s => `<option value="${s.id}">${escapeHtml(s.display_name)}</option>`).join('');
+                if (prev) homeworkReviewStudentFilter.value = prev;
+            }
+            if (homeworkReviewStatusFilter) {
+                const statuses = statusesData.statuses || [];
+                const prev = homeworkReviewStatusFilter.value;
+                homeworkReviewStatusFilter.innerHTML = '<option value="">Все статусы</option>'
+                    + statuses.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+                if (prev) homeworkReviewStatusFilter.value = prev;
+            }
+        }).catch(() => {});
+    }
+
     if (backToMainFromHomeworkReviewBtn) backToMainFromHomeworkReviewBtn.addEventListener('click', showMainPage);
     if (homeworkReviewRefreshBtn) homeworkReviewRefreshBtn.addEventListener('click', loadHomeworkReviewPage);
     if (homeworkReviewWithFilesOnly) homeworkReviewWithFilesOnly.addEventListener('change', loadHomeworkReviewPage);
+    if (homeworkReviewStudentFilter) homeworkReviewStudentFilter.addEventListener('change', loadHomeworkReviewPage);
+    if (homeworkReviewStatusFilter) homeworkReviewStatusFilter.addEventListener('change', loadHomeworkReviewPage);
     if (homeworkReviewTbody) {
         homeworkReviewTbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-hw-review-action');
@@ -3831,6 +3860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert(data.error || 'Не удалось обновить статус');
                         return;
                     }
+                    alert(action === 'approve' ? 'Задание отмечено как выполненное' : 'Задание отправлено на доработку');
                     loadHomeworkReviewPage();
                 })
                 .catch(() => alert('Ошибка обновления статуса'));

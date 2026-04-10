@@ -1334,6 +1334,17 @@ select.filter-control {
     font-size: 14px;
 }
 
+#homework-review-page .page-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#homework-review-page .filter-control {
+    min-width: 170px;
+}
+
 /* ========== Responsive: Portrait mobile ========== */
 @media (max-width: 600px) {
     body {

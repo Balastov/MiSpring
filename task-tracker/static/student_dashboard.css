@@ -306,6 +306,39 @@
     box-shadow: inset 0 0 0 2px var(--sd-primary);
 }
 
+.sd-status-badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.sd-status-badge.queue {
+    color: #334155;
+    background: #e2e8f0;
+}
+
+.sd-status-badge.progress {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.sd-status-badge.overdue {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.sd-status-badge.done {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.sd-status-badge.inreview {
+    color: #1d4ed8;
+    background: #dbeafe;
+}
+
 .sd-hw-card.sd-hw-inprogress {
     background: var(--sd-hw-inprogress-bg);
     border-color: var(--sd-hw-inprogress-border);
@@ -568,6 +601,26 @@
 .sd-evidence-item a {
     color: var(--sd-primary);
     text-decoration: underline;
+}
+
+.sd-toast {
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.sd-toast-success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.sd-toast-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }
 
 /* ===== Plan Card ===== */
