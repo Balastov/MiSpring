@@ -108,6 +108,7 @@ class Task(db.Model):
     notified_1h = db.Column(db.Boolean, default=False)
     plan_step_id = db.Column(db.Integer, nullable=True)
     homework_submitted_at = db.Column(db.DateTime, nullable=True)
+    homework_teacher_remarks = db.Column(db.Text, nullable=True)
 
     def to_dict(self):
         return {
@@ -137,6 +138,7 @@ class Task(db.Model):
             'plan_step_id': self.plan_step_id,
             'homework_submitted_at': self.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if self.homework_submitted_at else None,
             'homework_submitted_at_iso': self.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if self.homework_submitted_at else None,
+            'homework_teacher_remarks': self.homework_teacher_remarks,
         }
 
 

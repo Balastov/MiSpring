@@ -3793,19 +3793,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const withFiles = homeworkReviewWithFilesOnly && homeworkReviewWithFilesOnly.checked ? '1' : '0';
         const studentId = homeworkReviewStudentFilter && homeworkReviewStudentFilter.value ? `&student_id=${encodeURIComponent(homeworkReviewStudentFilter.value)}` : '';
         const statusId = homeworkReviewStatusFilter && homeworkReviewStatusFilter.value ? `&status_id=${encodeURIComponent(homeworkReviewStatusFilter.value)}` : '';
-        homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
+        homeworkReviewTbody.innerHTML = '<tr><td colspan="8">Загрузка...</td></tr>';
         fetch(`/api/homework-review?with_files=${withFiles}${studentId}${statusId}`)
             .then(r => r.json())
             .then(data => {
                 const items = data.items || [];
                 if (!items.length) {
-                    homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Нет заданий для проверки</td></tr>';
+                    homeworkReviewTbody.innerHTML = '<tr><td colspan="8">Нет заданий для проверки</td></tr>';
                     return;
                 }
                 homeworkReviewTbody.innerHTML = items.map(item => {
                     const filesHtml = (item.files || []).length
                         ? item.files.map(f => `<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a>`).join('<br>')
                         : '—';
+                    const remarksVal = escapeHtml(item.homework_teacher_remarks || '');
                     return `
                         <tr>
                             <td>${escapeHtml(item.student_name || '—')}</td>
@@ -3818,9 +3819,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>${filesHtml}</td>
                             <td>${escapeHtml(item.submitted_at || '—')}</td>
                             <td>
+                                <textarea class="homework-review-remarks filter-control" rows="3" placeholder="Замечания учителя…" data-task-id="${item.task_id}">${remarksVal}</textarea>
+                            </td>
+                            <td>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                    <button class="btn-secondary btn-hw-review-action" data-task-id="${item.task_id}" data-action="rework">На доработку</button>
-                                    <button class="btn-primary btn-hw-review-action" data-task-id="${item.task_id}" data-action="approve">Подтвердить</button>
+                                    <button type="button" class="btn-secondary btn-hw-review-action" data-task-id="${item.task_id}" data-action="rework">На доработку</button>
+                                    <button type="button" class="btn-primary btn-hw-review-action" data-task-id="${item.task_id}" data-action="approve">Подтвердить</button>
                                 </div>
                             </td>
                         </tr>
@@ -3828,7 +3832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('');
             })
             .catch(() => {
-                homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Ошибка загрузки</td></tr>';
+                homeworkReviewTbody.innerHTML = '<tr><td colspan="8">Ошибка загрузки</td></tr>';
             });
     }
 
@@ -3865,10 +3869,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!btn) return;
             const taskId = btn.dataset.taskId;
             const action = btn.dataset.action;
+            const row = btn.closest('tr');
+            const ta = row && row.querySelector('.homework-review-remarks');
+            const remarks = (ta && ta.value) ? ta.value.trim() : '';
+            if (action === 'rework' && !remarks) {
+                showAppToast('Укажите замечания при возврате на доработку', true);
+                return;
+            }
             fetch(`/api/tasks/${taskId}/homework-review`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action }),
+                body: JSON.stringify({ action, remarks }),
             })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {

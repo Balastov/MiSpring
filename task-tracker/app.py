@@ -149,6 +149,8 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN plan_step_id INTEGER')
     if 'homework_submitted_at' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN homework_submitted_at DATETIME')
+    if 'homework_teacher_remarks' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN homework_teacher_remarks TEXT')
     conn.commit()
 
     # Таблица файлов подтверждения ДЗ

@@ -1345,6 +1345,16 @@ select.filter-control {
     min-width: 170px;
 }
 
+#homework-review-page .homework-review-remarks {
+    width: 100%;
+    min-width: 200px;
+    max-width: 320px;
+    resize: vertical;
+    font-size: 13px;
+    line-height: 1.35;
+    box-sizing: border-box;
+}
+
 /* ========== App toasts (teacher / main UI) ========== */
 .app-toast-stack {
     position: fixed;

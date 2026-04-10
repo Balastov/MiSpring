@@ -657,9 +657,18 @@ def review_homework(task_id):
     if not _can_teacher_access_task(task):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
-    action = (request.json or {}).get('action')
+    data = request.get_json(force=True, silent=True) or {}
+    action = data.get('action')
     if action not in ('rework', 'approve'):
         return jsonify({'error': 'Неверное действие'}), 400
+
+    remarks = (data.get('remarks') or '').strip()
+    if action == 'rework':
+        if not remarks:
+            return jsonify({'error': 'Укажите замечания при возврате на доработку'}), 400
+        task.homework_teacher_remarks = remarks[:2000]
+    else:
+        task.homework_teacher_remarks = remarks[:2000] if remarks else None
 
     target_name = 'В работе' if action == 'rework' else 'Выполнено'
     target_status = TaskStatus.query.filter_by(name=target_name).first()
@@ -740,6 +749,7 @@ def get_homework_review_list():
             'files': files_by_task.get(t.id, []),
             'last_upload_at': files_last_at[t.id].strftime('%d.%m.%Y %H:%M') if files_last_at.get(t.id) else None,
             'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
+            'homework_teacher_remarks': t.homework_teacher_remarks,
         })
     return jsonify({'items': items})
 
@@ -792,6 +802,7 @@ def get_my_homework():
             'is_overdue': is_overdue,
             'homework_submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
             'homework_submitted_at_iso': t.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if t.homework_submitted_at else None,
+            'homework_teacher_remarks': t.homework_teacher_remarks,
         })
     return jsonify({'homework': result})
 

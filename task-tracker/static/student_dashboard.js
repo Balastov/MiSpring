@@ -51,6 +51,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdPlanContent = document.getElementById('sd-plan-content');
     const sdMiniCalendar = document.getElementById('sd-mini-calendar');
     const sdCenterContent = document.getElementById('sd-center-content');
+    const sdCenterTitle = document.getElementById('sd-center-title');
+
+    const CENTER_TITLE_LESSON = 'Информация по уроку';
+    const CENTER_TITLE_HOMEWORK = 'Информация по домашнему заданию';
+
+    function setCenterTitleLesson() {
+        if (sdCenterTitle) sdCenterTitle.textContent = CENTER_TITLE_LESSON;
+    }
+
+    function setCenterTitleHomework() {
+        if (sdCenterTitle) sdCenterTitle.textContent = CENTER_TITLE_HOMEWORK;
+    }
 
     // ===== Helpers =====
 
@@ -160,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderLessonInfoForDate(dateKey) {
         if (!sdCenterContent) return;
+        setCenterTitleLesson();
         const lessons = lessonMapByDate[dateKey] || [];
         if (!lessons.length) {
             sdCenterContent.innerHTML = `
@@ -223,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hw = homeworkData.find(x => x.task_id === taskId);
         if (!hw || !sdCenterContent) return;
         selectedHomeworkTaskId = taskId;
+        setCenterTitleHomework();
 
         loadHomeworkEvidence(taskId).then(({ files, totalSize, limit }) => {
             const filesHtml = files.length
@@ -238,6 +252,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const status = escapeHtml(hw.status_name || (hw.is_overdue ? 'Просрочено' : 'В очереди'));
             const submitDisabled = hw.status_group === 'done' || hw.status_group === 'in_review';
             const submitLabel = submitDisabled ? 'Уже отправлено' : 'Отправить учителю';
+            const remarksRaw = (hw.homework_teacher_remarks || '').trim();
+            const teacherRemarksBlock = remarksRaw
+                ? `<div class="sd-homework-teacher-remarks">
+                        <div class="sd-homework-teacher-remarks-label">Замечания учителя</div>
+                        <div class="sd-homework-teacher-remarks-text">${escapeHtml(remarksRaw)}</div>
+                   </div>`
+                : '';
 
             sdCenterContent.innerHTML = `
                 <div class="sd-homework-center-card">
@@ -246,6 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="sd-homework-center-row"><span>Дата урока</span><b>${escapeHtml(hw.lesson_date || '—')}</b></div>
                     <div class="sd-homework-center-row"><span>Тема</span><b>${escapeHtml(hw.topic_title || '—')}</b></div>
                     <div class="sd-homework-center-comment">${hw.homework_comment || '<span class="sd-empty">Комментарий не указан</span>'}</div>
+                    ${teacherRemarksBlock}
                     <div class="sd-homework-center-files">
                         <div class="sd-homework-center-files-head">
                             <b>Файлы выполнения</b>
@@ -323,13 +345,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 monthLessons = data.lessons || [];
                 lessonMapByDate = buildLessonMap(monthLessons);
                 renderMiniCalendar();
-                renderLessonInfoForDate(normalizeDateKey(now));
+                if (!selectedHomeworkTaskId) {
+                    renderLessonInfoForDate(normalizeDateKey(now));
+                }
             })
             .catch(() => {
                 monthLessons = [];
                 lessonMapByDate = {};
                 renderMiniCalendar();
-                renderLessonInfoForDate(normalizeDateKey(now));
+                if (!selectedHomeworkTaskId) {
+                    renderLessonInfoForDate(normalizeDateKey(now));
+                }
             });
     }
 

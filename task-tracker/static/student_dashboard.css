@@ -565,6 +565,30 @@
     font-size: 14px;
 }
 
+.sd-homework-teacher-remarks {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    background: #fffbeb;
+}
+
+.sd-homework-teacher-remarks-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sd-text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.sd-homework-teacher-remarks-text {
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .sd-homework-center-files {
     border: 1px solid var(--sd-border);
     border-radius: 8px;
