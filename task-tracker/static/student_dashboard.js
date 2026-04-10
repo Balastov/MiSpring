@@ -265,7 +265,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const status = escapeHtml(hw.status_name || (hw.is_overdue ? 'Просрочено' : 'В очереди'));
             const submitDisabled = hw.status_group === 'done' || hw.status_group === 'in_review';
-            const submitLabel = submitDisabled ? 'Уже отправлено' : 'Отправить учителю';
+            let submitLabel = 'На проверку';
+            if (hw.status_group === 'done') submitLabel = 'Выполнено';
+            else if (hw.status_group === 'in_review') submitLabel = 'На проверке';
             const remarksRaw = (hw.homework_teacher_remarks || '').trim();
             const teacherRemarksBlock = remarksRaw
                 ? `<div class="sd-homework-teacher-remarks">
@@ -649,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             showToast(data.error || 'Не удалось отправить задание', true);
                             return;
                         }
-                        showToast('Задание отправлено учителю');
+                        showToast('Задание отправлено на проверку');
                         loadHomework();
                     })
                     .catch(() => showToast('Не удалось отправить задание', true));
