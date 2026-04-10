@@ -303,6 +303,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             renderHomework();
+            // #region agent log
+            const _dbgSd = { submitDisabled, status_group: hw.status_group, intendedLabel: submitLabel, taskId };
+            queueMicrotask(() => {
+                const b = document.getElementById('sd-submit-homework-btn');
+                const r = b ? b.getBoundingClientRect() : null;
+                const cs = b ? window.getComputedStyle(b) : null;
+                fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e062f9' }, body: JSON.stringify({ sessionId: 'e062f9', hypothesisId: 'H1-H3', location: 'student_dashboard.js:renderHomeworkCenter', message: 'hw_submit_btn_probe', data: { hasBtn: !!b, text: b ? b.textContent.trim() : null, disabled: b ? b.disabled : null, rect: r ? { w: r.width, h: r.height, top: r.top } : null, color: cs ? cs.color : null, backgroundColor: cs ? cs.backgroundColor : null, ..._dbgSd }, timestamp: Date.now() }) }).catch(() => {});
+            });
+            // #endregion
         });
     }
 
