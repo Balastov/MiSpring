@@ -265,6 +265,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportYearSelect = document.getElementById('report-year-select');
     const reportLoadBtn = document.getElementById('report-load-btn');
     const reportContent = document.getElementById('report-content');
+    const homeworkReviewPage = document.getElementById('homework-review-page');
+    const backToMainFromHomeworkReviewBtn = document.getElementById('back-to-main-from-homework-review-btn');
+    const homeworkReviewRefreshBtn = document.getElementById('homework-review-refresh-btn');
+    const homeworkReviewWithFilesOnly = document.getElementById('homework-review-with-files-only');
+    const homeworkReviewTbody = document.getElementById('homework-review-tbody');
 
     // My Plan page
     const myPlanPage = document.getElementById('my-plan-page');
@@ -1511,6 +1516,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showTelegramPage();
             } else if (option === 'reports') {
                 showReportsPage();
+            } else if (option === 'homework-review') {
+                showHomeworkReviewPage();
             } else if (option === 'plan-templates') {
                 showPlanTemplatesPage();
             }
@@ -1546,6 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (telegramPage) telegramPage.classList.add('hidden');
         if (myPlanPage) myPlanPage.classList.add('hidden');
         if (planTemplatesPage) planTemplatesPage.classList.add('hidden');
+        if (homeworkReviewPage) homeworkReviewPage.classList.add('hidden');
     }
 
     function showMainPage() {
@@ -3745,6 +3753,89 @@ document.addEventListener('DOMContentLoaded', () => {
             }).then(() => loadPlanTemplatesPage());
         }
     });
+
+    // ========== Homework Review Page ==========
+    function reviewStatusBadge(name, group) {
+        const g = (group || '').toLowerCase();
+        if (g === 'in_review') return `<span style="color:#2563eb;font-weight:700;">${escapeHtml(name || 'На проверке')}</span>`;
+        if (g === 'done') return `<span style="color:#15803d;font-weight:700;">${escapeHtml(name || 'Выполнено')}</span>`;
+        return `<span>${escapeHtml(name || '—')}</span>`;
+    }
+
+    function showHomeworkReviewPage() {
+        hideAllPages();
+        if (!homeworkReviewPage) return;
+        homeworkReviewPage.classList.remove('hidden');
+        loadHomeworkReviewPage();
+    }
+
+    function loadHomeworkReviewPage() {
+        if (!homeworkReviewTbody) return;
+        const withFiles = homeworkReviewWithFilesOnly && homeworkReviewWithFilesOnly.checked ? '1' : '0';
+        homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
+        fetch(`/api/homework-review?with_files=${withFiles}`)
+            .then(r => r.json())
+            .then(data => {
+                const items = data.items || [];
+                if (!items.length) {
+                    homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Нет заданий для проверки</td></tr>';
+                    return;
+                }
+                homeworkReviewTbody.innerHTML = items.map(item => {
+                    const filesHtml = (item.files || []).length
+                        ? item.files.map(f => `<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a>`).join('<br>')
+                        : '—';
+                    return `
+                        <tr>
+                            <td>${escapeHtml(item.student_name || '—')}</td>
+                            <td>
+                                <div style="font-weight:600;">${escapeHtml(item.homework_name || '—')}</div>
+                                <div style="font-size:12px;color:var(--color-text-secondary);">${item.homework_comment || ''}</div>
+                            </td>
+                            <td>${escapeHtml(item.lesson_date || '—')}</td>
+                            <td>${reviewStatusBadge(item.status_name, item.status_group)}</td>
+                            <td>${filesHtml}</td>
+                            <td>${escapeHtml(item.submitted_at || '—')}</td>
+                            <td>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn-secondary btn-hw-review-action" data-task-id="${item.task_id}" data-action="rework">На доработку</button>
+                                    <button class="btn-primary btn-hw-review-action" data-task-id="${item.task_id}" data-action="approve">Подтвердить</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            })
+            .catch(() => {
+                homeworkReviewTbody.innerHTML = '<tr><td colspan="7">Ошибка загрузки</td></tr>';
+            });
+    }
+
+    if (backToMainFromHomeworkReviewBtn) backToMainFromHomeworkReviewBtn.addEventListener('click', showMainPage);
+    if (homeworkReviewRefreshBtn) homeworkReviewRefreshBtn.addEventListener('click', loadHomeworkReviewPage);
+    if (homeworkReviewWithFilesOnly) homeworkReviewWithFilesOnly.addEventListener('change', loadHomeworkReviewPage);
+    if (homeworkReviewTbody) {
+        homeworkReviewTbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-hw-review-action');
+            if (!btn) return;
+            const taskId = btn.dataset.taskId;
+            const action = btn.dataset.action;
+            fetch(`/api/tasks/${taskId}/homework-review`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action }),
+            })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.error || 'Не удалось обновить статус');
+                        return;
+                    }
+                    loadHomeworkReviewPage();
+                })
+                .catch(() => alert('Ошибка обновления статуса'));
+        });
+    }
 
     // ========== Reports Page Logic ==========
 

@@ -1,13 +1,20 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
-from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep
+from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep, HomeworkEvidence
 from helpers import parse_datetime, user_has_role
 import os
 import asyncio
 import re
+from datetime import datetime
+from uuid import uuid4
 
 tasks_bp = Blueprint('tasks', __name__)
+HOMEWORK_FILES_TOTAL_LIMIT = 5 * 1024 * 1024
+ALLOWED_HOMEWORK_FILE_EXTENSIONS = {
+    '.jpg', '.jpeg', '.png', '.webp', '.gif',
+    '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar',
+}
 
 
 def _clean_html_for_telegram(html):
@@ -84,6 +91,20 @@ def _send_prepay_warning(student):
         asyncio.run(_send())
     except Exception:
         pass
+
+
+def _get_in_review_status():
+    return TaskStatus.query.filter_by(name='На проверке').first()
+
+
+def _can_teacher_access_task(task):
+    if user_has_role('admin', 'owner'):
+        return True
+    return user_has_role('teacher') and task.user_id == current_user.id
+
+
+def _serialize_evidence(files):
+    return [f.to_dict() for f in files]
 
 
 @tasks_bp.route('/api/tasks', methods=['GET'])
@@ -424,7 +445,6 @@ def get_all_students():
 @tasks_bp.route('/api/my-next-lesson', methods=['GET'])
 @login_required
 def get_my_next_lesson():
-    from datetime import datetime
     from sqlalchemy import or_
     lesson_type = TaskType.query.filter_by(name='Урок').first()
     if not lesson_type:
@@ -457,7 +477,6 @@ def get_my_next_lesson():
 @tasks_bp.route('/api/my-lessons-month', methods=['GET'])
 @login_required
 def get_my_lessons_month():
-    from datetime import datetime
     from sqlalchemy import or_
     year = request.args.get('year', type=int)
     month = request.args.get('month', type=int)
@@ -512,6 +531,219 @@ def get_my_lessons_month():
     return jsonify({'lessons': lessons})
 
 
+@tasks_bp.route('/api/tasks/<int:task_id>/evidence', methods=['GET'])
+@login_required
+def get_task_evidence(task_id):
+    task = db.get_or_404(Task, task_id)
+    if not (task.student_id == current_user.id or _can_teacher_access_task(task)):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    files = HomeworkEvidence.query.filter_by(task_id=task.id).order_by(HomeworkEvidence.created_at.desc()).all()
+    total_size = sum(f.size_bytes or 0 for f in files)
+    return jsonify({
+        'files': _serialize_evidence(files),
+        'total_size_bytes': total_size,
+        'limit_bytes': HOMEWORK_FILES_TOTAL_LIMIT,
+    })
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>/evidence', methods=['POST'])
+@login_required
+def upload_task_evidence(task_id):
+    task = db.get_or_404(Task, task_id)
+    if task.student_id != current_user.id:
+        return jsonify({'error': 'Загружать файлы может только ученик по своему заданию'}), 403
+
+    incoming = request.files.getlist('files')
+    if not incoming:
+        single = request.files.get('file')
+        if single:
+            incoming = [single]
+    if not incoming:
+        return jsonify({'error': 'Файлы не найдены'}), 400
+
+    existing = HomeworkEvidence.query.filter_by(task_id=task.id).all()
+    existing_total = sum(f.size_bytes or 0 for f in existing)
+
+    upload_dir = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'homework_evidence')
+    os.makedirs(upload_dir, exist_ok=True)
+
+    uploaded_total = 0
+    saved = []
+    for item in incoming:
+        data = item.read()
+        size = len(data)
+        if size == 0:
+            continue
+        ext = os.path.splitext(item.filename or '')[1].lower()
+        if ext not in ALLOWED_HOMEWORK_FILE_EXTENSIONS:
+            return jsonify({'error': f'Недопустимый формат файла: {ext or "без расширения"}'}), 400
+        uploaded_total += size
+        if existing_total + uploaded_total > HOMEWORK_FILES_TOTAL_LIMIT:
+            return jsonify({'error': 'Превышен суммарный лимит 5 МБ на это задание'}), 400
+
+        stored = f'{uuid4().hex}{ext}'
+        relative_path = f'uploads/homework_evidence/{stored}'
+        full_path = os.path.join(upload_dir, stored)
+        with open(full_path, 'wb') as out:
+            out.write(data)
+
+        file_row = HomeworkEvidence(
+            task_id=task.id,
+            student_id=current_user.id,
+            original_name=(item.filename or stored)[:255],
+            stored_name=stored,
+            relative_path=relative_path,
+            mime_type=(item.mimetype or '')[:120] or None,
+            size_bytes=size,
+        )
+        db.session.add(file_row)
+        saved.append(file_row)
+
+    if not saved:
+        return jsonify({'error': 'Файлы пустые или не выбраны'}), 400
+    db.session.commit()
+    return jsonify({'files': _serialize_evidence(saved)}), 201
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>/evidence/<int:evidence_id>', methods=['DELETE'])
+@login_required
+def delete_task_evidence(task_id, evidence_id):
+    task = db.get_or_404(Task, task_id)
+    evidence = HomeworkEvidence.query.filter_by(id=evidence_id, task_id=task.id).first_or_404()
+
+    can_delete = (
+        task.student_id == current_user.id and evidence.student_id == current_user.id
+    ) or _can_teacher_access_task(task)
+    if not can_delete:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    file_path = os.path.join(os.path.dirname(__file__), 'static', evidence.relative_path.replace('/', os.sep))
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+    db.session.delete(evidence)
+    db.session.commit()
+    return '', 204
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>/homework-submit', methods=['POST'])
+@login_required
+def submit_homework_for_review(task_id):
+    task = db.get_or_404(Task, task_id)
+    if task.student_id != current_user.id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    files_count = HomeworkEvidence.query.filter_by(task_id=task.id).count()
+    if files_count == 0:
+        return jsonify({'error': 'Сначала загрузите хотя бы один файл'}), 400
+
+    in_review = _get_in_review_status()
+    if not in_review:
+        return jsonify({'error': 'Статус "На проверке" не найден'}), 500
+
+    task.status_id = in_review.id
+    task.homework_submitted_at = datetime.now()
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>/homework-review', methods=['POST'])
+@login_required
+def review_homework(task_id):
+    task = db.get_or_404(Task, task_id)
+    if not _can_teacher_access_task(task):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    action = (request.json or {}).get('action')
+    if action not in ('rework', 'approve'):
+        return jsonify({'error': 'Неверное действие'}), 400
+
+    target_name = 'В работе' if action == 'rework' else 'Выполнено'
+    target_status = TaskStatus.query.filter_by(name=target_name).first()
+    if not target_status:
+        target_group = 'in_progress' if action == 'rework' else 'done'
+        target_status = TaskStatus.query.filter_by(group=target_group).order_by(TaskStatus.id).first()
+    if not target_status:
+        return jsonify({'error': f'Статус "{target_name}" не найден'}), 400
+
+    task.status_id = target_status.id
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+@tasks_bp.route('/api/homework-review', methods=['GET'])
+@login_required
+def get_homework_review_list():
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    q = Task.query.filter(Task.homework_id.isnot(None))
+    if user_has_role('teacher') and not user_has_role('admin', 'owner'):
+        q = q.filter(Task.user_id == current_user.id)
+
+    student_id = request.args.get('student_id', type=int)
+    if student_id:
+        q = q.filter(Task.student_id == student_id)
+    status_id = request.args.get('status_id', type=int)
+    if status_id:
+        q = q.filter(Task.status_id == status_id)
+    only_with_files = request.args.get('with_files', '0') == '1'
+
+    tasks = q.order_by(Task.start_date.desc()).limit(200).all()
+    task_ids = [t.id for t in tasks]
+    homework_ids = {t.homework_id for t in tasks if t.homework_id}
+    student_ids = {t.student_id for t in tasks if t.student_id}
+    status_ids = {t.status_id for t in tasks if t.status_id}
+
+    homework_map = {h.id: h for h in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
+    student_map = {u.id: u for u in User.query.filter(User.id.in_(student_ids)).all()} if student_ids else {}
+    status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
+
+    files = HomeworkEvidence.query.filter(HomeworkEvidence.task_id.in_(task_ids)).all() if task_ids else []
+    files_count = {}
+    files_last_at = {}
+    files_by_task = {}
+    for f in files:
+        files_count[f.task_id] = files_count.get(f.task_id, 0) + 1
+        files_by_task.setdefault(f.task_id, []).append({
+            'id': f.id,
+            'name': f.original_name,
+            'url': f'/static/{f.relative_path}',
+            'size_bytes': f.size_bytes,
+        })
+        if f.task_id not in files_last_at or ((f.created_at or datetime.min) > (files_last_at[f.task_id] or datetime.min)):
+            files_last_at[f.task_id] = f.created_at
+
+    items = []
+    for t in tasks:
+        count = files_count.get(t.id, 0)
+        if only_with_files and count == 0:
+            continue
+        hw = homework_map.get(t.homework_id)
+        st = status_map.get(t.status_id)
+        student = student_map.get(t.student_id)
+        items.append({
+            'task_id': t.id,
+            'student_id': t.student_id,
+            'student_name': student.display_name if student else '—',
+            'homework_name': hw.name if hw else '—',
+            'homework_comment': hw.comment if hw else None,
+            'status_id': t.status_id,
+            'status_name': st.name if st else None,
+            'status_group': st.group if st else None,
+            'lesson_date': t.start_date.strftime('%d.%m.%Y %H:%M') if t.start_date else None,
+            'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+            'files_count': count,
+            'files': files_by_task.get(t.id, []),
+            'last_upload_at': files_last_at[t.id].strftime('%d.%m.%Y %H:%M') if files_last_at.get(t.id) else None,
+            'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
+        })
+    return jsonify({'items': items})
+
+
 @tasks_bp.route('/api/my-homework', methods=['GET'])
 @login_required
 def get_my_homework():
@@ -534,8 +766,10 @@ def get_my_homework():
 
     homework_ids = {t.homework_id for t in tasks if t.homework_id}
     status_ids = {t.status_id for t in tasks if t.status_id}
+    step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}
     homework_map = {hw.id: hw for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
     status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
+    step_map = {s.id: s.title for s in PlanStep.query.filter(PlanStep.id.in_(step_ids)).all()} if step_ids else {}
 
     now = datetime.now()
     result = []
@@ -549,11 +783,15 @@ def get_my_homework():
         result.append({
             'task_id': t.id,
             'homework_name': hw.name if hw else None,
+            'homework_comment': hw.comment if hw else None,
+            'topic_title': step_map.get(t.plan_step_id) if t.plan_step_id else None,
             'status_name': st.name if st else None,
             'status_group': st.group if st else None,
             'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
             'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
             'is_overdue': is_overdue,
+            'homework_submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
+            'homework_submitted_at_iso': t.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if t.homework_submitted_at else None,
         })
     return jsonify({'homework': result})
 

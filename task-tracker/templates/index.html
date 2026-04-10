@@ -263,6 +263,7 @@
                 <button class="settings-option-btn" data-option="homework">Домашнее задание</button>
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
                 <button class="settings-option-btn" data-option="telegram">Ссылки и интеграции</button>
+                <button class="settings-option-btn" data-option="homework-review">Проверка ДЗ</button>
                 <button class="settings-option-btn" data-option="reports">Отчёты</button>
                 <button class="settings-option-btn" data-option="plan-templates" id="plan-templates-settings-btn">Планы обучения</button>
             </div>
@@ -801,6 +802,37 @@
                 <button id="report-load-btn" class="btn-primary">Загрузить</button>
             </div>
             <div id="report-content"></div>
+        </div>
+    </div>
+
+    <!-- Homework Review Page -->
+    <div id="homework-review-page" class="page hidden">
+        <div class="page-header page-header-left-nav">
+            <button id="back-to-main-from-homework-review-btn" class="btn-secondary">Назад к задачам</button>
+            <h2>Проверка домашних заданий</h2>
+            <div class="page-actions">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--color-text-secondary);">
+                    <input type="checkbox" id="homework-review-with-files-only">
+                    Только с файлами
+                </label>
+                <button id="homework-review-refresh-btn" class="btn-primary">Обновить</button>
+            </div>
+        </div>
+        <div class="table-wrapper">
+            <table id="homework-review-table" class="data-table">
+                <thead>
+                    <tr>
+                        <th>Ученик</th>
+                        <th>Домашнее задание</th>
+                        <th>Дата урока</th>
+                        <th>Статус</th>
+                        <th>Файлы</th>
+                        <th>Отправлено</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="homework-review-tbody"></tbody>
+            </table>
         </div>
     </div>
 

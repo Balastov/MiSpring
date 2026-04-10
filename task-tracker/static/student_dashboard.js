@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let meetingLinkUrl = '';
     let monthLessons = [];
     let lessonMapByDate = {};
+    let selectedHomeworkTaskId = null;
 
     // ===== Element refs =====
     const sdUsername = document.getElementById('sd-username');
@@ -60,6 +61,19 @@ document.addEventListener('DOMContentLoaded', () => {
         el.textContent = msg;
         el.classList.remove('hidden');
         setTimeout(() => el.classList.add('hidden'), 4000);
+    }
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value ?? '');
+        return div.innerHTML;
+    }
+
+    function formatBytes(bytes) {
+        const b = Number(bytes || 0);
+        if (b < 1024) return `${b} Б`;
+        if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} КБ`;
+        return `${(b / (1024 * 1024)).toFixed(2)} МБ`;
     }
 
     function updateJoinLessonButtonVisibility() {
@@ -165,6 +179,60 @@ document.addEventListener('DOMContentLoaded', () => {
         sdCenterContent.innerHTML = cardsHtml;
     }
 
+    function loadHomeworkEvidence(taskId) {
+        return fetch(`/api/tasks/${taskId}/evidence`)
+            .then(r => r.json())
+            .then(data => ({
+                files: data.files || [],
+                totalSize: data.total_size_bytes || 0,
+                limit: data.limit_bytes || (5 * 1024 * 1024),
+            }))
+            .catch(() => ({ files: [], totalSize: 0, limit: 5 * 1024 * 1024 }));
+    }
+
+    function renderHomeworkCenter(taskId) {
+        const hw = homeworkData.find(x => x.task_id === taskId);
+        if (!hw || !sdCenterContent) return;
+        selectedHomeworkTaskId = taskId;
+
+        loadHomeworkEvidence(taskId).then(({ files, totalSize, limit }) => {
+            const filesHtml = files.length
+                ? files.map(f => `
+                    <div class="sd-evidence-item">
+                        <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.original_name || 'Файл')}</a>
+                        <span>${formatBytes(f.size_bytes)}</span>
+                        <button class="sd-btn-link sd-delete-evidence-btn" data-evidence-id="${f.id}">Удалить</button>
+                    </div>
+                `).join('')
+                : '<p class="sd-empty">Файлы пока не загружены</p>';
+
+            const status = escapeHtml(hw.status_name || (hw.is_overdue ? 'Просрочено' : 'В очереди'));
+            const submitDisabled = hw.status_group === 'done' || hw.status_group === 'in_review';
+            const submitLabel = submitDisabled ? 'Уже отправлено' : 'Отправить учителю';
+
+            sdCenterContent.innerHTML = `
+                <div class="sd-homework-center-card">
+                    <h3>${escapeHtml(hw.homework_name || 'Домашнее задание')}</h3>
+                    <div class="sd-homework-center-row"><span>Статус</span><b>${status}</b></div>
+                    <div class="sd-homework-center-row"><span>Дата урока</span><b>${escapeHtml(hw.lesson_date || '—')}</b></div>
+                    <div class="sd-homework-center-row"><span>Тема</span><b>${escapeHtml(hw.topic_title || '—')}</b></div>
+                    <div class="sd-homework-center-comment">${hw.homework_comment || '<span class="sd-empty">Комментарий не указан</span>'}</div>
+                    <div class="sd-homework-center-files">
+                        <div class="sd-homework-center-files-head">
+                            <b>Файлы выполнения</b>
+                            <span>${formatBytes(totalSize)} / ${formatBytes(limit)}</span>
+                        </div>
+                        <input type="file" id="sd-evidence-input" multiple>
+                        <button class="sd-btn-profile" id="sd-upload-evidence-btn">Загрузить файлы</button>
+                        <div class="sd-evidence-list">${filesHtml}</div>
+                    </div>
+                    <button class="sd-btn-join" id="sd-submit-homework-btn" ${submitDisabled ? 'disabled' : ''}>${submitLabel}</button>
+                </div>
+            `;
+            renderHomework();
+        });
+    }
+
     function renderMiniCalendar() {
         const now = new Date();
         const year = now.getFullYear();
@@ -240,6 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function hwStatusClass(hw) {
         if (hw.status_group === 'done') return 'sd-hw-done';
+        if (hw.status_group === 'in_review') return 'sd-hw-inreview';
         if (hw.is_overdue) return 'sd-hw-overdue';
         if (hw.status_group === 'active' || hw.status_group === 'in_progress') return 'sd-hw-inprogress';
         return 'sd-hw-queue';
@@ -260,13 +329,14 @@ document.addEventListener('DOMContentLoaded', () => {
         homeworkData.forEach((hw) => {
             const cls = hwStatusClass(hw);
             const statusLabel = hwStatusLabel(hw);
+            const selectedClass = selectedHomeworkTaskId === hw.task_id ? ' sd-hw-selected' : '';
             const dateLabel = hw.lesson_date
                 ? (hw.is_overdue
                     ? `<span class="sd-hw-overdue-label">Просрочено (${hw.lesson_date})</span>`
                     : `Выполнить до ${hw.lesson_date}`)
                 : '';
             html += `
-            <div class="sd-hw-card ${cls}">
+            <div class="sd-hw-card ${cls}${selectedClass}" data-task-id="${hw.task_id}">
                 <div class="sd-hw-name">${hw.homework_name || '—'}</div>
                 <div class="sd-hw-meta">
                     <span>Статус: <b>${statusLabel}</b></span>
@@ -285,6 +355,13 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 homeworkData = data.homework || [];
                 renderHomework();
+                if (!selectedHomeworkTaskId && homeworkData.length) {
+                    renderHomeworkCenter(homeworkData[0].task_id);
+                } else if (selectedHomeworkTaskId) {
+                    const exists = homeworkData.some(h => h.task_id === selectedHomeworkTaskId);
+                    if (exists) renderHomeworkCenter(selectedHomeworkTaskId);
+                    else if (homeworkData.length) renderHomeworkCenter(homeworkData[0].task_id);
+                }
             })
             .catch(() => {
                 sdHomeworkList.innerHTML = '<p class="sd-empty">Не удалось загрузить задания</p>';
@@ -442,6 +519,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== Homework Toggle =====
 
     sdShowDoneCb.addEventListener('change', loadHomework);
+    if (sdHomeworkList) {
+        sdHomeworkList.addEventListener('click', (e) => {
+            const card = e.target.closest('.sd-hw-card[data-task-id]');
+            if (!card) return;
+            const taskId = parseInt(card.dataset.taskId);
+            renderHomeworkCenter(taskId);
+        });
+    }
     if (sdMiniCalendar) {
         sdMiniCalendar.addEventListener('click', (e) => {
             const cell = e.target.closest('.sd-cal-day[data-date-key]');
@@ -449,6 +534,54 @@ document.addEventListener('DOMContentLoaded', () => {
             sdMiniCalendar.querySelectorAll('.sd-cal-day').forEach(el => el.classList.remove('sd-cal-selected'));
             cell.classList.add('sd-cal-selected');
             renderLessonInfoForDate(cell.dataset.dateKey);
+        });
+    }
+    if (sdCenterContent) {
+        sdCenterContent.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.sd-delete-evidence-btn');
+            if (deleteBtn && selectedHomeworkTaskId) {
+                const evidenceId = parseInt(deleteBtn.dataset.evidenceId);
+                fetch(`/api/tasks/${selectedHomeworkTaskId}/evidence/${evidenceId}`, { method: 'DELETE' })
+                    .then(() => renderHomeworkCenter(selectedHomeworkTaskId))
+                    .catch(() => alert('Не удалось удалить файл'));
+                return;
+            }
+            if (e.target.id === 'sd-upload-evidence-btn' && selectedHomeworkTaskId) {
+                const input = document.getElementById('sd-evidence-input');
+                const files = input?.files ? Array.from(input.files) : [];
+                if (!files.length) {
+                    alert('Выберите файлы');
+                    return;
+                }
+                const formData = new FormData();
+                files.forEach(file => formData.append('files', file));
+                fetch(`/api/tasks/${selectedHomeworkTaskId}/evidence`, {
+                    method: 'POST',
+                    body: formData,
+                })
+                    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                    .then(({ ok, data }) => {
+                        if (!ok) {
+                            alert(data.error || 'Ошибка загрузки');
+                            return;
+                        }
+                        renderHomeworkCenter(selectedHomeworkTaskId);
+                    })
+                    .catch(() => alert('Ошибка загрузки файлов'));
+                return;
+            }
+            if (e.target.id === 'sd-submit-homework-btn' && selectedHomeworkTaskId) {
+                fetch(`/api/tasks/${selectedHomeworkTaskId}/homework-submit`, { method: 'POST' })
+                    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                    .then(({ ok, data }) => {
+                        if (!ok) {
+                            alert(data.error || 'Не удалось отправить задание');
+                            return;
+                        }
+                        loadHomework();
+                    })
+                    .catch(() => alert('Не удалось отправить задание'));
+            }
         });
     }
 

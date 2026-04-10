@@ -112,6 +112,32 @@ def send_lesson_reminders(app):
         )
 
 
+def cleanup_old_homework_evidence(app):
+    """Удаляет файлы подтверждений ДЗ старше 14 дней."""
+    with app.app_context():
+        from extensions import db
+        from models import HomeworkEvidence
+
+        cutoff = datetime.now() - timedelta(days=14)
+        stale = HomeworkEvidence.query.filter(HomeworkEvidence.created_at < cutoff).all()
+        if not stale:
+            return
+
+        removed = 0
+        for row in stale:
+            file_path = os.path.join(app.root_path, 'static', row.relative_path.replace('/', os.sep))
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    logger.warning(f'Failed to remove homework evidence file: {file_path}')
+            db.session.delete(row)
+            removed += 1
+
+        db.session.commit()
+        logger.info(f'Homework evidence cleanup removed: {removed}')
+
+
 def start_scheduler(app):
     """Запускает фоновый планировщик внутри Flask-процесса."""
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -125,6 +151,15 @@ def start_scheduler(app):
         id='lesson_reminders',
         replace_existing=True,
         next_run_time=datetime.now() + timedelta(seconds=30),  # первый запуск через 30 сек
+    )
+    scheduler.add_job(
+        cleanup_old_homework_evidence,
+        'interval',
+        hours=24,
+        args=[app],
+        id='homework_evidence_cleanup',
+        replace_existing=True,
+        next_run_time=datetime.now() + timedelta(minutes=2),
     )
     scheduler.start()
     logger.info('Lesson reminder scheduler started (interval: 5 min)')

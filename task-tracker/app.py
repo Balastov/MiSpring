@@ -23,7 +23,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog
+from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence
 
 
 # ========== Flask-Login Callbacks ==========
@@ -122,6 +122,8 @@ with app.app_context():
     import os as _os
     uploads_dir = _os.path.join(_os.path.dirname(db_path), 'static', 'uploads', 'teacher_photos')
     _os.makedirs(uploads_dir, exist_ok=True)
+    homework_evidence_dir = _os.path.join(_os.path.dirname(db_path), 'static', 'uploads', 'homework_evidence')
+    _os.makedirs(homework_evidence_dir, exist_ok=True)
 
     existing_columns = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
     if 'start_date' not in existing_columns:
@@ -145,7 +147,27 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN notified_1h BOOLEAN DEFAULT 0')
     if 'plan_step_id' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN plan_step_id INTEGER')
+    if 'homework_submitted_at' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN homework_submitted_at DATETIME')
     conn.commit()
+
+    # Таблица файлов подтверждения ДЗ
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='homework_evidence'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE homework_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            original_name VARCHAR(255) NOT NULL,
+            stored_name VARCHAR(255) NOT NULL UNIQUE,
+            relative_path VARCHAR(400) NOT NULL,
+            mime_type VARCHAR(120),
+            size_bytes INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME
+        )''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_task_id ON homework_evidence(task_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_student_id ON homework_evidence(student_id)')
+        conn.commit()
 
     up_cols = [col[1] for col in cursor.execute('PRAGMA table_info(user_plan)').fetchall()]
     if 'next_step_id' not in up_cols:
@@ -203,6 +225,14 @@ with app.app_context():
     if Role.query.count() == 0:
         for name in ['admin', 'owner', 'teacher', 'student', 'guest']:
             db.session.add(Role(name=name))
+        db.session.commit()
+
+    in_review_status = TaskStatus.query.filter_by(name='На проверке').first()
+    if not in_review_status:
+        db.session.add(TaskStatus(name='На проверке', group='in_review'))
+        db.session.commit()
+    elif (in_review_status.group or '') != 'in_review':
+        in_review_status.group = 'in_review'
         db.session.commit()
 
     # Справочники домашних заданий: создаём базовый, если отсутствует.

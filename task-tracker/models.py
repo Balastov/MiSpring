@@ -107,6 +107,7 @@ class Task(db.Model):
     notified_24h = db.Column(db.Boolean, default=False)
     notified_1h = db.Column(db.Boolean, default=False)
     plan_step_id = db.Column(db.Integer, nullable=True)
+    homework_submitted_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
         return {
@@ -134,6 +135,8 @@ class Task(db.Model):
             'closing_date_iso': self.closing_date.strftime('%Y-%m-%dT%H:%M') if self.closing_date else None,
             'student_confirmed': self.student_confirmed,
             'plan_step_id': self.plan_step_id,
+            'homework_submitted_at': self.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if self.homework_submitted_at else None,
+            'homework_submitted_at_iso': self.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if self.homework_submitted_at else None,
         }
 
 
@@ -265,6 +268,31 @@ class UserPlan(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
     template_id = db.Column(db.Integer, db.ForeignKey('plan_template.id'), nullable=False)
     next_step_id = db.Column(db.Integer, nullable=True)
+
+
+class HomeworkEvidence(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, nullable=False, index=True)
+    student_id = db.Column(db.Integer, nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False, unique=True)
+    relative_path = db.Column(db.String(400), nullable=False)
+    mime_type = db.Column(db.String(120), nullable=True)
+    size_bytes = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'student_id': self.student_id,
+            'original_name': self.original_name,
+            'mime_type': self.mime_type,
+            'size_bytes': self.size_bytes,
+            'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+            'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M:%S') if self.created_at else None,
+            'url': f'/static/{self.relative_path}',
+        }
 
 
 class StudentPayment(db.Model):
