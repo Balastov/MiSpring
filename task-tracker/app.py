@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, redirect, url_for, render_template
 from flask_login import login_required
 import os
 import sqlite3
+from sqlalchemy import text
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -258,6 +259,36 @@ with app.app_context():
         db.session.commit()
     elif (in_review_status.group or '') != 'in_review':
         in_review_status.group = 'in_review'
+        db.session.commit()
+
+    # Статус ДЗ "В работе" обязателен; "Новый" удаляем.
+    in_progress_status = TaskStatus.query.filter_by(name='В работе').first()
+    if not in_progress_status:
+        in_progress_status = TaskStatus(name='В работе', group='in_progress')
+        db.session.add(in_progress_status)
+        db.session.commit()
+    elif (in_progress_status.group or '') != 'in_progress':
+        in_progress_status.group = 'in_progress'
+        db.session.commit()
+
+    new_status = TaskStatus.query.filter_by(name='Новый').first()
+    if new_status:
+        Task.query.filter_by(status_id=new_status.id).update(
+            {Task.status_id: in_progress_status.id},
+            synchronize_session=False
+        )
+        db.session.commit()
+
+    # Всем существующим ДЗ присваиваем "В работе".
+    Task.query.filter(Task.homework_id.isnot(None)).update(
+        {Task.status_id: in_progress_status.id},
+        synchronize_session=False
+    )
+    db.session.commit()
+
+    # Удаляем статус "Новый" после переноса ссылок.
+    if new_status:
+        db.session.execute(text('DELETE FROM task_status WHERE id = :sid'), {'sid': new_status.id})
         db.session.commit()
 
     # Справочники домашних заданий: создаём базовый, если отсутствует.

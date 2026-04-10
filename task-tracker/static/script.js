@@ -737,9 +737,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     option.textContent = status.name;
                     formStatusId.appendChild(option);
                 });
-                // Default to "Новый"
-                const newStatus = statusData.statuses.find(s => s.name === 'Новый');
-                if (newStatus) formStatusId.value = newStatus.id;
+                // Default to "В работе" для ДЗ
+                const inProgressStatus = statusData.statuses.find(s => s.name === 'В работе');
+                if (inProgressStatus) formStatusId.value = inProgressStatus.id;
 
                 formTaskTypeId.innerHTML = '<option value="">-- Выберите тип --</option>';
                 typeData.task_types.forEach(tt => {
@@ -3793,13 +3793,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const withFiles = homeworkReviewWithFilesOnly && homeworkReviewWithFilesOnly.checked ? '1' : '0';
         const studentId = homeworkReviewStudentFilter && homeworkReviewStudentFilter.value ? `&student_id=${encodeURIComponent(homeworkReviewStudentFilter.value)}` : '';
         const statusId = homeworkReviewStatusFilter && homeworkReviewStatusFilter.value ? `&status_id=${encodeURIComponent(homeworkReviewStatusFilter.value)}` : '';
-        homeworkReviewTbody.innerHTML = '<tr><td colspan="8">Загрузка...</td></tr>';
+        homeworkReviewTbody.innerHTML = '<tr><td colspan="9">Загрузка...</td></tr>';
         fetch(`/api/homework-review?with_files=${withFiles}${studentId}${statusId}`)
             .then(r => r.json())
             .then(data => {
                 const items = data.items || [];
                 if (!items.length) {
-                    homeworkReviewTbody.innerHTML = '<tr><td colspan="8">Нет заданий для проверки</td></tr>';
+                    homeworkReviewTbody.innerHTML = '<tr><td colspan="9">Нет заданий для проверки</td></tr>';
                     return;
                 }
                 homeworkReviewTbody.innerHTML = items.map(item => {
@@ -3815,10 +3815,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return `
                         <tr>
                             <td>${escapeHtml(item.student_name || '—')}</td>
-                            <td>
-                                <div style="font-weight:600;">${escapeHtml(item.homework_name || '—')}</div>
-                                <div style="font-size:12px;color:var(--color-text-secondary);">${item.homework_comment || ''}</div>
-                            </td>
+                            <td>${escapeHtml(item.homework_name || '—')}</td>
+                            <td>${escapeHtml(item.homework_topic || '—')}</td>
                             <td>${escapeHtml(item.lesson_date || '—')}</td>
                             <td>${reviewStatusBadge(item.status_name, item.status_group)}</td>
                             <td>
@@ -3848,7 +3846,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('');
             })
             .catch(() => {
-                homeworkReviewTbody.innerHTML = '<tr><td colspan="8">Ошибка загрузки</td></tr>';
+                homeworkReviewTbody.innerHTML = '<tr><td colspan="9">Ошибка загрузки</td></tr>';
             });
     }
 

@@ -213,6 +213,14 @@ def add_task():
     if comment and len(comment) > 500:
         return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
 
+    status_id = data.get('status_id')
+    if data.get('homework_id'):
+        in_progress = TaskStatus.query.filter_by(name='В работе').first()
+        if not in_progress:
+            in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
+        if in_progress:
+            status_id = in_progress.id
+
     task = Task(
         description=description,
         start_date=parse_datetime(data.get('start_date')),
@@ -224,7 +232,7 @@ def add_task():
         payment_date=parse_datetime(data.get('payment_date')),
         homework_id=data.get('homework_id'),
         homework_required=bool(data.get('homework_required', True)),
-        status_id=data.get('status_id'),
+        status_id=status_id,
         task_type_id=data.get('task_type_id'),
         duration=data.get('duration'),
         comment=comment,
@@ -266,6 +274,12 @@ def update_task(task_id):
             task.payment_date = parse_datetime(data['payment_date'])
         if 'homework_id' in data:
             task.homework_id = data['homework_id']
+            if data['homework_id'] and 'status_id' not in data:
+                in_progress = TaskStatus.query.filter_by(name='В работе').first()
+                if not in_progress:
+                    in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
+                if in_progress:
+                    task.status_id = in_progress.id
         if 'homework_required' in data:
             task.homework_required = bool(data['homework_required'])
         old_status_id = task.status_id
@@ -738,6 +752,8 @@ def get_homework_review_list():
     status_ids = {t.status_id for t in tasks if t.status_id}
 
     homework_map = {h.id: h for h in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
+    step_ids = {h.plan_step_id for h in homework_map.values() if h and h.plan_step_id}
+    step_map = {s.id: s.title for s in PlanStep.query.filter(PlanStep.id.in_(step_ids)).all()} if step_ids else {}
     student_map = {u.id: u for u in User.query.filter(User.id.in_(student_ids)).all()} if student_ids else {}
     status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
 
@@ -775,6 +791,7 @@ def get_homework_review_list():
             'student_id': t.student_id,
             'student_name': student.display_name if student else '—',
             'homework_name': hw.name if hw else '—',
+            'homework_topic': step_map.get(hw.plan_step_id) if hw and hw.plan_step_id else None,
             'homework_comment': hw.comment if hw else None,
             'status_id': t.status_id,
             'status_name': st.name if st else None,
