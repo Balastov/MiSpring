@@ -3803,9 +3803,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 homeworkReviewTbody.innerHTML = items.map(item => {
-                    const filesHtml = (item.files || []).length
-                        ? item.files.map(f => `<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a>`).join('<br>')
-                        : '—';
+                    const studentFiles = item.student_files || item.files || [];
+                    const teacherFiles = item.teacher_files || [];
+                    const studentFilesHtml = studentFiles.length
+                        ? studentFiles.map(f => `<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a>`).join('<br>')
+                        : '<span style="color:var(--color-text-secondary);">Нет файлов</span>';
+                    const teacherFilesHtml = teacherFiles.length
+                        ? teacherFiles.map(f => `<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a>`).join('<br>')
+                        : '<span style="color:var(--color-text-secondary);">Нет файлов</span>';
                     const remarksVal = escapeHtml(item.homework_teacher_remarks || '');
                     return `
                         <tr>
@@ -3816,7 +3821,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             </td>
                             <td>${escapeHtml(item.lesson_date || '—')}</td>
                             <td>${reviewStatusBadge(item.status_name, item.status_group)}</td>
-                            <td>${filesHtml}</td>
+                            <td>
+                                <div class="homework-review-files-block">
+                                    <div class="homework-review-files-title">Файлы ученика</div>
+                                    <div>${studentFilesHtml}</div>
+                                </div>
+                                <div class="homework-review-files-block">
+                                    <div class="homework-review-files-title">Файлы учителя</div>
+                                    <div>${teacherFilesHtml}</div>
+                                    <input type="file" class="homework-review-teacher-files-input" data-task-id="${item.task_id}" multiple>
+                                    <div class="homework-review-files-hint">Можно выбрать несколько файлов (до 5 МБ суммарно)</div>
+                                </div>
+                            </td>
                             <td>${escapeHtml(item.submitted_at || '—')}</td>
                             <td>
                                 <textarea class="homework-review-remarks filter-control" rows="3" placeholder="Замечания учителя…" data-task-id="${item.task_id}">${remarksVal}</textarea>
@@ -3864,6 +3880,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (homeworkReviewStudentFilter) homeworkReviewStudentFilter.addEventListener('change', loadHomeworkReviewPage);
     if (homeworkReviewStatusFilter) homeworkReviewStatusFilter.addEventListener('change', loadHomeworkReviewPage);
     if (homeworkReviewTbody) {
+        homeworkReviewTbody.addEventListener('change', (e) => {
+            const input = e.target.closest('.homework-review-teacher-files-input');
+            if (!input) return;
+            const taskId = input.dataset.taskId;
+            const files = input.files ? Array.from(input.files) : [];
+            input.value = '';
+            if (!taskId || !files.length) return;
+            const formData = new FormData();
+            files.forEach(file => formData.append('files', file));
+            fetch(`/api/tasks/${taskId}/evidence`, {
+                method: 'POST',
+                body: formData,
+            })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        showAppToast(data.error || 'Не удалось загрузить файлы', true);
+                        return;
+                    }
+                    showAppToast(files.length === 1 ? 'Файл учителя загружен' : 'Файлы учителя загружены');
+                    loadHomeworkReviewPage();
+                })
+                .catch(() => showAppToast('Ошибка загрузки файлов', true));
+        });
         homeworkReviewTbody.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-hw-review-action');
             if (!btn) return;

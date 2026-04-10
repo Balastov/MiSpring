@@ -1355,6 +1355,29 @@ select.filter-control {
     box-sizing: border-box;
 }
 
+#homework-review-page .homework-review-files-block {
+    margin-bottom: 8px;
+}
+
+#homework-review-page .homework-review-files-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+#homework-review-page .homework-review-teacher-files-input {
+    margin-top: 6px;
+    width: 100%;
+    font-size: 12px;
+}
+
+#homework-review-page .homework-review-files-hint {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+}
+
 /* ========== App toasts (teacher / main UI) ========== */
 .app-toast-stack {
     position: fixed;

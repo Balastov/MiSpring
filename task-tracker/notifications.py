@@ -113,13 +113,20 @@ def send_lesson_reminders(app):
 
 
 def cleanup_old_homework_evidence(app):
-    """Удаляет файлы подтверждений ДЗ старше 14 дней."""
+    """Удаляет файлы подтверждений ДЗ по срокам хранения."""
     with app.app_context():
         from extensions import db
         from models import HomeworkEvidence
 
-        cutoff = datetime.now() - timedelta(days=14)
-        stale = HomeworkEvidence.query.filter(HomeworkEvidence.created_at < cutoff).all()
+        now = datetime.now()
+        student_cutoff = now - timedelta(days=14)
+        teacher_cutoff = now - timedelta(days=20)
+        stale = HomeworkEvidence.query.filter(
+            db.or_(
+                db.and_(HomeworkEvidence.uploader_role == 'teacher', HomeworkEvidence.created_at < teacher_cutoff),
+                db.and_(HomeworkEvidence.uploader_role != 'teacher', HomeworkEvidence.created_at < student_cutoff),
+            )
+        ).all()
         if not stale:
             return
 

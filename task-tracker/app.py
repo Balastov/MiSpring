@@ -160,6 +160,8 @@ with app.app_context():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             task_id INTEGER NOT NULL,
             student_id INTEGER NOT NULL,
+            uploader_user_id INTEGER,
+            uploader_role VARCHAR(20) NOT NULL DEFAULT 'student',
             original_name VARCHAR(255) NOT NULL,
             stored_name VARCHAR(255) NOT NULL UNIQUE,
             relative_path VARCHAR(400) NOT NULL,
@@ -169,6 +171,27 @@ with app.app_context():
         )''')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_task_id ON homework_evidence(task_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_student_id ON homework_evidence(student_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_uploader_user_id ON homework_evidence(uploader_user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_uploader_role ON homework_evidence(uploader_role)')
+        conn.commit()
+    else:
+        he_cols = [col[1] for col in cursor.execute('PRAGMA table_info(homework_evidence)').fetchall()]
+        if 'uploader_user_id' not in he_cols:
+            cursor.execute('ALTER TABLE homework_evidence ADD COLUMN uploader_user_id INTEGER')
+        if 'uploader_role' not in he_cols:
+            cursor.execute("ALTER TABLE homework_evidence ADD COLUMN uploader_role VARCHAR(20) NOT NULL DEFAULT 'student'")
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_uploader_user_id ON homework_evidence(uploader_user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_uploader_role ON homework_evidence(uploader_role)')
+        cursor.execute(
+            "UPDATE homework_evidence "
+            "SET uploader_role = 'student' "
+            "WHERE uploader_role IS NULL OR TRIM(uploader_role) = ''"
+        )
+        cursor.execute(
+            'UPDATE homework_evidence '
+            'SET uploader_user_id = student_id '
+            'WHERE uploader_user_id IS NULL'
+        )
         conn.commit()
 
     up_cols = [col[1] for col in cursor.execute('PRAGMA table_info(user_plan)').fetchall()]

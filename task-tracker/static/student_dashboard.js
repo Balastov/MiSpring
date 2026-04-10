@@ -205,11 +205,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return fetch(`/api/tasks/${taskId}/evidence`)
             .then(r => r.json())
             .then(data => ({
-                files: data.files || [],
-                totalSize: data.total_size_bytes || 0,
+                studentFiles: data.student_files || data.files || [],
+                teacherFiles: data.teacher_files || [],
+                studentTotalSize: data.student_total_size_bytes || 0,
                 limit: data.limit_bytes || (5 * 1024 * 1024),
             }))
-            .catch(() => ({ files: [], totalSize: 0, limit: 5 * 1024 * 1024 }));
+            .catch(() => ({
+                studentFiles: [],
+                teacherFiles: [],
+                studentTotalSize: 0,
+                limit: 5 * 1024 * 1024,
+            }));
     }
 
     function uploadEvidenceFiles(taskId, files) {
@@ -238,9 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedHomeworkTaskId = taskId;
         setCenterTitleHomework();
 
-        loadHomeworkEvidence(taskId).then(({ files, totalSize, limit }) => {
-            const filesHtml = files.length
-                ? files.map(f => `
+        loadHomeworkEvidence(taskId).then(({ studentFiles, teacherFiles, studentTotalSize, limit }) => {
+            const studentFilesHtml = studentFiles.length
+                ? studentFiles.map(f => `
                     <div class="sd-evidence-item">
                         <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.original_name || 'Файл')}</a>
                         <span>${formatBytes(f.size_bytes)}</span>
@@ -248,6 +254,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `).join('')
                 : '<p class="sd-empty">Файлы пока не загружены</p>';
+            const teacherFilesHtml = teacherFiles.length
+                ? teacherFiles.map(f => `
+                    <div class="sd-evidence-item">
+                        <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.original_name || 'Файл')}</a>
+                        <span>${formatBytes(f.size_bytes)}</span>
+                    </div>
+                `).join('')
+                : '<p class="sd-empty">Учитель пока не прикрепил файлы</p>';
 
             const status = escapeHtml(hw.status_name || (hw.is_overdue ? 'Просрочено' : 'В очереди'));
             const submitDisabled = hw.status_group === 'done' || hw.status_group === 'in_review';
@@ -270,12 +284,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${teacherRemarksBlock}
                     <div class="sd-homework-center-files">
                         <div class="sd-homework-center-files-head">
-                            <b>Файлы выполнения</b>
-                            <span>${formatBytes(totalSize)} / ${formatBytes(limit)}</span>
+                            <b>Ваши файлы выполнения</b>
+                            <span>${formatBytes(studentTotalSize)} / ${formatBytes(limit)}</span>
                         </div>
                         <input type="file" id="sd-evidence-input" multiple>
                         <p class="sd-evidence-hint">Файлы загружаются сразу после выбора. Можно выбрать несколько за раз.</p>
-                        <div class="sd-evidence-list">${filesHtml}</div>
+                        <div class="sd-evidence-list">${studentFilesHtml}</div>
+                    </div>
+                    <div class="sd-homework-center-files">
+                        <div class="sd-homework-center-files-head">
+                            <b>Файлы от учителя</b>
+                        </div>
+                        <div class="sd-evidence-list">${teacherFilesHtml}</div>
                     </div>
                     <button class="sd-btn-join" id="sd-submit-homework-btn" ${submitDisabled ? 'disabled' : ''}>${submitLabel}</button>
                 </div>

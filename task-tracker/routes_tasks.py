@@ -107,6 +107,18 @@ def _serialize_evidence(files):
     return [f.to_dict() for f in files]
 
 
+def _split_evidence_by_uploader(files):
+    student_files = []
+    teacher_files = []
+    for f in files:
+        item = f.to_dict()
+        if (f.uploader_role or 'student') == 'teacher':
+            teacher_files.append(item)
+        else:
+            student_files.append(item)
+    return student_files, teacher_files
+
+
 @tasks_bp.route('/api/tasks', methods=['GET'])
 @login_required
 def get_tasks():
@@ -539,10 +551,17 @@ def get_task_evidence(task_id):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
     files = HomeworkEvidence.query.filter_by(task_id=task.id).order_by(HomeworkEvidence.created_at.desc()).all()
+    student_files, teacher_files = _split_evidence_by_uploader(files)
     total_size = sum(f.size_bytes or 0 for f in files)
+    student_total = sum(f.get('size_bytes') or 0 for f in student_files)
+    teacher_total = sum(f.get('size_bytes') or 0 for f in teacher_files)
     return jsonify({
         'files': _serialize_evidence(files),
+        'student_files': student_files,
+        'teacher_files': teacher_files,
         'total_size_bytes': total_size,
+        'student_total_size_bytes': student_total,
+        'teacher_total_size_bytes': teacher_total,
         'limit_bytes': HOMEWORK_FILES_TOTAL_LIMIT,
     })
 
@@ -551,8 +570,11 @@ def get_task_evidence(task_id):
 @login_required
 def upload_task_evidence(task_id):
     task = db.get_or_404(Task, task_id)
-    if task.student_id != current_user.id:
-        return jsonify({'error': 'Загружать файлы может только ученик по своему заданию'}), 403
+    is_student_upload = task.student_id == current_user.id
+    is_teacher_upload = _can_teacher_access_task(task)
+    if not (is_student_upload or is_teacher_upload):
+        return jsonify({'error': 'Недостаточно прав для загрузки файлов'}), 403
+    uploader_role = 'student' if is_student_upload else 'teacher'
 
     incoming = request.files.getlist('files')
     if not incoming:
@@ -562,7 +584,7 @@ def upload_task_evidence(task_id):
     if not incoming:
         return jsonify({'error': 'Файлы не найдены'}), 400
 
-    existing = HomeworkEvidence.query.filter_by(task_id=task.id).all()
+    existing = HomeworkEvidence.query.filter_by(task_id=task.id, uploader_role=uploader_role).all()
     existing_total = sum(f.size_bytes or 0 for f in existing)
 
     upload_dir = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'homework_evidence')
@@ -590,7 +612,9 @@ def upload_task_evidence(task_id):
 
         file_row = HomeworkEvidence(
             task_id=task.id,
-            student_id=current_user.id,
+            student_id=task.student_id or current_user.id,
+            uploader_user_id=current_user.id,
+            uploader_role=uploader_role,
             original_name=(item.filename or stored)[:255],
             stored_name=stored,
             relative_path=relative_path,
@@ -612,9 +636,15 @@ def delete_task_evidence(task_id, evidence_id):
     task = db.get_or_404(Task, task_id)
     evidence = HomeworkEvidence.query.filter_by(id=evidence_id, task_id=task.id).first_or_404()
 
+    is_student_own_file = (
+        task.student_id == current_user.id and
+        (evidence.uploader_role or 'student') == 'student' and
+        (evidence.uploader_user_id or evidence.student_id) == current_user.id
+    )
+    is_teacher_allowed = _can_teacher_access_task(task)
     can_delete = (
-        task.student_id == current_user.id and evidence.student_id == current_user.id
-    ) or _can_teacher_access_task(task)
+        is_student_own_file or is_teacher_allowed
+    )
     if not can_delete:
         return jsonify({'error': 'Недостаточно прав'}), 403
 
@@ -636,7 +666,7 @@ def submit_homework_for_review(task_id):
     if task.student_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
 
-    files_count = HomeworkEvidence.query.filter_by(task_id=task.id).count()
+    files_count = HomeworkEvidence.query.filter_by(task_id=task.id, uploader_role='student').count()
     if files_count == 0:
         return jsonify({'error': 'Сначала загрузите хотя бы один файл'}), 400
 
@@ -714,15 +744,21 @@ def get_homework_review_list():
     files = HomeworkEvidence.query.filter(HomeworkEvidence.task_id.in_(task_ids)).all() if task_ids else []
     files_count = {}
     files_last_at = {}
-    files_by_task = {}
+    student_files_by_task = {}
+    teacher_files_by_task = {}
     for f in files:
         files_count[f.task_id] = files_count.get(f.task_id, 0) + 1
-        files_by_task.setdefault(f.task_id, []).append({
+        file_item = {
             'id': f.id,
             'name': f.original_name,
             'url': f'/static/{f.relative_path}',
             'size_bytes': f.size_bytes,
-        })
+            'uploader_role': f.uploader_role or 'student',
+        }
+        if (f.uploader_role or 'student') == 'teacher':
+            teacher_files_by_task.setdefault(f.task_id, []).append(file_item)
+        else:
+            student_files_by_task.setdefault(f.task_id, []).append(file_item)
         if f.task_id not in files_last_at or ((f.created_at or datetime.min) > (files_last_at[f.task_id] or datetime.min)):
             files_last_at[f.task_id] = f.created_at
 
@@ -746,7 +782,9 @@ def get_homework_review_list():
             'lesson_date': t.start_date.strftime('%d.%m.%Y %H:%M') if t.start_date else None,
             'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
             'files_count': count,
-            'files': files_by_task.get(t.id, []),
+            'files': student_files_by_task.get(t.id, []),
+            'student_files': student_files_by_task.get(t.id, []),
+            'teacher_files': teacher_files_by_task.get(t.id, []),
             'last_upload_at': files_last_at[t.id].strftime('%d.%m.%Y %H:%M') if files_last_at.get(t.id) else None,
             'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
             'homework_teacher_remarks': t.homework_teacher_remarks,

@@ -276,6 +276,8 @@ class HomeworkEvidence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.Integer, nullable=False, index=True)
     student_id = db.Column(db.Integer, nullable=False, index=True)
+    uploader_user_id = db.Column(db.Integer, nullable=True, index=True)
+    uploader_role = db.Column(db.String(20), nullable=False, default='student', index=True)
     original_name = db.Column(db.String(255), nullable=False)
     stored_name = db.Column(db.String(255), nullable=False, unique=True)
     relative_path = db.Column(db.String(400), nullable=False)
@@ -288,6 +290,8 @@ class HomeworkEvidence(db.Model):
             'id': self.id,
             'task_id': self.task_id,
             'student_id': self.student_id,
+            'uploader_user_id': self.uploader_user_id,
+            'uploader_role': self.uploader_role,
             'original_name': self.original_name,
             'mime_type': self.mime_type,
             'size_bytes': self.size_bytes,
