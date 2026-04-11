@@ -34,6 +34,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Task modal title and submit button
     const taskModalTitle = document.getElementById('task-modal-title');
     const taskSubmitBtn = document.getElementById('task-submit-btn');
+    const taskDeleteBtn = document.getElementById('task-delete-btn');
+    const taskDeleteConfirmModal = document.getElementById('task-delete-confirm-modal');
+    const taskDeleteConfirmYes = document.getElementById('task-delete-confirm-yes');
+    const taskDeleteConfirmNo = document.getElementById('task-delete-confirm-no');
+    const taskDeleteConfirmClose = document.getElementById('task-delete-confirm-close');
+
+    function closeTaskDeleteConfirm() {
+        if (taskDeleteConfirmModal) taskDeleteConfirmModal.classList.add('hidden');
+    }
+
+    function syncTaskDeleteButtonVisibility() {
+        if (!taskDeleteBtn) return;
+        if (editingTaskId) taskDeleteBtn.classList.remove('hidden');
+        else taskDeleteBtn.classList.add('hidden');
+    }
 
     // Form fields
     const formId = document.getElementById('form-id');
@@ -763,24 +778,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 modal.classList.remove('hidden');
+                syncTaskDeleteButtonVisibility();
             })
             .catch(() => {
                 // If fetch fails, still open modal with "Авто"
                 formId.value = 'Авто';
                 modal.classList.remove('hidden');
+                syncTaskDeleteButtonVisibility();
             });
     });
 
     // Close modal
     function closeModal() {
+        closeTaskDeleteConfirm();
         modal.classList.add('hidden');
         taskForm.reset();
         formIsPaid.disabled = false;
         editingTaskId = null;
+        syncTaskDeleteButtonVisibility();
     }
 
     modalClose.addEventListener('click', closeModal);
     modalCancel.addEventListener('click', closeModal);
+
+    if (taskDeleteBtn) {
+        taskDeleteBtn.addEventListener('click', () => {
+            if (!editingTaskId) return;
+            if (taskDeleteConfirmModal) taskDeleteConfirmModal.classList.remove('hidden');
+        });
+    }
+    if (taskDeleteConfirmNo) taskDeleteConfirmNo.addEventListener('click', closeTaskDeleteConfirm);
+    if (taskDeleteConfirmClose) taskDeleteConfirmClose.addEventListener('click', closeTaskDeleteConfirm);
+    if (taskDeleteConfirmModal) {
+        taskDeleteConfirmModal.addEventListener('click', (e) => {
+            if (e.target === taskDeleteConfirmModal) closeTaskDeleteConfirm();
+        });
+    }
+    if (taskDeleteConfirmYes) {
+        taskDeleteConfirmYes.addEventListener('click', () => {
+            if (!editingTaskId) return;
+            const id = editingTaskId;
+            fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+                .then(async (r) => {
+                    if (!r.ok) {
+                        let msg = 'Не удалось удалить задачу';
+                        try {
+                            const j = await r.json();
+                            if (j && j.error) msg = j.error;
+                        } catch (_) { /* 204 или пустое тело */ }
+                        throw new Error(msg);
+                    }
+                    closeTaskDeleteConfirm();
+                    closeModal();
+                    if (currentView === 'calendar' && calendar) calendar.refetchEvents();
+                    fetchTasks(currentPage);
+                    showAppToast('Задача удалена');
+                })
+                .catch((err) => {
+                    showAppToast(err.message || 'Ошибка удаления', true);
+                    closeTaskDeleteConfirm();
+                });
+        });
+    }
 
     // Auto-fill payment date when "is paid" checkbox changes
     formIsPaid.addEventListener('change', () => {
@@ -1050,6 +1109,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateQuickStatusButtons();
             checkAndApplyPrepaid();
             modal.classList.remove('hidden');
+            syncTaskDeleteButtonVisibility();
         });
     }
 
@@ -1444,6 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     loadPlanStepsForStudent(task.student_id, task.plan_step_id);
                     modal.classList.remove('hidden');
+                    syncTaskDeleteButtonVisibility();
                 });
         }
 

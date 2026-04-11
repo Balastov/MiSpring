@@ -238,6 +238,7 @@
                     <input type="datetime-local" id="form-closing-date">
                 </div>
                 <div class="form-actions">
+                    <button type="button" class="btn-danger hidden" id="task-delete-btn" style="margin-right:auto">Удалить</button>
                     <button type="button" class="btn-primary" id="task-submit-btn">Подтвердить и создать</button>
                     <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
                     <div class="quick-status-buttons hidden" id="quick-status-buttons">
@@ -246,6 +247,23 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Подтверждение удаления задачи -->
+    <div id="task-delete-confirm-modal" class="modal hidden" style="z-index:1100">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>Удаление задачи</h2>
+                <button type="button" class="modal-close" id="task-delete-confirm-close" aria-label="Закрыть">&times;</button>
+            </div>
+            <div style="padding:20px 24px 24px;">
+                <p style="margin:0;font-size:15px;line-height:1.5;">Удалить безвозвратно?</p>
+                <div class="form-actions" style="margin-top:20px;padding-top:0;border-top:none;justify-content:flex-end;">
+                    <button type="button" class="btn-danger" id="task-delete-confirm-yes">Да</button>
+                    <button type="button" class="btn-secondary" id="task-delete-confirm-no">Нет</button>
+                </div>
+            </div>
         </div>
     </div>
 
