@@ -616,6 +616,13 @@ select.filter-control {
     border-top: 1px solid var(--color-border-light);
 }
 
+.form-actions-secondary {
+    justify-content: flex-start;
+    border-top: none;
+    margin-top: 8px;
+    padding-top: 0;
+}
+
 .btn-primary {
     background-color: var(--color-primary);
     color: #fff;
@@ -1072,9 +1079,7 @@ select.filter-control {
 .quick-status-buttons {
     display: flex;
     gap: 10px;
-    margin-left: auto;
-    padding-left: 20px;
-    border-left: 2px solid var(--color-border-light);
+    flex-wrap: wrap;
 }
 
 .quick-status-buttons.hidden {

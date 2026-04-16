@@ -264,11 +264,16 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-danger hidden" id="task-delete-btn" style="margin-right:auto">Удалить</button>
-                    <button type="button" class="btn-primary" id="task-submit-btn">Подтвердить и создать</button>
-                    <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
+                        <button type="button" class="btn-primary" id="task-submit-btn">Подтвердить и создать</button>
+                    </div>
+                </div>
+                <div class="form-actions form-actions-secondary">
                     <div class="quick-status-buttons hidden" id="quick-status-buttons">
-                        <button type="button" class="btn-status-completed" id="btn-status-completed">Проведён</button>
-                        <button type="button" class="btn-status-cancelled" id="btn-status-cancelled">Отменён</button>
+                        <span class="quick-status-label">Быстрая смена статуса:</span>
+                        <button type="button" class="btn-status-completed" id="btn-status-completed">Урок проведён</button>
+                        <button type="button" class="btn-status-cancelled" id="btn-status-cancelled">Урок отменён</button>
                     </div>
                 </div>
             </form>
