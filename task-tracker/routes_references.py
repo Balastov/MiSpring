@@ -3,6 +3,7 @@ from flask_login import login_required
 from extensions import db
 from models import TaskStatus, TaskType, Role, Homework, Setting, HomeworkCatalog, PlanTemplate, PlanStep
 from helpers import require_role, sanitize_comment_html
+import os
 import json
 import time
 
@@ -13,6 +14,7 @@ def _agent_debug_log(hypothesis_id, location, message, data):
     # region agent log
     _p = '/Users/aleksejbalastov/My Pet Projects/MiSpring/.cursor/debug-e062f9.log'
     try:
+        os.makedirs(os.path.dirname(_p), exist_ok=True)
         with open(_p, 'a', encoding='utf-8') as _f:
             _f.write(json.dumps({
                 'sessionId': 'e062f9',
