@@ -711,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
         originalStudentId = null;
         taskModalTitle.textContent = 'Создание задачи';
         taskSubmitBtn.textContent = 'Подтвердить и создать';
-            if (taskSeriesIcon) taskSeriesIcon.classList.add('hidden');
+        if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
 
         // Fetch next task ID from API
         fetch('/api/tasks?page=1')
