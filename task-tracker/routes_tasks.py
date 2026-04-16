@@ -37,6 +37,74 @@ ALLOWED_HOMEWORK_FILE_EXTENSIONS = {
 }
 
 
+def _get_student_plan_template_and_steps(student_id):
+    from models import UserPlan, PlanTemplate, PlanStep
+
+    up = UserPlan.query.filter_by(student_id=student_id).first()
+    if not up:
+        return None, [], None
+    template = db.session.get(PlanTemplate, up.template_id) if up.template_id else None
+    if not template or template.parent_id is None:
+        return None, [], up
+    steps = PlanStep.query.filter_by(template_id=template.id).order_by(PlanStep.order_num, PlanStep.id).all()
+    return template, steps, up
+
+
+def _find_next_homework_id(student_id, from_homework_id=None):
+    """
+    Возвращает (homework_id, reason) или (None, reason).
+    Логика основана на плане 2-го уровня ученика и шагах плана.
+    """
+    template, steps, up = _get_student_plan_template_and_steps(student_id)
+    if not template:
+        return None, 'plan_missing'
+    if not steps:
+        return None, 'plan_no_steps'
+
+    step_ids = [s.id for s in steps]
+    step_index = {sid: idx for idx, sid in enumerate(step_ids)}
+
+    def _homework_for_step(step_id):
+        hw = Homework.query.filter_by(plan_step_id=step_id).order_by(Homework.id.asc()).first()
+        return hw.id if hw else None
+
+    if from_homework_id:
+        hw = db.session.get(Homework, int(from_homework_id))
+        if not hw or not hw.plan_step_id or hw.plan_step_id not in step_index:
+            return None, 'from_homework_not_in_plan'
+        idx = step_index[hw.plan_step_id]
+        if idx + 1 >= len(step_ids):
+            return None, 'end_of_plan'
+        next_hw_id = _homework_for_step(step_ids[idx + 1])
+        return next_hw_id, 'next_after_from'
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    conducted = TaskStatus.query.filter_by(name='Проведён').first()
+    if lesson_type and conducted:
+        q = Task.query.filter_by(
+            student_id=student_id,
+            task_type_id=lesson_type.id,
+            status_id=conducted.id,
+        ).order_by(Task.start_date.desc(), Task.id.desc()).all()
+        for t in q:
+            if not t.homework_id:
+                continue
+            hw = db.session.get(Homework, t.homework_id)
+            if not hw or not hw.plan_step_id or hw.plan_step_id not in step_index:
+                continue
+            idx = step_index[hw.plan_step_id]
+            if idx + 1 >= len(step_ids):
+                return None, 'end_of_plan'
+            next_hw_id = _homework_for_step(step_ids[idx + 1])
+            return next_hw_id, 'next_after_last_conducted'
+
+    if up and up.next_step_id and up.next_step_id in step_index:
+        next_hw_id = _homework_for_step(up.next_step_id)
+        return next_hw_id, 'from_userplan_next_step'
+    first_hw_id = _homework_for_step(step_ids[0])
+    return first_hw_id, 'from_first_step'
+
+
 def _clean_html_for_telegram(html):
     """Удаляет атрибуты, неподдерживаемые Telegram HTML-парсером (target, rel и др.)"""
     html = re.sub(r'\s+target=["\'][^"\']*["\']', '', html)
@@ -234,7 +302,20 @@ def add_task():
         return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
 
     status_id = data.get('status_id')
-    if data.get('homework_id'):
+
+    homework_required = bool(data.get('homework_required', True))
+    homework_id = data.get('homework_id')
+    if homework_required and not homework_id and data.get('student_id'):
+        next_hw_id, _reason = _find_next_homework_id(data.get('student_id'))
+        homework_id = next_hw_id
+
+    # Если это урок и ДЗ обязательно, но подобрать/выбрать не получилось — требуем вручную
+    if homework_required and not homework_id and data.get('task_type_id'):
+        lesson_type = TaskType.query.filter_by(name='Урок').first()
+        if lesson_type and int(data.get('task_type_id') or 0) == lesson_type.id:
+            return jsonify({'error': 'Не удалось подобрать следующее ДЗ автоматически — выберите ДЗ вручную'}), 400
+
+    if homework_id:
         in_progress = TaskStatus.query.filter_by(name='В работе').first()
         if not in_progress:
             in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
@@ -250,8 +331,8 @@ def add_task():
         student_id=data.get('student_id'),
         is_paid=bool(data.get('is_paid', False)),
         payment_date=parse_datetime(data.get('payment_date')),
-        homework_id=data.get('homework_id'),
-        homework_required=bool(data.get('homework_required', True)),
+        homework_id=homework_id,
+        homework_required=homework_required,
         status_id=status_id,
         task_type_id=data.get('task_type_id'),
         duration=data.get('duration'),
@@ -300,7 +381,9 @@ def create_lesson_series():
     duration = int(duration)
 
     if homework_required and not homework_id:
-        return jsonify({'error': 'Для серии уроков необходимо указать ДЗ первого урока или снять флаг \"ДЗ обязательно\"'}), 400
+        homework_id, _reason = _find_next_homework_id(student_id)
+    if homework_required and not homework_id:
+        return jsonify({'error': 'Не удалось подобрать ДЗ первого урока автоматически — выберите ДЗ вручную или снимите флаг "ДЗ обязательно"'}), 400
 
     if comment and len(comment) > 500:
         return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
@@ -345,9 +428,13 @@ def create_lesson_series():
             if not in_progress:
                 in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
 
+        current_hw_id = homework_id if homework_required else None
         for idx in range(series_count):
             dt_start = start_date + timedelta(weeks=idx)
             dt_end = dt_start + timedelta(minutes=duration)
+            if idx > 0 and homework_required and current_hw_id:
+                next_hw_id, _reason = _find_next_homework_id(student_id, from_homework_id=current_hw_id)
+                current_hw_id = next_hw_id
             task = Task(
                 description='',
                 created_at=start_date if idx == 0 else datetime.now(),
@@ -358,8 +445,8 @@ def create_lesson_series():
                 student_id=student_id,
                 is_paid=is_paid,
                 payment_date=payment_date,
-                homework_id=homework_id if (idx == 0 and homework_required and homework_id) else None,
-                homework_required=homework_required if idx == 0 else False,
+                homework_id=current_hw_id if homework_required else None,
+                homework_required=homework_required if (homework_required and current_hw_id) else False,
                 status_id=in_progress.id if (idx == 0 and in_progress) else None,
                 task_type_id=task_type_id,
                 duration=duration,
@@ -495,20 +582,31 @@ def recalc_series_homework_from(series_id, task_id):
 
     found = False
     updated = 0
+    missing = 0
+    prev_hw_id = source_hw_id
     for t in tasks:
         if not found:
             if t.id == task.id:
                 found = True
             continue
-        # Пропускаем уроки, которые уже были изменены вручную
         if t.series_exception:
             continue
-        t.homework_id = source_hw_id if source_required else None
-        t.homework_required = source_required
+        if not source_required:
+            t.homework_id = None
+            t.homework_required = False
+            updated += 1
+            continue
+
+        next_hw_id, _reason = _find_next_homework_id(t.student_id, from_homework_id=prev_hw_id) if prev_hw_id else (None, 'no_prev')
+        prev_hw_id = next_hw_id
+        t.homework_id = next_hw_id
+        t.homework_required = True
         updated += 1
+        if not next_hw_id:
+            missing += 1
 
     db.session.commit()
-    return jsonify({'updated': updated})
+    return jsonify({'updated': updated, 'missing': missing})
 
 
 @tasks_bp.route('/api/lesson-series/<int:series_id>', methods=['DELETE'])
@@ -695,6 +793,17 @@ def get_last_homework_for_student(student_id):
         return jsonify({'homework_id': last_task.homework_id})
 
     return jsonify({'homework_id': None})
+
+
+@tasks_bp.route('/api/students/<int:student_id>/next-homework', methods=['GET'])
+@login_required
+def get_next_homework_for_student(student_id):
+    # Teachers/admins can view any; students can view their own
+    if not user_has_role('admin', 'owner', 'teacher') and current_user.id != student_id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+    from_hw = request.args.get('from_homework_id', type=int)
+    hw_id, reason = _find_next_homework_id(student_id, from_homework_id=from_hw)
+    return jsonify({'homework_id': hw_id, 'reason': reason})
 
 
 # ========== Calendar Endpoint ==========

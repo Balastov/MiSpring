@@ -557,28 +557,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Не перетираем ручной выбор
+        if (formHomeworkId.value) return;
+
         const studentId = formStudentId.value;
 
-        // Fetch last homework for this student
-        fetch(`/api/students/${studentId}/last-homework`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.homework_id) {
-                    // Find the next homework ID in the dropdown
-                    const currentHomeworkId = data.homework_id;
-                    const options = Array.from(formHomeworkId.options);
-                    const currentIndex = options.findIndex(opt => opt.value == currentHomeworkId);
-
-                    if (currentIndex !== -1 && currentIndex + 1 < options.length) {
-                        // Set to next homework
-                        const nextOption = options[currentIndex + 1];
-                        formHomeworkId.value = nextOption.value;
-                    }
-                }
+        fetch(`/api/students/${studentId}/next-homework`)
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) return;
+                if (!data.homework_id) return;
+                formHomeworkId.value = String(data.homework_id);
             })
-            .catch(err => {
-                console.error('Failed to fetch last homework:', err);
-            });
+            .catch(() => {});
     }
 
     // Load plan steps for selected student into #form-plan-step-id
@@ -665,9 +656,31 @@ document.addEventListener('DOMContentLoaded', () => {
             originalStudentId = formStudentId.value;
         }
 
-        autoFillNextHomework();
-        checkAndApplyPrepaid();
-        loadPlanStepsForStudent(formStudentId.value);
+        const selectedStudentId = formStudentId.value;
+        if (!selectedStudentId) return;
+
+        // Если у ученика нет назначенного плана обучения — переводим в "Планы обучения"
+        fetch(`/api/students/${selectedStudentId}/plan`)
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                const hasPlan = ok && data && data.template;
+                if (!hasPlan) {
+                    showAppToast('У ученика не назначен план обучения. Сначала назначьте план в "Планы обучения".', true);
+                    formStudentId.value = '';
+                    closeModal();
+                    showPlanTemplatesPage();
+                    return;
+                }
+
+                autoFillNextHomework();
+                checkAndApplyPrepaid();
+                loadPlanStepsForStudent(selectedStudentId);
+            })
+            .catch(() => {
+                autoFillNextHomework();
+                checkAndApplyPrepaid();
+                loadPlanStepsForStudent(selectedStudentId);
+            });
     });
 
     function checkAndApplyPrepaid() {
@@ -982,7 +995,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert(data.error || 'Не удалось пересчитать ДЗ для серии');
                         return;
                     }
-                    alert(`Обновлено уроков: ${data.updated}`);
+                    const missing = typeof data.missing === 'number' ? data.missing : 0;
+                    alert(missing > 0
+                        ? `Обновлено уроков: ${data.updated}. На некоторых уроках ДЗ не проставилось (нет следующего по плану): ${missing}`
+                        : `Обновлено уроков: ${data.updated}`);
                     if (currentView === 'calendar' && calendar) {
                         calendar.refetchEvents();
                     }
