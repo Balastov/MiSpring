@@ -3,31 +3,8 @@ from flask_login import login_required, current_user
 from extensions import db
 from models import PlanTemplate, PlanStep, UserPlan, Task, TaskStatus, TaskType, User, Role, UserRole
 from helpers import user_has_role
-import os
-import json
-import time
 
 plans_bp = Blueprint('plans', __name__)
-
-
-def _agent_debug_log(hypothesis_id, location, message, data):
-    # region agent log
-    _p = '/Users/aleksejbalastov/My Pet Projects/MiSpring/.cursor/debug-e062f9.log'
-    try:
-        os.makedirs(os.path.dirname(_p), exist_ok=True)
-        with open(_p, 'a', encoding='utf-8') as _f:
-            _f.write(json.dumps({
-                'sessionId': 'e062f9',
-                'runId': 'pre-fix',
-                'hypothesisId': hypothesis_id,
-                'location': location,
-                'message': message,
-                'data': data,
-                'timestamp': int(time.time() * 1000),
-            }, ensure_ascii=False) + '\n')
-    except Exception:
-        pass
-    # endregion
 
 
 def _get_progress(student_id, template):
@@ -242,25 +219,13 @@ def get_student_plan(student_id):
         return jsonify({'error': 'Недостаточно прав'}), 403
     up = UserPlan.query.filter_by(student_id=student_id).first()
     if not up:
-        # region agent log
-        _agent_debug_log('H1', 'routes_plans.py:get_student_plan', 'plan missing for student', {'studentId': student_id})
-        # endregion
         return jsonify({'error': 'План не назначен', 'template': None, 'steps': [], 'progress': None})
     template = db.session.get(PlanTemplate, up.template_id)
     if not template:
-        # region agent log
-        _agent_debug_log('H1', 'routes_plans.py:get_student_plan', 'template id not found', {'studentId': student_id, 'templateId': up.template_id})
-        # endregion
         return jsonify({'error': 'План не найден', 'template': None, 'steps': [], 'progress': None})
     if template.parent_id is None:
-        # region agent log
-        _agent_debug_log('H1', 'routes_plans.py:get_student_plan', 'assigned first-level template only', {'studentId': student_id, 'templateId': template.id})
-        # endregion
         return jsonify({'error': 'Назначен только 1-й уровень плана. Назначьте 2-й уровень.', 'template': None, 'steps': [], 'progress': None})
     progress = _get_progress(student_id, template)
-    # region agent log
-    _agent_debug_log('H1', 'routes_plans.py:get_student_plan', 'plan loaded', {'studentId': student_id, 'templateId': template.id, 'stepsCount': len(template.steps), 'nextStepId': up.next_step_id})
-    # endregion
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': [s.to_dict() for s in template.steps],
                     'progress': progress,

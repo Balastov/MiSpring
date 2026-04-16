@@ -557,9 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasSelected = homeworkItems.some(hw => String(hw.id) === String(selectedHomeworkId));
             if (hasSelected) formHomeworkId.value = String(selectedHomeworkId);
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e062f9'},body:JSON.stringify({sessionId:'e062f9',runId:'pre-fix',hypothesisId:'H4',location:'script.js:populateHomeworkSelectOptions',message:'homework select rendered',data:{optionsCount:homeworkItems.length,selectedHomeworkId:selectedHomeworkId||null,finalValue:formHomeworkId.value||null},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
     }
 
     function ensureHomeworkCache() {
@@ -579,9 +576,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadHomeworkOptionsForStudent(studentId, selectedHomeworkId = null) {
-        // #region agent log
-        fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e062f9'},body:JSON.stringify({sessionId:'e062f9',runId:'pre-fix',hypothesisId:'H2',location:'script.js:loadHomeworkOptionsForStudent:entry',message:'load homework options start',data:{studentId:studentId||null,selectedHomeworkId:selectedHomeworkId||null,cacheLen:Array.isArray(allHomeworkCache)?allHomeworkCache.length:null},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (!studentId) {
             populateHomeworkSelectOptions([], selectedHomeworkId);
             formHomeworkId.disabled = false;
@@ -590,35 +584,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return Promise.all([
             ensureHomeworkCache(),
             fetch(`/api/students/${studentId}/plan`).then(r => r.json().then(data => ({ ok: r.ok, data }))),
+            fetch('/api/homework-catalogs').then(r => r.json().then(data => ({ ok: r.ok, data }))),
         ])
-            .then(([allHomework, planResponse]) => {
-                const steps = (planResponse.ok && planResponse.data && Array.isArray(planResponse.data.steps))
-                    ? planResponse.data.steps
+            .then(([allHomework, planResponse, catalogsResponse]) => {
+                const templateId = (planResponse.ok && planResponse.data && planResponse.data.template)
+                    ? Number(planResponse.data.template.id)
+                    : null;
+                const catalogs = (catalogsResponse.ok && catalogsResponse.data && Array.isArray(catalogsResponse.data.catalogs))
+                    ? catalogsResponse.data.catalogs
                     : [];
-                const stepIds = new Set(steps.map(s => Number(s.id)));
-                const filtered = allHomework.filter(hw => hw.plan_step_id && stepIds.has(Number(hw.plan_step_id)));
-                // #region agent log
-                fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e062f9'},body:JSON.stringify({sessionId:'e062f9',runId:'pre-fix',hypothesisId:'H1',location:'script.js:loadHomeworkOptionsForStudent:afterFetch',message:'plan/homework fetched',data:{studentId:studentId,planOk:planResponse.ok,hasTemplate:!!(planResponse.data&&planResponse.data.template),stepsCount:steps.length,allHomeworkCount:Array.isArray(allHomework)?allHomework.length:null,filteredCount:filtered.length,sampleStepIds:Array.from(stepIds).slice(0,5)},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
-                if (selectedHomeworkId && !filtered.some(hw => String(hw.id) === String(selectedHomeworkId))) {
-                    const selectedHw = allHomework.find(hw => String(hw.id) === String(selectedHomeworkId));
-                    if (selectedHw) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e062f9'},body:JSON.stringify({sessionId:'e062f9',runId:'pre-fix',hypothesisId:'H3',location:'script.js:loadHomeworkOptionsForStudent:outsidePlan',message:'selected homework kept as outside plan',data:{selectedHomeworkId:selectedHomeworkId,selectedPlanStepId:selectedHw.plan_step_id||null,filteredCountBeforeFallback:filtered.length},timestamp:Date.now()})}).catch(()=>{});
-                        // #endregion
-                        filtered.unshift({
-                            ...selectedHw,
-                            name: `${selectedHw.name} (вне текущего плана)`,
-                        });
-                    }
-                }
+                const boundCatalog = templateId
+                    ? catalogs.find(c => Number(c.plan_template_id) === templateId)
+                    : null;
+                const filtered = boundCatalog
+                    ? allHomework.filter(hw => Number(hw.catalog_id) === Number(boundCatalog.id))
+                    : [];
                 populateHomeworkSelectOptions(filtered, selectedHomeworkId);
                 formHomeworkId.disabled = false;
             })
             .catch(() => {
-                // #region agent log
-                fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e062f9'},body:JSON.stringify({sessionId:'e062f9',runId:'pre-fix',hypothesisId:'H5',location:'script.js:loadHomeworkOptionsForStudent:catch',message:'load homework options failed',data:{studentId:studentId||null},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 populateHomeworkSelectOptions([], selectedHomeworkId);
                 formHomeworkId.disabled = false;
             });

@@ -18,7 +18,6 @@ def _agent_debug_log(hypothesis_id, location, message, data):
     # region agent log
     _p = '/Users/aleksejbalastov/My Pet Projects/MiSpring/.cursor/debug-e062f9.log'
     try:
-        os.makedirs(os.path.dirname(_p), exist_ok=True)
         with open(_p, 'a', encoding='utf-8') as _f:
             _f.write(json.dumps({
                 'sessionId': 'e062f9',

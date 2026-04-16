@@ -3,31 +3,8 @@ from flask_login import login_required
 from extensions import db
 from models import TaskStatus, TaskType, Role, Homework, Setting, HomeworkCatalog, PlanTemplate, PlanStep
 from helpers import require_role, sanitize_comment_html
-import os
-import json
-import time
 
 references_bp = Blueprint('references', __name__)
-
-
-def _agent_debug_log(hypothesis_id, location, message, data):
-    # region agent log
-    _p = '/Users/aleksejbalastov/My Pet Projects/MiSpring/.cursor/debug-e062f9.log'
-    try:
-        os.makedirs(os.path.dirname(_p), exist_ok=True)
-        with open(_p, 'a', encoding='utf-8') as _f:
-            _f.write(json.dumps({
-                'sessionId': 'e062f9',
-                'runId': 'pre-fix',
-                'hypothesisId': hypothesis_id,
-                'location': location,
-                'message': message,
-                'data': data,
-                'timestamp': int(time.time() * 1000),
-            }, ensure_ascii=False) + '\n')
-    except Exception:
-        pass
-    # endregion
 
 
 # ========== Task Status Endpoints ==========
@@ -391,13 +368,6 @@ def get_all_homework():
     items = db.session.execute(
         q
     ).scalars().all()
-    # region agent log
-    _agent_debug_log('H2', 'routes_references.py:get_all_homework', 'all homework fetched', {
-        'catalogId': catalog_id,
-        'total': len(items),
-        'withPlanStep': sum(1 for h in items if h.plan_step_id),
-    })
-    # endregion
     step_ids = {h.plan_step_id for h in items if h.plan_step_id}
     steps_map = {}
     if step_ids:
