@@ -50,33 +50,49 @@ def _get_student_plan_template_and_steps(student_id):
     return template, steps, up
 
 
+def _get_ordered_plan_homework_ids(student_id):
+    """
+    Возвращает (homework_ids, step_ids, up, reason_if_empty_or_none).
+    homework_ids упорядочены по шагам плана (order_num), затем по Homework.id.
+    """
+    template, steps, up = _get_student_plan_template_and_steps(student_id)
+    if not template:
+        return None, None, up, 'plan_missing'
+    if not steps:
+        return None, None, up, 'plan_no_steps'
+
+    step_ids = [s.id for s in steps]
+    step_index = {sid: idx for idx, sid in enumerate(step_ids)}
+    items = Homework.query.filter(Homework.plan_step_id.in_(step_ids)).all()
+    items.sort(key=lambda hw: (step_index.get(hw.plan_step_id, 10**9), hw.id))
+    hw_ids = [hw.id for hw in items]
+    if not hw_ids:
+        return [], step_ids, up, 'plan_homework_empty'
+    return hw_ids, step_ids, up, None
+
+
 def _find_next_homework_id(student_id, from_homework_id=None):
     """
     Возвращает (homework_id, reason) или (None, reason).
     Логика основана на плане 2-го уровня ученика и шагах плана.
     """
-    template, steps, up = _get_student_plan_template_and_steps(student_id)
-    if not template:
-        return None, 'plan_missing'
-    if not steps:
-        return None, 'plan_no_steps'
+    ordered_hw_ids, step_ids, up, reason = _get_ordered_plan_homework_ids(student_id)
+    if ordered_hw_ids is None:
+        return None, reason
+    if len(ordered_hw_ids) == 0:
+        return None, reason
 
-    step_ids = [s.id for s in steps]
-    step_index = {sid: idx for idx, sid in enumerate(step_ids)}
-
-    def _homework_for_step(step_id):
-        hw = Homework.query.filter_by(plan_step_id=step_id).order_by(Homework.id.asc()).first()
-        return hw.id if hw else None
+    def _next_after_homework_id(current_hw_id):
+        try:
+            idx = ordered_hw_ids.index(int(current_hw_id))
+        except Exception:
+            return None, 'from_homework_not_in_plan'
+        if idx + 1 >= len(ordered_hw_ids):
+            return None, 'end_of_plan'
+        return ordered_hw_ids[idx + 1], 'next_after_from'
 
     if from_homework_id:
-        hw = db.session.get(Homework, int(from_homework_id))
-        if not hw or not hw.plan_step_id or hw.plan_step_id not in step_index:
-            return None, 'from_homework_not_in_plan'
-        idx = step_index[hw.plan_step_id]
-        if idx + 1 >= len(step_ids):
-            return None, 'end_of_plan'
-        next_hw_id = _homework_for_step(step_ids[idx + 1])
-        return next_hw_id, 'next_after_from'
+        return _next_after_homework_id(from_homework_id)
 
     lesson_type = TaskType.query.filter_by(name='Урок').first()
     conducted = TaskStatus.query.filter_by(name='Проведён').first()
@@ -89,20 +105,19 @@ def _find_next_homework_id(student_id, from_homework_id=None):
         for t in q:
             if not t.homework_id:
                 continue
-            hw = db.session.get(Homework, t.homework_id)
-            if not hw or not hw.plan_step_id or hw.plan_step_id not in step_index:
+            if int(t.homework_id) not in ordered_hw_ids:
                 continue
-            idx = step_index[hw.plan_step_id]
-            if idx + 1 >= len(step_ids):
-                return None, 'end_of_plan'
-            next_hw_id = _homework_for_step(step_ids[idx + 1])
-            return next_hw_id, 'next_after_last_conducted'
+            next_hw_id, next_reason = _next_after_homework_id(t.homework_id)
+            if next_reason == 'next_after_from':
+                return next_hw_id, 'next_after_last_conducted'
+            return None, next_reason
 
-    if up and up.next_step_id and up.next_step_id in step_index:
-        next_hw_id = _homework_for_step(up.next_step_id)
-        return next_hw_id, 'from_userplan_next_step'
-    first_hw_id = _homework_for_step(step_ids[0])
-    return first_hw_id, 'from_first_step'
+    if up and up.next_step_id and step_ids and up.next_step_id in step_ids:
+        for hw_id in ordered_hw_ids:
+            hw = db.session.get(Homework, hw_id)
+            if hw and hw.plan_step_id == up.next_step_id:
+                return hw.id, 'from_userplan_next_step'
+    return ordered_hw_ids[0], 'from_first_homework_in_plan'
 
 
 def _clean_html_for_telegram(html):

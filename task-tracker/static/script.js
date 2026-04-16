@@ -352,6 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentHomeworkCatalogId = null;
     let homeworkCatalogsCache = [];
     let homeworkSecondLevelPlansCache = [];
+    let allHomeworkCache = [];
     let planRootTemplatesCache = [];
     let currentUsersPage = 1;
     let editingUserId = null;
@@ -544,6 +545,70 @@ document.addEventListener('DOMContentLoaded', () => {
         recalcEndDate();
     });
 
+    function populateHomeworkSelectOptions(homeworkItems, selectedHomeworkId = null) {
+        formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
+        homeworkItems.forEach(hw => {
+            const option = document.createElement('option');
+            option.value = hw.id;
+            option.textContent = hw.name;
+            formHomeworkId.appendChild(option);
+        });
+        if (selectedHomeworkId) {
+            const hasSelected = homeworkItems.some(hw => String(hw.id) === String(selectedHomeworkId));
+            if (hasSelected) formHomeworkId.value = String(selectedHomeworkId);
+        }
+    }
+
+    function ensureHomeworkCache() {
+        if (Array.isArray(allHomeworkCache) && allHomeworkCache.length > 0) {
+            return Promise.resolve(allHomeworkCache);
+        }
+        return fetch('/api/homework/all')
+            .then(r => r.json())
+            .then(data => {
+                allHomeworkCache = Array.isArray(data.homework) ? data.homework : [];
+                return allHomeworkCache;
+            })
+            .catch(() => {
+                allHomeworkCache = [];
+                return allHomeworkCache;
+            });
+    }
+
+    function loadHomeworkOptionsForStudent(studentId, selectedHomeworkId = null) {
+        if (!studentId) {
+            populateHomeworkSelectOptions([], selectedHomeworkId);
+            formHomeworkId.disabled = false;
+            return Promise.resolve();
+        }
+        return Promise.all([
+            ensureHomeworkCache(),
+            fetch(`/api/students/${studentId}/plan`).then(r => r.json().then(data => ({ ok: r.ok, data }))),
+        ])
+            .then(([allHomework, planResponse]) => {
+                const steps = (planResponse.ok && planResponse.data && Array.isArray(planResponse.data.steps))
+                    ? planResponse.data.steps
+                    : [];
+                const stepIds = new Set(steps.map(s => Number(s.id)));
+                const filtered = allHomework.filter(hw => hw.plan_step_id && stepIds.has(Number(hw.plan_step_id)));
+                if (selectedHomeworkId && !filtered.some(hw => String(hw.id) === String(selectedHomeworkId))) {
+                    const selectedHw = allHomework.find(hw => String(hw.id) === String(selectedHomeworkId));
+                    if (selectedHw) {
+                        filtered.unshift({
+                            ...selectedHw,
+                            name: `${selectedHw.name} (вне текущего плана)`,
+                        });
+                    }
+                }
+                populateHomeworkSelectOptions(filtered, selectedHomeworkId);
+                formHomeworkId.disabled = false;
+            })
+            .catch(() => {
+                populateHomeworkSelectOptions([], selectedHomeworkId);
+                formHomeworkId.disabled = false;
+            });
+    }
+
     // Auto-fill next homework for student
     function autoFillNextHomework() {
         // Only auto-fill if:
@@ -625,6 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formStudentId.value = '';
             formHomeworkRequired.checked = true; // Reset to default
             formHomeworkId.value = '';
+            populateHomeworkSelectOptions([]);
             if (formPlanStepId) {
                 formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
                 formPlanStepId.disabled = false;
@@ -638,6 +704,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formTaskTypeId.addEventListener('change', () => {
         updateLessonFieldsVisibility();
+        const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
+        const isLesson = sel && sel.textContent === 'Урок';
+        if (isLesson) {
+            loadHomeworkOptionsForStudent(formStudentId.value, formHomeworkId.value || null)
+                .then(() => autoFillNextHomework());
+        }
     });
 
     // Auto-fill homework when student or homework_required changes
@@ -657,7 +729,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const selectedStudentId = formStudentId.value;
-        if (!selectedStudentId) return;
+        if (!selectedStudentId) {
+            populateHomeworkSelectOptions([]);
+            return;
+        }
 
         // Если у ученика нет назначенного плана обучения — переводим в "Планы обучения"
         fetch(`/api/students/${selectedStudentId}/plan`)
@@ -672,14 +747,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                autoFillNextHomework();
-                checkAndApplyPrepaid();
-                loadPlanStepsForStudent(selectedStudentId);
+                loadHomeworkOptionsForStudent(selectedStudentId)
+                    .then(() => {
+                        autoFillNextHomework();
+                        checkAndApplyPrepaid();
+                        loadPlanStepsForStudent(selectedStudentId);
+                    });
             })
             .catch(() => {
-                autoFillNextHomework();
-                checkAndApplyPrepaid();
-                loadPlanStepsForStudent(selectedStudentId);
+                loadHomeworkOptionsForStudent(selectedStudentId)
+                    .then(() => {
+                        autoFillNextHomework();
+                        checkAndApplyPrepaid();
+                        loadPlanStepsForStudent(selectedStudentId);
+                    });
             });
     });
 
@@ -774,6 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]);
             })
             .then(([studentData, statusData, typeData, homeworkData]) => {
+                allHomeworkCache = Array.isArray(homeworkData.homework) ? homeworkData.homework : [];
                 formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
                 studentData.students.forEach(student => {
                     const option = document.createElement('option');
@@ -806,13 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateLessonFieldsVisibility();
                 updateQuickStatusButtons();
 
-                formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
-                homeworkData.homework.forEach(hw => {
-                    const option = document.createElement('option');
-                    option.value = hw.id;
-                    option.textContent = hw.name;
-                    formHomeworkId.appendChild(option);
-                });
+                populateHomeworkSelectOptions([]);
 
                 modal.classList.remove('hidden');
                 syncTaskDeleteButtonVisibility();
@@ -1244,6 +1320,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch('/api/task-types/all').then(r => r.json()),
             fetch('/api/homework/all').then(r => r.json())
         ]).then(([studentData, statusData, typeData, homeworkData]) => {
+            allHomeworkCache = Array.isArray(homeworkData.homework) ? homeworkData.homework : [];
             editingTaskId = taskId;
             taskModalTitle.textContent = 'Редактирование задачи';
             taskSubmitBtn.textContent = 'Подтвердить изменения';
@@ -1301,14 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formTaskTypeId.value = task.task_type_id || '';
             updateLessonFieldsVisibility();
 
-            formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
-            homeworkData.homework.forEach(hw => {
-                const option = document.createElement('option');
-                option.value = hw.id;
-                option.textContent = hw.name;
-                formHomeworkId.appendChild(option);
-            });
-            formHomeworkId.value = task.homework_id || '';
+            loadHomeworkOptionsForStudent(task.student_id, task.homework_id || null);
 
             loadPlanStepsForStudent(task.student_id, task.plan_step_id);
             updateQuickStatusButtons();
@@ -1680,6 +1750,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch('/api/homework/all').then(r => r.json())
             ])
                 .then(([data, studentData, statusData, typeData, homeworkData]) => {
+                    allHomeworkCache = Array.isArray(homeworkData.homework) ? homeworkData.homework : [];
                     const task = data.tasks.find(t => t.id === id);
                     if (!task) {
                         alert('Задача не найдена');
@@ -1738,14 +1809,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateQuickStatusButtons();
 
                     // Populate homework dropdown
-                    formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
-                    homeworkData.homework.forEach(hw => {
-                        const option = document.createElement('option');
-                        option.value = hw.id;
-                        option.textContent = hw.name;
-                        formHomeworkId.appendChild(option);
-                    });
-                    formHomeworkId.value = task.homework_id || '';
+                    loadHomeworkOptionsForStudent(task.student_id, task.homework_id || null);
 
                     loadPlanStepsForStudent(task.student_id, task.plan_step_id);
                     modal.classList.remove('hidden');
