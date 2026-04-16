@@ -678,12 +678,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     opt.textContent = step.title;
                     formPlanStepId.appendChild(opt);
                 });
-                if (currentPlanStepId) {
-                    formPlanStepId.value = currentPlanStepId;
-                } else if (data.next_step_id) {
-                    formPlanStepId.value = data.next_step_id;
+                // Попробуем привязать этап к выбранному ДЗ
+                let desiredStepId = currentPlanStepId;
+                if (!desiredStepId && formHomeworkId && formHomeworkId.value) {
+                    const hwId = parseInt(formHomeworkId.value, 10);
+                    const hw = Array.isArray(allHomeworkCache)
+                        ? allHomeworkCache.find(h => Number(h.id) === hwId)
+                        : null;
+                    if (hw && hw.plan_step_id) {
+                        desiredStepId = hw.plan_step_id;
+                    }
+                }
+                const stepOptions = Array.from(formPlanStepId.options).map(opt => Number(opt.value));
+                if (desiredStepId && stepOptions.includes(Number(desiredStepId))) {
+                    formPlanStepId.value = String(desiredStepId);
+                } else if (data.next_step_id && stepOptions.includes(Number(data.next_step_id))) {
+                    formPlanStepId.value = String(data.next_step_id);
                 } else if (data.steps.length > 0) {
-                    formPlanStepId.value = data.steps[0].id;
+                    formPlanStepId.value = String(data.steps[0].id);
                 }
             })
             .catch(() => {});
@@ -807,6 +819,20 @@ document.addEventListener('DOMContentLoaded', () => {
     formHomeworkRequired.addEventListener('change', () => {
         autoFillNextHomework();
     });
+
+    if (formHomeworkId) {
+        formHomeworkId.addEventListener('change', () => {
+            if (!formPlanStepId || !formHomeworkId.value || !Array.isArray(allHomeworkCache)) return;
+            const hwId = parseInt(formHomeworkId.value, 10);
+            const hw = allHomeworkCache.find(h => Number(h.id) === hwId);
+            if (!hw || !hw.plan_step_id) return;
+            const desiredStepId = Number(hw.plan_step_id);
+            const stepOptions = Array.from(formPlanStepId.options).map(opt => Number(opt.value));
+            if (stepOptions.includes(desiredStepId)) {
+                formPlanStepId.value = String(desiredStepId);
+            }
+        });
+    }
 
     // Open modal and auto-fill fields
     toggleFiltersBtn.addEventListener('click', () => {
