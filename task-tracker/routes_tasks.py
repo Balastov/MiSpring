@@ -382,6 +382,99 @@ def create_lesson_series():
         return jsonify({'error': str(e)}), 500
 
 
+@tasks_bp.route('/api/lesson-series/<int:series_id>', methods=['GET'])
+@login_required
+def get_lesson_series(series_id):
+    series = db.get_or_404(LessonSeries, series_id)
+    if not user_has_role('admin', 'owner') and not (user_has_role('teacher') and series.teacher_id == current_user.id):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    # Для удобства UI вернём немного дополнительной информации
+    student = db.session.get(User, series.student_id)
+    teacher = db.session.get(User, series.teacher_id)
+    task_type = db.session.get(TaskType, series.task_type_id)
+    data = series.to_dict()
+    data.update({
+        'student_name': student.display_name if student else None,
+        'teacher_name': teacher.display_name if teacher else None,
+        'task_type_name': task_type.name if task_type else None,
+    })
+    return jsonify({'series': data})
+
+
+@tasks_bp.route('/api/lesson-series/<int:series_id>', methods=['PUT'])
+@login_required
+def update_lesson_series(series_id):
+    series = db.get_or_404(LessonSeries, series_id)
+    if not user_has_role('admin', 'owner') and not (user_has_role('teacher') and series.teacher_id == current_user.id):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    new_count = data.get('occurrences_count') or data.get('series_count')
+    if new_count is None:
+        return jsonify({'error': 'Не указано новое количество уроков в серии'}), 400
+    try:
+        new_count = int(new_count)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Некорректное количество уроков в серии'}), 400
+    if new_count < (series.occurrences_count or 0):
+        return jsonify({'error': 'Сокращение длины серии пока не поддерживается'}), 400
+    new_count = max(1, min(new_count, 52))
+
+    if not series.start_date:
+        return jsonify({'error': 'Серия не содержит даты начала'}), 400
+
+    try:
+        from datetime import timedelta
+
+        current_count = series.occurrences_count or 0
+        if new_count > current_count:
+            # Берём первый урок серии как шаблон для новых
+            template_task = Task.query.filter_by(series_id=series.id).order_by(Task.series_index.asc()).first()
+            if not template_task:
+                return jsonify({'error': 'Не найдены уроки этой серии'}), 400
+
+            duration = template_task.duration or 60
+            is_paid = template_task.is_paid
+            payment_date = template_task.payment_date
+
+            for idx in range(current_count, new_count):
+                dt_start = series.start_date + timedelta(weeks=idx)
+                dt_end = dt_start + timedelta(minutes=duration)
+                task = Task(
+                    description=template_task.description or '',
+                    created_at=datetime.now(),
+                    start_date=dt_start,
+                    end_date=dt_end,
+                    author=template_task.author,
+                    user_id=template_task.user_id,
+                    student_id=template_task.student_id,
+                    is_paid=is_paid,
+                    payment_date=payment_date,
+                    homework_id=None,
+                    homework_required=False,
+                    status_id=None,
+                    task_type_id=series.task_type_id,
+                    duration=duration,
+                    comment=None,
+                    plan_step_id=None,
+                    series_id=series.id,
+                    series_index=idx,
+                    series_exception=False,
+                )
+                db.session.add(task)
+
+            # Обновляем конец серии и occurrences_count
+            series.occurrences_count = new_count
+            series.end_date = series.start_date + timedelta(weeks=new_count - 1, minutes=duration)
+
+        db.session.commit()
+        return jsonify({'series': series.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['PUT'])
 @login_required
 def update_task(task_id):

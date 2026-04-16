@@ -148,7 +148,10 @@
             <div class="modal-header">
                 <h2 id="task-modal-title">Создание задачи</h2>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <span id="task-series-icon" class="task-series-icon hidden" title="Урок из серии">&#8635;</span>
+                    <div id="task-series-badge" class="task-series-badge hidden" title="Урок из серии">
+                        <span class="task-series-icon">&#8635;</span>
+                        <button type="button" class="btn-link" id="open-lesson-series-btn">Редактировать серию</button>
+                    </div>
                     <button class="modal-close" id="modal-close">&times;</button>
                 </div>
             </div>
@@ -265,6 +268,38 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Lesson Series Modal -->
+    <div id="lesson-series-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Серия уроков</h2>
+                <button class="modal-close" id="lesson-series-modal-close">&times;</button>
+            </div>
+            <div class="task-form" style="padding:16px 24px 24px;">
+                <div class="form-row">
+                    <label>Ученик</label>
+                    <input type="text" id="series-student-name" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Тип задачи</label>
+                    <input type="text" id="series-task-type-name" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Первый урок</label>
+                    <input type="datetime-local" id="series-start-date" readonly>
+                </div>
+                <div class="form-row">
+                    <label>Количество уроков</label>
+                    <input type="number" id="series-count-input" min="1" max="52">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" id="lesson-series-save-btn">Сохранить</button>
+                    <button type="button" class="btn-secondary" id="lesson-series-cancel-btn">Отмена</button>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -34,7 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Task modal title and submit button
     const taskModalTitle = document.getElementById('task-modal-title');
     const taskSubmitBtn = document.getElementById('task-submit-btn');
-    const taskSeriesIcon = document.getElementById('task-series-icon');
+    const taskSeriesBadge = document.getElementById('task-series-badge');
+    const openLessonSeriesBtn = document.getElementById('open-lesson-series-btn');
     const taskDeleteBtn = document.getElementById('task-delete-btn');
     const taskDeleteConfirmModal = document.getElementById('task-delete-confirm-modal');
     const taskDeleteConfirmYes = document.getElementById('task-delete-confirm-yes');
@@ -110,6 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const placeholderModal = document.getElementById('placeholder-modal');
     const placeholderModalTitle = document.getElementById('placeholder-modal-title');
     const placeholderModalClose = document.getElementById('placeholder-modal-close');
+
+    // Lesson series modal
+    const lessonSeriesModal = document.getElementById('lesson-series-modal');
+    const lessonSeriesModalClose = document.getElementById('lesson-series-modal-close');
+    const lessonSeriesSaveBtn = document.getElementById('lesson-series-save-btn');
+    const lessonSeriesCancelBtn = document.getElementById('lesson-series-cancel-btn');
+    const seriesStudentNameInput = document.getElementById('series-student-name');
+    const seriesTaskTypeNameInput = document.getElementById('series-task-type-name');
+    const seriesStartDateInput = document.getElementById('series-start-date');
+    const seriesCountInput = document.getElementById('series-count-input');
 
     // Statuses page elements
     const statusesPage = document.getElementById('statuses-page');
@@ -323,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isListVisible = true;
     let editingTaskId = null;
     let originalStudentId = null; // Store original student when editing
+    let currentSeriesId = null;
     let currentView = 'calendar';
     let useQuarterHourStep = false;
     let useFullDayRange = false;
@@ -805,8 +817,9 @@ document.addEventListener('DOMContentLoaded', () => {
         taskForm.reset();
         formIsPaid.disabled = false;
         editingTaskId = null;
+        currentSeriesId = null;
         syncTaskDeleteButtonVisibility();
-        if (taskSeriesIcon) taskSeriesIcon.classList.add('hidden');
+        if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
         if (formIsSeries) formIsSeries.checked = false;
     }
 
@@ -850,6 +863,75 @@ document.addEventListener('DOMContentLoaded', () => {
                     showAppToast(err.message || 'Ошибка удаления', true);
                     closeTaskDeleteConfirm();
                 });
+        });
+    }
+
+    function openLessonSeriesModal() {
+        if (!currentSeriesId || !lessonSeriesModal) return;
+        fetch(`/api/lesson-series/${currentSeriesId}`)
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    alert(data.error || 'Не удалось загрузить серию');
+                    return;
+                }
+                const s = data.series;
+                seriesStudentNameInput.value = s.student_name || '';
+                seriesTaskTypeNameInput.value = s.task_type_name || '';
+                seriesStartDateInput.value = s.start_date_iso || '';
+                seriesCountInput.value = s.occurrences_count || 1;
+                lessonSeriesModal.classList.remove('hidden');
+            })
+            .catch(() => alert('Не удалось загрузить серию'));
+    }
+
+    function closeLessonSeriesModal() {
+        if (lessonSeriesModal) lessonSeriesModal.classList.add('hidden');
+    }
+
+    if (openLessonSeriesBtn) {
+        openLessonSeriesBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            openLessonSeriesModal();
+        });
+    }
+    if (lessonSeriesModalClose) lessonSeriesModalClose.addEventListener('click', closeLessonSeriesModal);
+    if (lessonSeriesCancelBtn) lessonSeriesCancelBtn.addEventListener('click', closeLessonSeriesModal);
+    if (lessonSeriesModal) {
+        lessonSeriesModal.addEventListener('click', (e) => {
+            if (e.target === lessonSeriesModal) closeLessonSeriesModal();
+        });
+    }
+    if (lessonSeriesSaveBtn) {
+        lessonSeriesSaveBtn.addEventListener('click', () => {
+            if (!currentSeriesId) {
+                closeLessonSeriesModal();
+                return;
+            }
+            const countVal = seriesCountInput && seriesCountInput.value ? parseInt(seriesCountInput.value, 10) : null;
+            if (!countVal || countVal < 1) {
+                alert('Укажите корректное количество уроков');
+                return;
+            }
+            fetch(`/api/lesson-series/${currentSeriesId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ occurrences_count: countVal }),
+            })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.error || 'Не удалось сохранить серию');
+                        return;
+                    }
+                    closeLessonSeriesModal();
+                    // Обновляем календарь и таблицу
+                    if (currentView === 'calendar' && calendar) {
+                        calendar.refetchEvents();
+                    }
+                    fetchTasks(currentPage);
+                })
+                .catch(() => alert('Не удалось сохранить серию'));
         });
     }
 
@@ -1117,9 +1199,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             formStudentId.value = task.student_id || '';
             originalStudentId = task.student_id || null; // Store original for confirmation
-            if (taskSeriesIcon) {
-                if (task.series_id) taskSeriesIcon.classList.remove('hidden');
-                else taskSeriesIcon.classList.add('hidden');
+            if (task.series_id) {
+                currentSeriesId = task.series_id;
+                if (taskSeriesBadge) taskSeriesBadge.classList.remove('hidden');
+            } else {
+                currentSeriesId = null;
+                if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
             }
 
             formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
