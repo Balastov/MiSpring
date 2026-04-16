@@ -734,13 +734,16 @@ def update_task(task_id):
         # Проверяем, стал ли статус "Проведён"
         new_status_id = task.status_id
         if new_status_id and new_status_id != old_status_id:
-            cancelled_status = TaskStatus.query.filter_by(name='Отменён').first()
+            cancelled_statuses = TaskStatus.query.filter(
+                (TaskStatus.name == 'Отменён') | (TaskStatus.group == 'cancelled')
+            ).all()
+            cancelled_status_ids = {s.id for s in cancelled_statuses}
             conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
             lesson_type = TaskType.query.filter_by(name='Урок').first()
 
             # Для уроков серии: при отмене сдвигаем ДЗ "влево" для следующих уроков
             if (task.series_id and lesson_type and task.task_type_id == lesson_type.id
-                    and cancelled_status and cancelled_status.id == new_status_id):
+                    and new_status_id in cancelled_status_ids):
                 series_tasks = Task.query.filter_by(series_id=task.series_id).order_by(
                     Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()
                 ).all()
@@ -754,6 +757,7 @@ def update_task(task_id):
                 found = False
                 prev_hw_id = task.homework_id
                 source_required = bool(task.homework_required)
+                assigned_first_next = False
                 for t in series_tasks:
                     if not found:
                         if t.id == task.id:
@@ -770,6 +774,13 @@ def update_task(task_id):
                     if not source_required:
                         t.homework_id = None
                         t.homework_required = False
+                        continue
+
+                    # "Сдвиг влево": первый следующий урок получает то же ДЗ, что у отменённого.
+                    if not assigned_first_next:
+                        t.homework_id = prev_hw_id
+                        t.homework_required = bool(prev_hw_id)
+                        assigned_first_next = True
                         continue
 
                     next_hw_id, _reason = _find_next_homework_id(
