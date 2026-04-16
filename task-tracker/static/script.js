@@ -306,6 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Calendar elements
     const viewToggleBtn = document.getElementById('view-toggle-btn');
     const calendarStepToggleBtn = document.getElementById('calendar-step-toggle-btn');
+    const calendarRangeToggleBtn = document.getElementById('calendar-range-toggle-btn');
     const calendarContainer = document.getElementById('calendar-container');
     const tableView = document.getElementById('table-view');
 
@@ -321,6 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let originalStudentId = null; // Store original student when editing
     let currentView = 'calendar';
     let useQuarterHourStep = false;
+    let useFullDayRange = false;
     let calendar = null;
     let currentTaskStatusesPage = 1;
     let editingStatusId = null;
@@ -990,6 +992,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initCalendar() {
         const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
+        const slotMinTime = useFullDayRange ? '00:00:00' : '07:00:00';
+        const slotMaxTime = useFullDayRange ? '24:00:00' : '23:00:00';
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
             firstDay: 1, // Start week on Monday
@@ -1001,8 +1005,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nowIndicator: true,
             snapDuration: step,
             slotDuration: step,
-            slotMinTime: '07:00:00',
-            slotMaxTime: '23:00:00',
+            slotMinTime: slotMinTime,
+            slotMaxTime: slotMaxTime,
             scrollTime: '08:00:00',
             headerToolbar: {
                 left: 'prev,next today',
@@ -1047,6 +1051,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ? 'Убрать шаг в 15 минут'
             : 'Добавить шаг в 15 минут';
         calendarStepToggleBtn.classList.toggle('btn-view-toggle--active', useQuarterHourStep);
+    }
+
+    function updateCalendarRangeToggleButton() {
+        if (!calendarRangeToggleBtn) return;
+        calendarRangeToggleBtn.textContent = useFullDayRange ? 'Сутки' : 'Рабочий день';
+        calendarRangeToggleBtn.classList.toggle('btn-view-toggle--active', useFullDayRange);
+    }
+
+    function applyCalendarRangeOptions() {
+        if (!calendar) return;
+        calendar.setOption('slotMinTime', useFullDayRange ? '00:00:00' : '07:00:00');
+        calendar.setOption('slotMaxTime', useFullDayRange ? '24:00:00' : '23:00:00');
+        calendar.updateSize();
     }
 
     function openEditFromCalendar(event) {
@@ -1157,6 +1174,15 @@ document.addEventListener('DOMContentLoaded', () => {
             calendar.setOption('snapDuration', step);
             calendar.setOption('slotDuration', step);
             calendar.updateSize();
+        });
+    }
+
+    if (calendarRangeToggleBtn) {
+        updateCalendarRangeToggleButton();
+        calendarRangeToggleBtn.addEventListener('click', () => {
+            useFullDayRange = !useFullDayRange;
+            updateCalendarRangeToggleButton();
+            applyCalendarRangeOptions();
         });
     }
 
