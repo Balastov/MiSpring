@@ -304,6 +304,11 @@ select.filter-control {
     color: #fff;
 }
 
+.btn-view-toggle--active {
+    background: var(--color-primary);
+    color: #fff;
+}
+
 /* ========== Calendar ========== */
 #calendar-container {
     margin-top: 12px;

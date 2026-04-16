@@ -305,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Calendar elements
     const viewToggleBtn = document.getElementById('view-toggle-btn');
+    const calendarStepToggleBtn = document.getElementById('calendar-step-toggle-btn');
     const calendarContainer = document.getElementById('calendar-container');
     const tableView = document.getElementById('table-view');
 
@@ -319,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingTaskId = null;
     let originalStudentId = null; // Store original student when editing
     let currentView = 'calendar';
+    let useQuarterHourStep = false;
     let calendar = null;
     let currentTaskStatusesPage = 1;
     let editingStatusId = null;
@@ -987,6 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initCalendar() {
+        const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
             firstDay: 1, // Start week on Monday
@@ -996,8 +999,8 @@ document.addEventListener('DOMContentLoaded', () => {
             eventLongPressDelay: 300,
             selectLongPressDelay: 300,
             nowIndicator: true,
-            snapDuration: '00:15:00',
-            slotDuration: '00:15:00',
+            snapDuration: step,
+            slotDuration: step,
             slotMinTime: '07:00:00',
             slotMaxTime: '23:00:00',
             scrollTime: '08:00:00',
@@ -1036,6 +1039,14 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', () => {
             if (calendar) calendar.updateSize();
         });
+    }
+
+    function updateCalendarStepToggleButton() {
+        if (!calendarStepToggleBtn) return;
+        calendarStepToggleBtn.textContent = useQuarterHourStep
+            ? 'Убрать шаг в 15 минут'
+            : 'Добавить шаг в 15 минут';
+        calendarStepToggleBtn.classList.toggle('btn-view-toggle--active', useQuarterHourStep);
     }
 
     function openEditFromCalendar(event) {
@@ -1135,6 +1146,19 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchTasks();
         }
     });
+
+    if (calendarStepToggleBtn) {
+        updateCalendarStepToggleButton();
+        calendarStepToggleBtn.addEventListener('click', () => {
+            useQuarterHourStep = !useQuarterHourStep;
+            updateCalendarStepToggleButton();
+            if (!calendar) return;
+            const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
+            calendar.setOption('snapDuration', step);
+            calendar.setOption('slotDuration', step);
+            calendar.updateSize();
+        });
+    }
 
     // Fetch paginated tasks
     function fetchTasks(page) {
