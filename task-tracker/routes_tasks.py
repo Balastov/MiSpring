@@ -264,6 +264,124 @@ def add_task():
     return jsonify(task.to_dict()), 201
 
 
+@tasks_bp.route('/api/lesson-series', methods=['POST'])
+@login_required
+def create_lesson_series():
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    student_id = data.get('student_id')
+    task_type_id = data.get('task_type_id')
+    start_date_raw = data.get('start_date')
+    duration = data.get('duration')
+    is_paid = bool(data.get('is_paid', False))
+    payment_date_raw = data.get('payment_date')
+    homework_id = data.get('homework_id')
+    homework_required = bool(data.get('homework_required', True))
+    comment = (data.get('comment') or '').strip() or None
+    series_count = data.get('occurrences_count') or data.get('series_count') or 10
+
+    try:
+        series_count = int(series_count)
+    except (TypeError, ValueError):
+        series_count = 10
+    series_count = max(1, min(series_count, 52))
+
+    if not student_id:
+        return jsonify({'error': 'Укажите ученика'}), 400
+    if not task_type_id:
+        return jsonify({'error': 'Укажите тип задачи'}), 400
+    start_date = parse_datetime(start_date_raw)
+    if not start_date:
+        return jsonify({'error': 'Некорректная дата начала'}), 400
+    if not duration or int(duration) <= 0:
+        return jsonify({'error': 'Некорректная продолжительность'}), 400
+    duration = int(duration)
+
+    if homework_required and not homework_id:
+        return jsonify({'error': 'Для серии уроков необходимо указать ДЗ первого урока или снять флаг \"ДЗ обязательно\"'}), 400
+
+    if comment and len(comment) > 500:
+        return jsonify({'error': 'Комментарий: не более 500 символов'}), 400
+
+    payment_date = parse_datetime(payment_date_raw) if payment_date_raw else None
+
+    # Validate foreign keys
+    student = db.session.get(User, student_id)
+    if not student:
+        return jsonify({'error': 'Ученик не найден'}), 400
+    task_type = db.session.get(TaskType, task_type_id)
+    if not task_type:
+        return jsonify({'error': 'Тип задачи не найден'}), 400
+    first_homework = None
+    if homework_id:
+        first_homework = db.session.get(Homework, homework_id)
+        if not first_homework:
+            return jsonify({'error': 'Домашнее задание не найдено'}), 400
+
+    try:
+        from datetime import timedelta
+
+        series = LessonSeries(
+            student_id=student_id,
+            teacher_id=current_user.id,
+            task_type_id=task_type_id,
+            start_date=start_date,
+            end_date=None,
+            recurrence_rule='WEEKLY',
+            occurrences_count=series_count,
+            first_homework_id=homework_id if homework_required else None,
+            homework_required_default=homework_required,
+        )
+        db.session.add(series)
+        db.session.flush()  # get series.id
+
+        end_date_first = start_date + timedelta(minutes=duration)
+
+        in_progress = None
+        if homework_required and homework_id:
+            in_progress = TaskStatus.query.filter_by(name='В работе').first()
+            if not in_progress:
+                in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
+
+        for idx in range(series_count):
+            dt_start = start_date + timedelta(weeks=idx)
+            dt_end = dt_start + timedelta(minutes=duration)
+            task = Task(
+                description='',
+                created_at=start_date if idx == 0 else datetime.now(),
+                start_date=dt_start,
+                end_date=dt_end,
+                author=current_user.display_name,
+                user_id=current_user.id,
+                student_id=student_id,
+                is_paid=is_paid,
+                payment_date=payment_date,
+                homework_id=homework_id if (idx == 0 and homework_required and homework_id) else None,
+                homework_required=homework_required if idx == 0 else False,
+                status_id=in_progress.id if (idx == 0 and in_progress) else None,
+                task_type_id=task_type_id,
+                duration=duration,
+                comment=comment if idx == 0 else None,
+                plan_step_id=None,
+                series_id=series.id,
+                series_index=idx,
+                series_exception=False,
+            )
+            db.session.add(task)
+
+        # Update series end_date to the last lesson end
+        if series_count > 0:
+            series.end_date = end_date_first + timedelta(weeks=series_count - 1)
+
+        db.session.commit()
+        return jsonify({'series': series.to_dict()}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['PUT'])
 @login_required
 def update_task(task_id):

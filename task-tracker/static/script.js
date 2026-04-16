@@ -71,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const planStepWarning = document.getElementById('plan-step-warning');
     let _pendingAdvancePlanStep = null;
     const formStatusId = document.getElementById('form-status-id');
+    const formIsSeries = document.getElementById('form-is-series');
+    const formSeriesCount = document.getElementById('form-series-count');
     const formTaskTypeId = document.getElementById('form-task-type-id');
     const formDuration = document.getElementById('form-duration');
     const formComment = document.getElementById('form-comment');
@@ -733,6 +735,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 formClosingDate.value = '';
                 if (formPlanStepId) formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
                 if (planStepWarning) planStepWarning.classList.add('hidden');
+        if (formIsSeries) formIsSeries.checked = false;
+        if (formSeriesCount) formSeriesCount.value = 10;
 
                 // Fetch and populate student, status, task type, and homework dropdowns
                 return Promise.all([
@@ -803,6 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editingTaskId = null;
         syncTaskDeleteButtonVisibility();
         if (taskSeriesIcon) taskSeriesIcon.classList.add('hidden');
+        if (formIsSeries) formIsSeries.checked = false;
     }
 
     modalClose.addEventListener('click', closeModal);
@@ -1348,13 +1353,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const isEditing = !!editingTaskId;
+        const createAsSeries = !isEditing && formIsSeries && formIsSeries.checked;
         const method = isEditing ? 'PUT' : 'POST';
-        const url = isEditing ? `/api/tasks/${editingTaskId}` : '/api/tasks';
+        const url = isEditing ? `/api/tasks/${editingTaskId}` : (createAsSeries ? '/api/lesson-series' : '/api/tasks');
+
+        let payload = taskData;
+        if (createAsSeries) {
+            const countVal = formSeriesCount && formSeriesCount.value ? parseInt(formSeriesCount.value, 10) : 10;
+            payload = {
+                student_id: taskData.student_id,
+                task_type_id: taskData.task_type_id,
+                start_date: taskData.start_date,
+                duration: taskData.duration,
+                is_paid: taskData.is_paid,
+                payment_date: taskData.payment_date,
+                homework_id: taskData.homework_id,
+                homework_required: taskData.homework_required,
+                comment: taskData.comment,
+                occurrences_count: isNaN(countVal) ? 10 : countVal,
+            };
+        }
 
         fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(taskData)
+            body: JSON.stringify(payload)
         })
         .then(r => {
             if (r.ok) {

@@ -235,6 +235,19 @@
                     </select>
                 </div>
                 <div class="form-row">
+                    <label>Серия уроков</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+                            <input type="checkbox" id="form-is-series">
+                            <span>Создать серию (еженедельно)</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+                            <span>Количество уроков</span>
+                            <input type="number" id="form-series-count" min="1" max="52" value="10" style="width:70px;">
+                        </label>
+                    </div>
+                </div>
+                <div class="form-row">
                     <label>Комментарий</label>
                     <textarea id="form-comment" maxlength="500" rows="3"></textarea>
                 </div>
