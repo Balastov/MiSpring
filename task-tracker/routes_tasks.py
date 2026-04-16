@@ -244,6 +244,15 @@ def _parse_repeat_until(raw_value):
     return parse_datetime(value)
 
 
+def _validate_repeat_until_limit(repeat_until):
+    if not repeat_until:
+        return None
+    max_allowed_date = (datetime.now() + timedelta(days=365)).date()
+    if repeat_until.date() > max_allowed_date:
+        return 'Дата окончания серии должна быть не позже, чем через год от текущей даты'
+    return None
+
+
 def _add_months(dt, months):
     month = dt.month - 1 + months
     year = dt.year + month // 12
@@ -548,6 +557,9 @@ def create_lesson_series():
         return jsonify({'error': 'Укажите дату окончания серии'}), 400
     if repeat_until < start_date:
         return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
+    limit_error = _validate_repeat_until_limit(repeat_until)
+    if limit_error:
+        return jsonify({'error': limit_error}), 400
     if not duration or int(duration) <= 0:
         return jsonify({'error': 'Некорректная продолжительность'}), 400
     duration = int(duration)
@@ -672,6 +684,9 @@ def update_lesson_series(series_id):
         return jsonify({'error': 'Серия не содержит даты начала'}), 400
     if repeat_until < series.start_date:
         return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
+    limit_error = _validate_repeat_until_limit(repeat_until)
+    if limit_error:
+        return jsonify({'error': limit_error}), 400
     new_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or _normalize_recurrence_rule(series.recurrence_rule) or 'WEEKLY'
 
     try:
@@ -876,6 +891,78 @@ def update_task(task_id):
         if 'plan_step_id' in data:
             task.plan_step_id = data['plan_step_id']
 
+        recurrence_rule = _normalize_recurrence_rule(data.get('recurrence_rule'))
+        repeat_until = _parse_repeat_until(data.get('repeat_until')) if ('repeat_until' in data or recurrence_rule) else None
+        lesson_type_for_recurrence = TaskType.query.filter_by(name='Урок').first()
+        if recurrence_rule and not task.series_id:
+            if not lesson_type_for_recurrence or task.task_type_id != lesson_type_for_recurrence.id:
+                return jsonify({'error': 'Повтор можно включить только для типа задачи "Урок"'}), 400
+            if not task.start_date:
+                return jsonify({'error': 'Для создания серии укажите дату начала урока'}), 400
+            if not repeat_until:
+                return jsonify({'error': 'Укажите дату окончания серии'}), 400
+            if repeat_until < task.start_date:
+                return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
+            limit_error = _validate_repeat_until_limit(repeat_until)
+            if limit_error:
+                return jsonify({'error': limit_error}), 400
+
+            starts = _build_series_starts(task.start_date, repeat_until, recurrence_rule)
+            if not starts:
+                return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
+
+            new_series = LessonSeries(
+                student_id=task.student_id,
+                teacher_id=task.user_id or current_user.id,
+                task_type_id=task.task_type_id,
+                start_date=task.start_date,
+                end_date=starts[-1],
+                recurrence_rule=recurrence_rule,
+                occurrences_count=len(starts),
+                first_homework_id=task.homework_id if task.homework_required else None,
+                homework_required_default=bool(task.homework_required),
+            )
+            db.session.add(new_series)
+            db.session.flush()
+
+            task.series_id = new_series.id
+            task.series_index = 0
+            task.series_exception = False
+            if task.duration:
+                task.end_date = task.start_date + timedelta(minutes=task.duration)
+
+            current_hw_id = task.homework_id if task.homework_required else None
+            for idx, dt_start in enumerate(starts):
+                if idx == 0:
+                    continue
+                if task.homework_required and current_hw_id:
+                    next_hw_id, _reason = _find_next_homework_id(task.student_id, from_homework_id=current_hw_id)
+                    current_hw_id = next_hw_id
+                dt_end = dt_start + timedelta(minutes=(task.duration or 60))
+                new_task = Task(
+                    description=task.description or '',
+                    created_at=datetime.now(),
+                    start_date=dt_start,
+                    end_date=dt_end,
+                    author=task.author,
+                    user_id=task.user_id,
+                    student_id=task.student_id,
+                    is_paid=task.is_paid,
+                    payment_date=task.payment_date,
+                    homework_id=current_hw_id if task.homework_required else None,
+                    homework_required=task.homework_required if (task.homework_required and current_hw_id) else False,
+                    status_id=None,
+                    task_type_id=task.task_type_id,
+                    duration=task.duration,
+                    comment=None,
+                    closing_date=None,
+                    plan_step_id=None,
+                    series_id=new_series.id,
+                    series_index=idx,
+                    series_exception=False,
+                )
+                db.session.add(new_task)
+
         # Помечаем урок серии как исключение при изменении ДЗ/флага
         if task.series_id:
             homework_changed = ('homework_id' in data and data.get('homework_id') != old_homework_id)
@@ -965,6 +1052,9 @@ def update_task(task_id):
                     _recalculate_future_homework_for_student(old_student_id)
                 if task.task_type_id == lesson_type_row.id and task.student_id:
                     _recalculate_future_homework_for_student(task.student_id)
+
+            if recurrence_rule and task.task_type_id == lesson_type_row.id and task.student_id:
+                _recalculate_future_homework_for_student(task.student_id)
 
         return jsonify(task.to_dict())
     except Exception as e:

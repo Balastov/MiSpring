@@ -550,6 +550,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!formRecurrenceRule || !formSeriesUntilDate) return;
         const enabled = !!formRecurrenceRule.value;
         formSeriesUntilDate.disabled = !enabled;
+        formSeriesUntilDate.required = enabled;
+        const maxAllowed = new Date();
+        maxAllowed.setFullYear(maxAllowed.getFullYear() + 1);
+        formSeriesUntilDate.max = new Date(maxAllowed.getTime() - maxAllowed.getTimezoneOffset() * 60000)
+            .toISOString().slice(0, 10);
         if (!enabled) formSeriesUntilDate.value = '';
     }
     if (formRecurrenceRule) formRecurrenceRule.addEventListener('change', updateSeriesUntilState);
@@ -1617,12 +1622,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isEditing = !!editingTaskId;
         const createAsSeries = !isEditing && formRecurrenceRule && !!formRecurrenceRule.value;
-        const method = isEditing ? 'PUT' : 'POST';
-        const url = isEditing ? `/api/tasks/${editingTaskId}` : (createAsSeries ? '/api/lesson-series' : '/api/tasks');
-
-        let payload = taskData;
-        if (createAsSeries) {
-            const untilVal = formSeriesUntilDate ? formSeriesUntilDate.value : '';
+        const recurrenceSelected = !!(formRecurrenceRule && formRecurrenceRule.value);
+        const untilVal = formSeriesUntilDate ? formSeriesUntilDate.value : '';
+        if (recurrenceSelected) {
             if (!untilVal) {
                 alert('Укажите дату окончания серии');
                 return;
@@ -1632,6 +1634,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Дата окончания серии должна быть не раньше даты начала');
                 return;
             }
+            const maxAllowed = new Date();
+            maxAllowed.setFullYear(maxAllowed.getFullYear() + 1);
+            const maxAllowedIso = new Date(maxAllowed.getTime() - maxAllowed.getTimezoneOffset() * 60000)
+                .toISOString().slice(0, 10);
+            if (untilVal > maxAllowedIso) {
+                alert('Дата окончания серии должна быть не позже, чем через год от текущей даты');
+                return;
+            }
+        }
+        const method = isEditing ? 'PUT' : 'POST';
+        const url = isEditing ? `/api/tasks/${editingTaskId}` : (createAsSeries ? '/api/lesson-series' : '/api/tasks');
+
+        let payload = taskData;
+        if (createAsSeries) {
             payload = {
                 student_id: taskData.student_id,
                 task_type_id: taskData.task_type_id,
@@ -1644,6 +1660,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 comment: taskData.comment,
                 recurrence_rule: formRecurrenceRule.value,
                 end_date: untilVal,
+            };
+        } else if (isEditing && !currentSeriesId && recurrenceSelected) {
+            payload = {
+                ...taskData,
+                recurrence_rule: formRecurrenceRule.value,
+                repeat_until: untilVal,
             };
         }
 
