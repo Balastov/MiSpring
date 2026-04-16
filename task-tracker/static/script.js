@@ -1098,19 +1098,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
                     if (!ok) {
-                        alert(data.error || 'Не удалось пересчитать ДЗ для серии');
+                        alert(data.error || 'Не удалось пересчитать ДЗ для ученика');
                         return;
                     }
                     const missing = typeof data.missing === 'number' ? data.missing : 0;
                     alert(missing > 0
-                        ? `Обновлено уроков: ${data.updated}. На некоторых уроках ДЗ не проставилось (нет следующего по плану): ${missing}`
-                        : `Обновлено уроков: ${data.updated}`);
+                        ? `Обновлено будущих уроков ученика: ${data.updated}. На некоторых уроках ДЗ не проставилось (нет следующего по плану): ${missing}`
+                        : `Обновлено будущих уроков ученика: ${data.updated}`);
                     if (currentView === 'calendar' && calendar) {
                         calendar.refetchEvents();
                     }
                     fetchTasks(currentPage);
                 })
-                .catch(() => alert('Не удалось пересчитать ДЗ для серии'));
+                .catch(() => alert('Не удалось пересчитать ДЗ для ученика'));
         });
     }
 

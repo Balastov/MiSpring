@@ -127,6 +127,102 @@ def _find_next_homework_id(student_id, from_homework_id=None):
     return ordered_hw_ids[0], 'from_first_homework_in_plan'
 
 
+def _task_status_terminal(st):
+    """Проведён / Отменён (или группы done/cancelled)."""
+    if not st:
+        return False
+    name = st.name or ''
+    group = (st.group or '').lower() if st.group else ''
+    return name in ('Проведён', 'Отменён') or group in ('done', 'cancelled')
+
+
+def _recalculate_future_homework_for_student(student_id):
+    """
+    Назначает ДЗ по цепочке справочника на все будущие уроки ученика (тип «Урок»),
+    независимо от серии. Проведённые и отменённые уроки не меняются и задают якорь для цепочки.
+    Возвращает число обновлённых задач.
+    """
+    if not student_id:
+        return 0
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return 0
+
+    ordered_hw_ids, _step_ids, _up, _reason = _get_ordered_plan_homework_ids(student_id)
+    if ordered_hw_ids is None:
+        return 0
+    catalog_set = set(ordered_hw_ids) if ordered_hw_ids else set()
+
+    now = datetime.now()
+    tasks = Task.query.filter_by(
+        student_id=student_id,
+        task_type_id=lesson_type.id,
+    ).filter(
+        Task.start_date.isnot(None),
+    ).order_by(Task.start_date.asc(), Task.id.asc()).all()
+
+    if not tasks:
+        return 0
+
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    status_map = {}
+    if status_ids:
+        status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+
+    chain_prev = None
+    updated = 0
+
+    for t in tasks:
+        st = status_map.get(t.status_id) if t.status_id else None
+        terminal = _task_status_terminal(st)
+        is_future = t.start_date >= now
+
+        if not is_future or terminal:
+            if terminal and st and st.name == 'Проведён':
+                if t.homework_id and int(t.homework_id) in catalog_set:
+                    chain_prev = int(t.homework_id)
+            elif not terminal and t.start_date and t.start_date < now:
+                if t.homework_required and t.homework_id and int(t.homework_id) in catalog_set:
+                    chain_prev = int(t.homework_id)
+            continue
+
+        if not catalog_set:
+            if t.homework_id is not None or t.homework_required:
+                t.homework_id = None
+                t.homework_required = False
+                if t.series_id:
+                    t.series_exception = False
+                updated += 1
+            continue
+
+        if t.homework_required:
+            if chain_prev is not None:
+                nh, _reason = _find_next_homework_id(student_id, from_homework_id=chain_prev)
+            else:
+                nh, _reason = _find_next_homework_id(student_id, None)
+            if nh is None:
+                t.homework_id = None
+                t.homework_required = False
+            else:
+                t.homework_id = nh
+                t.homework_required = True
+                chain_prev = int(nh)
+            if t.series_id:
+                t.series_exception = False
+            updated += 1
+        else:
+            if t.homework_id is not None or t.homework_required:
+                t.homework_id = None
+                t.homework_required = False
+                if t.series_id:
+                    t.series_exception = False
+                updated += 1
+
+    if updated:
+        db.session.commit()
+    return updated
+
+
 def _normalize_recurrence_rule(raw):
     value = (raw or '').strip().upper()
     allowed = {'WEEKLY', 'BIWEEKLY', 'MONTHLY'}
@@ -400,6 +496,9 @@ def add_task():
     )
     db.session.add(task)
     db.session.commit()
+    lesson_type_row = TaskType.query.filter_by(name='Урок').first()
+    if task.student_id and lesson_type_row and task.task_type_id == lesson_type_row.id:
+        _recalculate_future_homework_for_student(task.student_id)
     return jsonify(task.to_dict()), 201
 
 
@@ -486,12 +585,8 @@ def create_lesson_series():
             if not in_progress:
                 in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
 
-        current_hw_id = homework_id if homework_required else None
         for idx, dt_start in enumerate(starts):
             dt_end = dt_start + timedelta(minutes=duration)
-            if idx > 0 and homework_required and current_hw_id:
-                next_hw_id, _reason = _find_next_homework_id(student_id, from_homework_id=current_hw_id)
-                current_hw_id = next_hw_id
             task = Task(
                 description='',
                 created_at=start_date if idx == 0 else datetime.now(),
@@ -502,8 +597,8 @@ def create_lesson_series():
                 student_id=student_id,
                 is_paid=is_paid,
                 payment_date=payment_date,
-                homework_id=current_hw_id if homework_required else None,
-                homework_required=homework_required if (homework_required and current_hw_id) else False,
+                homework_id=(homework_id if (idx == 0 and homework_required) else None),
+                homework_required=homework_required if idx == 0 else homework_required,
                 status_id=in_progress.id if (idx == 0 and in_progress) else None,
                 task_type_id=task_type_id,
                 duration=duration,
@@ -516,6 +611,7 @@ def create_lesson_series():
             db.session.add(task)
 
         db.session.commit()
+        _recalculate_future_homework_for_student(student_id)
         return jsonify({'series': series.to_dict()}), 201
     except Exception as e:
         db.session.rollback()
@@ -646,6 +742,7 @@ def update_lesson_series(series_id):
         series.recurrence_rule = new_rule
 
         db.session.commit()
+        _recalculate_future_homework_for_student(series.student_id)
         return jsonify({'series': series.to_dict()}), 200
     except Exception as e:
         db.session.rollback()
@@ -663,40 +760,8 @@ def recalc_series_homework_from(series_id, task_id):
     if task.series_id != series.id:
         return jsonify({'error': 'Урок не принадлежит указанной серии'}), 400
 
-    source_hw_id = task.homework_id
-    source_required = bool(task.homework_required)
-
-    # На всякий случай: если у исходного урока нет ДЗ и флаг снят,
-    # то следующие тоже должны стать "без ДЗ".
-    tasks = Task.query.filter_by(series_id=series.id).order_by(Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()).all()
-
-    found = False
-    updated = 0
-    missing = 0
-    prev_hw_id = source_hw_id
-    for t in tasks:
-        if not found:
-            if t.id == task.id:
-                found = True
-            continue
-        if t.series_exception:
-            continue
-        if not source_required:
-            t.homework_id = None
-            t.homework_required = False
-            updated += 1
-            continue
-
-        next_hw_id, _reason = _find_next_homework_id(t.student_id, from_homework_id=prev_hw_id) if prev_hw_id else (None, 'no_prev')
-        prev_hw_id = next_hw_id
-        t.homework_id = next_hw_id
-        t.homework_required = True
-        updated += 1
-        if not next_hw_id:
-            missing += 1
-
-    db.session.commit()
-    return jsonify({'updated': updated, 'missing': missing})
+    updated = _recalculate_future_homework_for_student(task.student_id)
+    return jsonify({'updated': updated, 'missing': 0})
 
 
 @tasks_bp.route('/api/lesson-series/<int:series_id>', methods=['DELETE'])
@@ -705,6 +770,8 @@ def delete_lesson_series(series_id):
     series = db.get_or_404(LessonSeries, series_id)
     if not user_has_role('admin', 'owner') and not (user_has_role('teacher') and series.teacher_id == current_user.id):
         return jsonify({'error': 'Недостаточно прав'}), 403
+
+    student_id_for_recalc = series.student_id
 
     # Удаляем только уроки, которые НЕ проведены и НЕ отменены
     tasks = Task.query.filter_by(series_id=series.id).all()
@@ -730,6 +797,7 @@ def delete_lesson_series(series_id):
         db.session.delete(series)
 
     db.session.commit()
+    _recalculate_future_homework_for_student(student_id_for_recalc)
     return jsonify({'deleted_tasks': removed})
 
 
@@ -748,6 +816,9 @@ def update_task(task_id):
     try:
         old_homework_id = task.homework_id
         old_homework_required = task.homework_required
+        old_student_id = task.student_id
+        old_task_type_id = task.task_type_id
+        old_status_id = task.status_id
 
         if 'description' in data:
             description = (data['description'] or '').strip()
@@ -774,7 +845,6 @@ def update_task(task_id):
                     task.status_id = in_progress.id
         if 'homework_required' in data:
             task.homework_required = bool(data['homework_required'])
-        old_status_id = task.status_id
         if 'status_id' in data:
             task.status_id = data['status_id']
         if 'task_type_id' in data:
@@ -810,57 +880,10 @@ def update_task(task_id):
             conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
             lesson_type = TaskType.query.filter_by(name='Урок').first()
 
-            # Для уроков серии: при отмене сдвигаем ДЗ "влево" для следующих уроков
-            if (task.series_id and lesson_type and task.task_type_id == lesson_type.id
-                    and new_status_id in cancelled_status_ids):
-                series_tasks = Task.query.filter_by(series_id=task.series_id).order_by(
-                    Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()
-                ).all()
-
-                status_ids = {t.status_id for t in series_tasks if t.status_id}
-                status_map = {}
-                if status_ids:
-                    statuses = TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()
-                    status_map = {s.id: s for s in statuses}
-
-                found = False
-                prev_hw_id = task.homework_id
-                source_required = bool(task.homework_required)
-                assigned_first_next = False
-                for t in series_tasks:
-                    if not found:
-                        if t.id == task.id:
-                            found = True
-                        continue
-
-                    st = status_map.get(t.status_id) if t.status_id else None
-                    st_name = st.name if st else None
-                    st_group = (st.group or '').lower() if st and st.group else ''
-                    # Не трогаем уже проведённые/отменённые уроки
-                    if st_name in ('Проведён', 'Отменён') or st_group in ('done', 'cancelled'):
-                        continue
-
-                    if not source_required:
-                        t.homework_id = None
-                        t.homework_required = False
-                        continue
-
-                    # "Сдвиг влево": первый следующий урок получает то же ДЗ, что у отменённого.
-                    if not assigned_first_next:
-                        t.homework_id = prev_hw_id
-                        t.homework_required = bool(prev_hw_id)
-                        assigned_first_next = True
-                        continue
-
-                    next_hw_id, _reason = _find_next_homework_id(
-                        t.student_id,
-                        from_homework_id=prev_hw_id
-                    ) if prev_hw_id else (None, 'no_prev')
-                    prev_hw_id = next_hw_id
-                    t.homework_id = next_hw_id
-                    t.homework_required = bool(next_hw_id)
-
-                db.session.commit()
+            # Отмена урока (одиночного или в серии): пересчёт ДЗ на все будущие уроки ученика
+            if (lesson_type and task.task_type_id == lesson_type.id
+                    and new_status_id in cancelled_status_ids and task.student_id):
+                _recalculate_future_homework_for_student(task.student_id)
 
             if (conducted_status and conducted_status.id == new_status_id
                     and lesson_type and task.task_type_id == lesson_type.id
@@ -900,6 +923,34 @@ def update_task(task_id):
                                     user_plan.next_step_id = current_step.id
                                 db.session.commit()
 
+        lesson_type_row = TaskType.query.filter_by(name='Урок').first()
+        if lesson_type_row:
+            if (
+                'homework_required' in data
+                and not bool(data.get('homework_required'))
+                and old_homework_required
+                and task.task_type_id == lesson_type_row.id
+                and task.student_id
+            ):
+                _recalculate_future_homework_for_student(task.student_id)
+
+            conducted_row = TaskStatus.query.filter_by(name='Проведён').first()
+            if (
+                conducted_row
+                and new_status_id
+                and old_status_id != new_status_id
+                and conducted_row.id == new_status_id
+                and task.task_type_id == lesson_type_row.id
+                and task.student_id
+            ):
+                _recalculate_future_homework_for_student(task.student_id)
+
+            if 'student_id' in data and old_student_id != task.student_id:
+                if old_task_type_id == lesson_type_row.id and old_student_id:
+                    _recalculate_future_homework_for_student(old_student_id)
+                if task.task_type_id == lesson_type_row.id and task.student_id:
+                    _recalculate_future_homework_for_student(task.student_id)
+
         return jsonify(task.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -914,8 +965,13 @@ def delete_task(task_id):
     if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
 
+    sid = task.student_id
+    tt_id = task.task_type_id
     db.session.delete(task)
     db.session.commit()
+    lesson_type_row = TaskType.query.filter_by(name='Урок').first()
+    if sid and lesson_type_row and tt_id == lesson_type_row.id:
+        _recalculate_future_homework_for_student(sid)
     return '', 204
 
 
