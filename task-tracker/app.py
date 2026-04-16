@@ -24,7 +24,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence
+from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries
 
 
 # ========== Flask-Login Callbacks ==========
@@ -152,6 +152,12 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN homework_submitted_at DATETIME')
     if 'homework_teacher_remarks' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN homework_teacher_remarks TEXT')
+    if 'series_id' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN series_id INTEGER')
+    if 'series_index' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN series_index INTEGER')
+    if 'series_exception' not in existing_columns:
+        cursor.execute('ALTER TABLE task ADD COLUMN series_exception BOOLEAN DEFAULT 0')
     conn.commit()
 
     # Таблица файлов подтверждения ДЗ
@@ -237,6 +243,27 @@ with app.app_context():
         conn.commit()
     if 'plan_step_id' not in homework_cols:
         cursor.execute('ALTER TABLE homework ADD COLUMN plan_step_id INTEGER')
+        conn.commit()
+
+    # Таблица серий уроков
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='lesson_series'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE lesson_series (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            teacher_id INTEGER NOT NULL,
+            task_type_id INTEGER NOT NULL,
+            start_date DATETIME NOT NULL,
+            end_date DATETIME,
+            recurrence_rule VARCHAR(200),
+            occurrences_count INTEGER,
+            first_homework_id INTEGER,
+            homework_required_default BOOLEAN NOT NULL DEFAULT 1,
+            created_at DATETIME
+        )''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_series_student_id ON lesson_series(student_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_series_teacher_id ON lesson_series(teacher_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_series_task_type_id ON lesson_series(task_type_id)')
         conn.commit()
 
     conn.close()

@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
-from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep, HomeworkEvidence
+from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep, HomeworkEvidence, LessonSeries
 from helpers import parse_datetime, user_has_role
 import os
 import asyncio

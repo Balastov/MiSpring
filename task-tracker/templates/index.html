@@ -147,7 +147,10 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="task-modal-title">Создание задачи</h2>
-                <button class="modal-close" id="modal-close">&times;</button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span id="task-series-icon" class="task-series-icon hidden" title="Урок из серии">&#8635;</span>
+                    <button class="modal-close" id="modal-close">&times;</button>
+                </div>
             </div>
             <form id="task-form" class="task-form" novalidate>
                 <div class="form-row">

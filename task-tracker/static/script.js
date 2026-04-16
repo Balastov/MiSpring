@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Task modal title and submit button
     const taskModalTitle = document.getElementById('task-modal-title');
     const taskSubmitBtn = document.getElementById('task-submit-btn');
+    const taskSeriesIcon = document.getElementById('task-series-icon');
     const taskDeleteBtn = document.getElementById('task-delete-btn');
     const taskDeleteConfirmModal = document.getElementById('task-delete-confirm-modal');
     const taskDeleteConfirmYes = document.getElementById('task-delete-confirm-yes');
@@ -695,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
         originalStudentId = null;
         taskModalTitle.textContent = 'Создание задачи';
         taskSubmitBtn.textContent = 'Подтвердить и создать';
+            if (taskSeriesIcon) taskSeriesIcon.classList.add('hidden');
 
         // Fetch next task ID from API
         fetch('/api/tasks?page=1')
@@ -800,6 +802,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formIsPaid.disabled = false;
         editingTaskId = null;
         syncTaskDeleteButtonVisibility();
+        if (taskSeriesIcon) taskSeriesIcon.classList.add('hidden');
     }
 
     modalClose.addEventListener('click', closeModal);
@@ -1034,6 +1037,11 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResize: function(info) {
                 handleEventMove(info);
             },
+            eventClassNames: function(arg) {
+                const props = arg.event.extendedProps || {};
+                if (props.series_id) return ['fc-event-series'];
+                return [];
+            },
             height: '100%',
             eventDisplay: 'block',
             dayMaxEvents: 4,
@@ -1104,6 +1112,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             formStudentId.value = task.student_id || '';
             originalStudentId = task.student_id || null; // Store original for confirmation
+            if (taskSeriesIcon) {
+                if (task.series_id) taskSeriesIcon.classList.remove('hidden');
+                else taskSeriesIcon.classList.add('hidden');
+            }
 
             formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
             statusData.statuses.forEach(status => {

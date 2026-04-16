@@ -109,6 +109,9 @@ class Task(db.Model):
     plan_step_id = db.Column(db.Integer, nullable=True)
     homework_submitted_at = db.Column(db.DateTime, nullable=True)
     homework_teacher_remarks = db.Column(db.Text, nullable=True)
+    series_id = db.Column(db.Integer, nullable=True, index=True)
+    series_index = db.Column(db.Integer, nullable=True)
+    series_exception = db.Column(db.Boolean, default=False, nullable=False)
 
     def to_dict(self):
         return {
@@ -139,6 +142,9 @@ class Task(db.Model):
             'homework_submitted_at': self.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if self.homework_submitted_at else None,
             'homework_submitted_at_iso': self.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if self.homework_submitted_at else None,
             'homework_teacher_remarks': self.homework_teacher_remarks,
+            'series_id': self.series_id,
+            'series_index': self.series_index,
+            'series_exception': self.series_exception,
         }
 
 
@@ -270,6 +276,35 @@ class UserPlan(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
     template_id = db.Column(db.Integer, db.ForeignKey('plan_template.id'), nullable=False)
     next_step_id = db.Column(db.Integer, nullable=True)
+
+
+class LessonSeries(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task_type_id = db.Column(db.Integer, db.ForeignKey('task_type.id'), nullable=False)
+    start_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=True)
+    recurrence_rule = db.Column(db.String(200), nullable=True)
+    occurrences_count = db.Column(db.Integer, nullable=True)
+    first_homework_id = db.Column(db.Integer, db.ForeignKey('homework.id'), nullable=True)
+    homework_required_default = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'teacher_id': self.teacher_id,
+            'task_type_id': self.task_type_id,
+            'start_date_iso': self.start_date.strftime('%Y-%m-%dT%H:%M') if self.start_date else None,
+            'end_date_iso': self.end_date.strftime('%Y-%m-%dT%H:%M') if self.end_date else None,
+            'recurrence_rule': self.recurrence_rule,
+            'occurrences_count': self.occurrences_count,
+            'first_homework_id': self.first_homework_id,
+            'homework_required_default': self.homework_required_default,
+            'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M') if self.created_at else None,
+        }
 
 
 class HomeworkEvidence(db.Model):
