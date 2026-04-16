@@ -734,8 +734,54 @@ def update_task(task_id):
         # Проверяем, стал ли статус "Проведён"
         new_status_id = task.status_id
         if new_status_id and new_status_id != old_status_id:
+            cancelled_status = TaskStatus.query.filter_by(name='Отменён').first()
             conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
             lesson_type = TaskType.query.filter_by(name='Урок').first()
+
+            # Для уроков серии: при отмене сдвигаем ДЗ "влево" для следующих уроков
+            if (task.series_id and lesson_type and task.task_type_id == lesson_type.id
+                    and cancelled_status and cancelled_status.id == new_status_id):
+                series_tasks = Task.query.filter_by(series_id=task.series_id).order_by(
+                    Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()
+                ).all()
+
+                status_ids = {t.status_id for t in series_tasks if t.status_id}
+                status_map = {}
+                if status_ids:
+                    statuses = TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()
+                    status_map = {s.id: s for s in statuses}
+
+                found = False
+                prev_hw_id = task.homework_id
+                source_required = bool(task.homework_required)
+                for t in series_tasks:
+                    if not found:
+                        if t.id == task.id:
+                            found = True
+                        continue
+
+                    st = status_map.get(t.status_id) if t.status_id else None
+                    st_name = st.name if st else None
+                    st_group = (st.group or '').lower() if st and st.group else ''
+                    # Не трогаем уже проведённые/отменённые уроки
+                    if st_name in ('Проведён', 'Отменён') or st_group in ('done', 'cancelled'):
+                        continue
+
+                    if not source_required:
+                        t.homework_id = None
+                        t.homework_required = False
+                        continue
+
+                    next_hw_id, _reason = _find_next_homework_id(
+                        t.student_id,
+                        from_homework_id=prev_hw_id
+                    ) if prev_hw_id else (None, 'no_prev')
+                    prev_hw_id = next_hw_id
+                    t.homework_id = next_hw_id
+                    t.homework_required = bool(next_hw_id)
+
+                db.session.commit()
+
             if (conducted_status and conducted_status.id == new_status_id
                     and lesson_type and task.task_type_id == lesson_type.id
                     and task.student_id):
