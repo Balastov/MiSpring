@@ -53,8 +53,10 @@ def _get_student_plan_template_and_steps(student_id):
 def _get_ordered_plan_homework_ids(student_id):
     """
     Возвращает (homework_ids, step_ids, up, reason_if_empty_or_none).
-    homework_ids упорядочены по шагам плана (order_num), затем по Homework.id.
+    homework_ids упорядочены по справочнику ДЗ, привязанному к плану ученика.
     """
+    from models import HomeworkCatalog
+
     template, steps, up = _get_student_plan_template_and_steps(student_id)
     if not template:
         return None, None, up, 'plan_missing'
@@ -62,19 +64,23 @@ def _get_ordered_plan_homework_ids(student_id):
         return None, None, up, 'plan_no_steps'
 
     step_ids = [s.id for s in steps]
-    step_index = {sid: idx for idx, sid in enumerate(step_ids)}
-    items = Homework.query.filter(Homework.plan_step_id.in_(step_ids)).all()
-    items.sort(key=lambda hw: (step_index.get(hw.plan_step_id, 10**9), hw.id))
+
+    # Берем только тот справочник, который явно привязан к плану ученика.
+    catalog = HomeworkCatalog.query.filter_by(plan_template_id=template.id).first()
+    if not catalog:
+        return [], step_ids, up, 'plan_catalog_missing'
+
+    items = Homework.query.filter_by(catalog_id=catalog.id).order_by(Homework.id.asc()).all()
     hw_ids = [hw.id for hw in items]
     if not hw_ids:
-        return [], step_ids, up, 'plan_homework_empty'
+        return [], step_ids, up, 'plan_catalog_homework_empty'
     return hw_ids, step_ids, up, None
 
 
 def _find_next_homework_id(student_id, from_homework_id=None):
     """
     Возвращает (homework_id, reason) или (None, reason).
-    Логика основана на плане 2-го уровня ученика и шагах плана.
+    Логика основана на плане 2-го уровня ученика и справочнике ДЗ, привязанном к этому плану.
     """
     ordered_hw_ids, step_ids, up, reason = _get_ordered_plan_homework_ids(student_id)
     if ordered_hw_ids is None:
