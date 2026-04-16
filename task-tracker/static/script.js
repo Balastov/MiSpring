@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formHomeworkRequired = document.getElementById('form-homework-required');
     const homeworkRequiredRow = document.getElementById('homework-required-row');
     const homeworkRow = document.getElementById('homework-row');
+    const seriesApplyRow = document.getElementById('series-apply-row');
     const formPlanStepId = document.getElementById('form-plan-step-id');
     const planStepRow = document.getElementById('plan-step-row');
     const planStepWarning = document.getElementById('plan-step-warning');
@@ -820,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSeriesId = null;
         syncTaskDeleteButtonVisibility();
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
+        if (seriesApplyRow) seriesApplyRow.classList.add('hidden');
         if (formIsSeries) formIsSeries.checked = false;
     }
 
@@ -932,6 +934,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchTasks(currentPage);
                 })
                 .catch(() => alert('Не удалось сохранить серию'));
+        });
+    }
+
+    const applySeriesHomeworkBtn = document.getElementById('apply-series-homework-btn');
+    if (applySeriesHomeworkBtn) {
+        applySeriesHomeworkBtn.addEventListener('click', () => {
+            if (!currentSeriesId || !editingTaskId) return;
+            fetch(`/api/lesson-series/${currentSeriesId}/recalculate-homework-from/${editingTaskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.error || 'Не удалось пересчитать ДЗ для серии');
+                        return;
+                    }
+                    alert(`Обновлено уроков: ${data.updated}`);
+                    if (currentView === 'calendar' && calendar) {
+                        calendar.refetchEvents();
+                    }
+                    fetchTasks(currentPage);
+                })
+                .catch(() => alert('Не удалось пересчитать ДЗ для серии'));
         });
     }
 
@@ -1202,9 +1228,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (task.series_id) {
                 currentSeriesId = task.series_id;
                 if (taskSeriesBadge) taskSeriesBadge.classList.remove('hidden');
+                if (seriesApplyRow) seriesApplyRow.classList.remove('hidden');
             } else {
                 currentSeriesId = null;
                 if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
+                if (seriesApplyRow) seriesApplyRow.classList.add('hidden');
             }
 
             formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';

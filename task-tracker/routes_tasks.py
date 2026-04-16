@@ -475,6 +475,42 @@ def update_lesson_series(series_id):
         return jsonify({'error': str(e)}), 500
 
 
+@tasks_bp.route('/api/lesson-series/<int:series_id>/recalculate-homework-from/<int:task_id>', methods=['POST'])
+@login_required
+def recalc_series_homework_from(series_id, task_id):
+    series = db.get_or_404(LessonSeries, series_id)
+    if not user_has_role('admin', 'owner') and not (user_has_role('teacher') and series.teacher_id == current_user.id):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    task = db.get_or_404(Task, task_id)
+    if task.series_id != series.id:
+        return jsonify({'error': 'Урок не принадлежит указанной серии'}), 400
+
+    source_hw_id = task.homework_id
+    source_required = bool(task.homework_required)
+
+    # На всякий случай: если у исходного урока нет ДЗ и флаг снят,
+    # то следующие тоже должны стать "без ДЗ".
+    tasks = Task.query.filter_by(series_id=series.id).order_by(Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()).all()
+
+    found = False
+    updated = 0
+    for t in tasks:
+        if not found:
+            if t.id == task.id:
+                found = True
+            continue
+        # Пропускаем уроки, которые уже были изменены вручную
+        if t.series_exception:
+            continue
+        t.homework_id = source_hw_id if source_required else None
+        t.homework_required = source_required
+        updated += 1
+
+    db.session.commit()
+    return jsonify({'updated': updated})
+
+
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['PUT'])
 @login_required
 def update_task(task_id):
@@ -488,6 +524,9 @@ def update_task(task_id):
         return jsonify({'error': 'Нет данных'}), 400
 
     try:
+        old_homework_id = task.homework_id
+        old_homework_required = task.homework_required
+
         if 'description' in data:
             description = (data['description'] or '').strip()
             if len(description) > 100:
@@ -529,6 +568,13 @@ def update_task(task_id):
             task.closing_date = parse_datetime(data['closing_date'])
         if 'plan_step_id' in data:
             task.plan_step_id = data['plan_step_id']
+
+        # Помечаем урок серии как исключение при изменении ДЗ/флага
+        if task.series_id:
+            homework_changed = ('homework_id' in data and data.get('homework_id') != old_homework_id)
+            required_changed = ('homework_required' in data and bool(data.get('homework_required')) != bool(old_homework_required))
+            if homework_changed or required_changed:
+                task.series_exception = True
 
         db.session.commit()
 
