@@ -570,6 +570,7 @@ select.filter-control {
 
 .form-row input[type="text"],
 .form-row input[type="number"],
+.form-row input[type="date"],
 .form-row input[type="datetime-local"],
 .form-row textarea {
     flex: 1;
@@ -583,6 +584,7 @@ select.filter-control {
 
 .form-row input[type="text"]:focus,
 .form-row input[type="number"]:focus,
+.form-row input[type="date"]:focus,
 .form-row input[type="datetime-local"]:focus,
 .form-row textarea:focus {
     outline: none;
@@ -1494,6 +1496,7 @@ select.filter-control {
 
     .form-row input[type="text"],
     .form-row input[type="number"],
+    .form-row input[type="date"],
     .form-row input[type="datetime-local"],
     .form-row textarea,
     .form-row select.form-select {

@@ -1020,7 +1020,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Укажите дату окончания серии');
                 return;
             }
-            if (seriesStartDateInput && seriesStartDateInput.value && untilVal < seriesStartDateInput.value) {
+            const startDateOnly = seriesStartDateInput && seriesStartDateInput.value
+                ? seriesStartDateInput.value.slice(0, 10)
+                : '';
+            if (startDateOnly && untilVal < startDateOnly) {
                 alert('Дата окончания серии должна быть не раньше первого урока');
                 return;
             }
@@ -1624,7 +1627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Укажите дату окончания серии');
                 return;
             }
-            if (taskData.start_date && untilVal < taskData.start_date) {
+            const startDateOnly = taskData.start_date ? String(taskData.start_date).slice(0, 10) : '';
+            if (startDateOnly && untilVal < startDateOnly) {
                 alert('Дата окончания серии должна быть не раньше даты начала');
                 return;
             }

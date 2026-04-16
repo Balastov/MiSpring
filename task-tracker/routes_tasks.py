@@ -229,6 +229,21 @@ def _normalize_recurrence_rule(raw):
     return value if value in allowed else None
 
 
+def _parse_repeat_until(raw_value):
+    """
+    Поддерживает yyyy-mm-dd (как конец дня) и yyyy-mm-ddTHH:MM.
+    """
+    if not raw_value:
+        return None
+    value = str(raw_value).strip()
+    if len(value) == 10:
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').replace(hour=23, minute=59)
+        except ValueError:
+            return None
+    return parse_datetime(value)
+
+
 def _add_months(dt, months):
     month = dt.month - 1 + months
     year = dt.year + month // 12
@@ -528,7 +543,7 @@ def create_lesson_series():
     start_date = parse_datetime(start_date_raw)
     if not start_date:
         return jsonify({'error': 'Некорректная дата начала'}), 400
-    repeat_until = parse_datetime(repeat_until_raw)
+    repeat_until = _parse_repeat_until(repeat_until_raw)
     if not repeat_until:
         return jsonify({'error': 'Укажите дату окончания серии'}), 400
     if repeat_until < start_date:
@@ -649,7 +664,7 @@ def update_lesson_series(series_id):
     repeat_until_raw = data.get('repeat_until') or data.get('end_date')
     if not repeat_until_raw:
         return jsonify({'error': 'Не указана дата окончания серии'}), 400
-    repeat_until = parse_datetime(repeat_until_raw)
+    repeat_until = _parse_repeat_until(repeat_until_raw)
     if not repeat_until:
         return jsonify({'error': 'Некорректная дата окончания серии'}), 400
 
