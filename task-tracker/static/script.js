@@ -73,8 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const planStepWarning = document.getElementById('plan-step-warning');
     let _pendingAdvancePlanStep = null;
     const formStatusId = document.getElementById('form-status-id');
-    const formIsSeries = document.getElementById('form-is-series');
-    const formSeriesCount = document.getElementById('form-series-count');
+    const formRecurrenceRule = document.getElementById('form-recurrence-rule');
+    const formSeriesUntilDate = document.getElementById('form-series-until-date');
     const formTaskTypeId = document.getElementById('form-task-type-id');
     const formDuration = document.getElementById('form-duration');
     const formComment = document.getElementById('form-comment');
@@ -122,7 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const seriesStudentNameInput = document.getElementById('series-student-name');
     const seriesTaskTypeNameInput = document.getElementById('series-task-type-name');
     const seriesStartDateInput = document.getElementById('series-start-date');
-    const seriesCountInput = document.getElementById('series-count-input');
+    const seriesRecurrenceRuleInput = document.getElementById('series-recurrence-rule');
+    const seriesUntilDateInput = document.getElementById('series-until-date-input');
 
     // Statuses page elements
     const statusesPage = document.getElementById('statuses-page');
@@ -545,6 +546,15 @@ document.addEventListener('DOMContentLoaded', () => {
         recalcEndDate();
     });
 
+    function updateSeriesUntilState() {
+        if (!formRecurrenceRule || !formSeriesUntilDate) return;
+        const enabled = !!formRecurrenceRule.value;
+        formSeriesUntilDate.disabled = !enabled;
+        if (!enabled) formSeriesUntilDate.value = '';
+    }
+    if (formRecurrenceRule) formRecurrenceRule.addEventListener('change', updateSeriesUntilState);
+    updateSeriesUntilState();
+
     function populateHomeworkSelectOptions(homeworkItems, selectedHomeworkId = null) {
         formHomeworkId.innerHTML = '<option value="">-- Выберите --</option>';
         homeworkItems.forEach(hw => {
@@ -842,8 +852,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 formClosingDate.value = '';
                 if (formPlanStepId) formPlanStepId.innerHTML = '<option value="">-- Выберите этап --</option>';
                 if (planStepWarning) planStepWarning.classList.add('hidden');
-        if (formIsSeries) formIsSeries.checked = false;
-        if (formSeriesCount) formSeriesCount.value = 10;
+                if (formRecurrenceRule) formRecurrenceRule.value = '';
+                if (formSeriesUntilDate) formSeriesUntilDate.value = '';
+                updateSeriesUntilState();
 
                 // Fetch and populate student, status, task type, and homework dropdowns
                 return Promise.all([
@@ -911,7 +922,9 @@ document.addEventListener('DOMContentLoaded', () => {
         syncTaskDeleteButtonVisibility();
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
         if (seriesApplyRow) seriesApplyRow.classList.add('hidden');
-        if (formIsSeries) formIsSeries.checked = false;
+        if (formRecurrenceRule) formRecurrenceRule.value = '';
+        if (formSeriesUntilDate) formSeriesUntilDate.value = '';
+        updateSeriesUntilState();
     }
 
     modalClose.addEventListener('click', closeModal);
@@ -970,7 +983,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 seriesStudentNameInput.value = s.student_name || '';
                 seriesTaskTypeNameInput.value = s.task_type_name || '';
                 seriesStartDateInput.value = s.start_date_iso || '';
-                seriesCountInput.value = s.occurrences_count || 1;
+                if (seriesRecurrenceRuleInput) {
+                    seriesRecurrenceRuleInput.value = s.recurrence_rule || 'WEEKLY';
+                }
+                if (seriesUntilDateInput) seriesUntilDateInput.value = s.end_date_iso || '';
                 lessonSeriesModal.classList.remove('hidden');
             })
             .catch(() => alert('Не удалось загрузить серию'));
@@ -999,15 +1015,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeLessonSeriesModal();
                 return;
             }
-            const countVal = seriesCountInput && seriesCountInput.value ? parseInt(seriesCountInput.value, 10) : null;
-            if (!countVal || countVal < 1) {
-                alert('Укажите корректное количество уроков');
+            const untilVal = seriesUntilDateInput ? seriesUntilDateInput.value : '';
+            if (!untilVal) {
+                alert('Укажите дату окончания серии');
+                return;
+            }
+            if (seriesStartDateInput && seriesStartDateInput.value && untilVal < seriesStartDateInput.value) {
+                alert('Дата окончания серии должна быть не раньше первого урока');
                 return;
             }
             fetch(`/api/lesson-series/${currentSeriesId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ occurrences_count: countVal }),
+                body: JSON.stringify({
+                    end_date: untilVal,
+                    recurrence_rule: seriesRecurrenceRuleInput ? seriesRecurrenceRuleInput.value : 'WEEKLY',
+                }),
             })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
@@ -1015,12 +1038,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert(data.error || 'Не удалось сохранить серию');
                         return;
                     }
+                    const ruleVal = seriesRecurrenceRuleInput ? seriesRecurrenceRuleInput.value : 'WEEKLY';
+                    const recurrenceLabels = {
+                        WEEKLY: 'каждую неделю',
+                        BIWEEKLY: 'через неделю',
+                        MONTHLY: 'каждый месяц',
+                    };
+                    const untilLabel = untilVal ? untilVal.replace('T', ' ') : '';
                     closeLessonSeriesModal();
                     // Обновляем календарь и таблицу
                     if (currentView === 'calendar' && calendar) {
                         calendar.refetchEvents();
                     }
                     fetchTasks(currentPage);
+                    showAppToast(`Серия обновлена: ${recurrenceLabels[ruleVal] || 'каждую неделю'}, до ${untilLabel}`);
                 })
                 .catch(() => alert('Не удалось сохранить серию'));
         });
@@ -1582,13 +1613,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const isEditing = !!editingTaskId;
-        const createAsSeries = !isEditing && formIsSeries && formIsSeries.checked;
+        const createAsSeries = !isEditing && formRecurrenceRule && !!formRecurrenceRule.value;
         const method = isEditing ? 'PUT' : 'POST';
         const url = isEditing ? `/api/tasks/${editingTaskId}` : (createAsSeries ? '/api/lesson-series' : '/api/tasks');
 
         let payload = taskData;
         if (createAsSeries) {
-            const countVal = formSeriesCount && formSeriesCount.value ? parseInt(formSeriesCount.value, 10) : 10;
+            const untilVal = formSeriesUntilDate ? formSeriesUntilDate.value : '';
+            if (!untilVal) {
+                alert('Укажите дату окончания серии');
+                return;
+            }
+            if (taskData.start_date && untilVal < taskData.start_date) {
+                alert('Дата окончания серии должна быть не раньше даты начала');
+                return;
+            }
             payload = {
                 student_id: taskData.student_id,
                 task_type_id: taskData.task_type_id,
@@ -1599,7 +1638,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 homework_id: taskData.homework_id,
                 homework_required: taskData.homework_required,
                 comment: taskData.comment,
-                occurrences_count: isNaN(countVal) ? 10 : countVal,
+                recurrence_rule: formRecurrenceRule.value,
+                end_date: untilVal,
             };
         }
 

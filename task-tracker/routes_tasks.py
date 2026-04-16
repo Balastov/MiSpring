@@ -8,7 +8,8 @@ import asyncio
 import re
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+import calendar
 from uuid import uuid4
 
 tasks_bp = Blueprint('tasks', __name__)
@@ -124,6 +125,42 @@ def _find_next_homework_id(student_id, from_homework_id=None):
             if hw and hw.plan_step_id == up.next_step_id:
                 return hw.id, 'from_userplan_next_step'
     return ordered_hw_ids[0], 'from_first_homework_in_plan'
+
+
+def _normalize_recurrence_rule(raw):
+    value = (raw or '').strip().upper()
+    allowed = {'WEEKLY', 'BIWEEKLY', 'MONTHLY'}
+    return value if value in allowed else None
+
+
+def _add_months(dt, months):
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _next_series_date(dt, recurrence_rule):
+    rule = _normalize_recurrence_rule(recurrence_rule) or 'WEEKLY'
+    if rule == 'BIWEEKLY':
+        return dt + timedelta(weeks=2)
+    if rule == 'MONTHLY':
+        return _add_months(dt, 1)
+    return dt + timedelta(weeks=1)
+
+
+def _build_series_starts(start_date, repeat_until, recurrence_rule, max_points=260):
+    if not start_date or not repeat_until:
+        return []
+    result = []
+    current = start_date
+    for _ in range(max_points):
+        if current > repeat_until:
+            break
+        result.append(current)
+        current = _next_series_date(current, recurrence_rule)
+    return result
 
 
 def _clean_html_for_telegram(html):
@@ -382,13 +419,8 @@ def create_lesson_series():
     homework_id = data.get('homework_id')
     homework_required = bool(data.get('homework_required', True))
     comment = (data.get('comment') or '').strip() or None
-    series_count = data.get('occurrences_count') or data.get('series_count') or 10
-
-    try:
-        series_count = int(series_count)
-    except (TypeError, ValueError):
-        series_count = 10
-    series_count = max(1, min(series_count, 52))
+    recurrence_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or 'WEEKLY'
+    repeat_until_raw = data.get('repeat_until') or data.get('end_date')
 
     if not student_id:
         return jsonify({'error': 'Укажите ученика'}), 400
@@ -397,6 +429,11 @@ def create_lesson_series():
     start_date = parse_datetime(start_date_raw)
     if not start_date:
         return jsonify({'error': 'Некорректная дата начала'}), 400
+    repeat_until = parse_datetime(repeat_until_raw)
+    if not repeat_until:
+        return jsonify({'error': 'Укажите дату окончания серии'}), 400
+    if repeat_until < start_date:
+        return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
     if not duration or int(duration) <= 0:
         return jsonify({'error': 'Некорректная продолжительность'}), 400
     duration = int(duration)
@@ -425,23 +462,23 @@ def create_lesson_series():
             return jsonify({'error': 'Домашнее задание не найдено'}), 400
 
     try:
-        from datetime import timedelta
+        starts = _build_series_starts(start_date, repeat_until, recurrence_rule)
+        if not starts:
+            return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
 
         series = LessonSeries(
             student_id=student_id,
             teacher_id=current_user.id,
             task_type_id=task_type_id,
             start_date=start_date,
-            end_date=None,
-            recurrence_rule='WEEKLY',
-            occurrences_count=series_count,
+            end_date=starts[-1],
+            recurrence_rule=recurrence_rule,
+            occurrences_count=len(starts),
             first_homework_id=homework_id if homework_required else None,
             homework_required_default=homework_required,
         )
         db.session.add(series)
         db.session.flush()  # get series.id
-
-        end_date_first = start_date + timedelta(minutes=duration)
 
         in_progress = None
         if homework_required and homework_id:
@@ -450,8 +487,7 @@ def create_lesson_series():
                 in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
 
         current_hw_id = homework_id if homework_required else None
-        for idx in range(series_count):
-            dt_start = start_date + timedelta(weeks=idx)
+        for idx, dt_start in enumerate(starts):
             dt_end = dt_start + timedelta(minutes=duration)
             if idx > 0 and homework_required and current_hw_id:
                 next_hw_id, _reason = _find_next_homework_id(student_id, from_homework_id=current_hw_id)
@@ -478,10 +514,6 @@ def create_lesson_series():
                 series_exception=False,
             )
             db.session.add(task)
-
-        # Update series end_date to the last lesson end
-        if series_count > 0:
-            series.end_date = end_date_first + timedelta(weeks=series_count - 1)
 
         db.session.commit()
         return jsonify({'series': series.to_dict()}), 201
@@ -518,63 +550,100 @@ def update_lesson_series(series_id):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
     data = request.get_json(force=True, silent=True) or {}
-    new_count = data.get('occurrences_count') or data.get('series_count')
-    if new_count is None:
-        return jsonify({'error': 'Не указано новое количество уроков в серии'}), 400
-    try:
-        new_count = int(new_count)
-    except (TypeError, ValueError):
-        return jsonify({'error': 'Некорректное количество уроков в серии'}), 400
-    if new_count < (series.occurrences_count or 0):
-        return jsonify({'error': 'Сокращение длины серии пока не поддерживается'}), 400
-    new_count = max(1, min(new_count, 52))
+    repeat_until_raw = data.get('repeat_until') or data.get('end_date')
+    if not repeat_until_raw:
+        return jsonify({'error': 'Не указана дата окончания серии'}), 400
+    repeat_until = parse_datetime(repeat_until_raw)
+    if not repeat_until:
+        return jsonify({'error': 'Некорректная дата окончания серии'}), 400
 
     if not series.start_date:
         return jsonify({'error': 'Серия не содержит даты начала'}), 400
+    if repeat_until < series.start_date:
+        return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
+    new_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or _normalize_recurrence_rule(series.recurrence_rule) or 'WEEKLY'
 
     try:
-        from datetime import timedelta
+        desired_starts = _build_series_starts(series.start_date, repeat_until, new_rule)
+        if not desired_starts:
+            return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
 
-        current_count = series.occurrences_count or 0
-        if new_count > current_count:
-            # Берём первый урок серии как шаблон для новых
-            template_task = Task.query.filter_by(series_id=series.id).order_by(Task.series_index.asc()).first()
-            if not template_task:
-                return jsonify({'error': 'Не найдены уроки этой серии'}), 400
+        existing_tasks = Task.query.filter_by(series_id=series.id).order_by(
+            Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()
+        ).all()
+        if not existing_tasks:
+            return jsonify({'error': 'Не найдены уроки этой серии'}), 400
 
-            duration = template_task.duration or 60
-            is_paid = template_task.is_paid
-            payment_date = template_task.payment_date
+        # Берём первый урок серии как шаблон для добавляемых уроков
+        template_task = existing_tasks[0]
+        duration = template_task.duration or 60
+        is_paid = template_task.is_paid
+        payment_date = template_task.payment_date
 
-            for idx in range(current_count, new_count):
-                dt_start = series.start_date + timedelta(weeks=idx)
-                dt_end = dt_start + timedelta(minutes=duration)
-                task = Task(
-                    description=template_task.description or '',
-                    created_at=datetime.now(),
-                    start_date=dt_start,
-                    end_date=dt_end,
-                    author=template_task.author,
-                    user_id=template_task.user_id,
-                    student_id=template_task.student_id,
-                    is_paid=is_paid,
-                    payment_date=payment_date,
-                    homework_id=None,
-                    homework_required=False,
-                    status_id=None,
-                    task_type_id=series.task_type_id,
-                    duration=duration,
-                    comment=None,
-                    plan_step_id=None,
-                    series_id=series.id,
-                    series_index=idx,
-                    series_exception=False,
-                )
-                db.session.add(task)
+        desired_keys = {dt.strftime('%Y-%m-%dT%H:%M') for dt in desired_starts}
+        existing_by_key = {}
+        for t in existing_tasks:
+            if t.start_date:
+                existing_by_key[t.start_date.strftime('%Y-%m-%dT%H:%M')] = t
 
-            # Обновляем конец серии и occurrences_count
-            series.occurrences_count = new_count
-            series.end_date = series.start_date + timedelta(weeks=new_count - 1, minutes=duration)
+        # Добавляем недостающие уроки серии по новой дате окончания
+        for dt_start in desired_starts:
+            key = dt_start.strftime('%Y-%m-%dT%H:%M')
+            if key in existing_by_key:
+                continue
+            dt_end = dt_start + timedelta(minutes=duration)
+            task = Task(
+                description=template_task.description or '',
+                created_at=datetime.now(),
+                start_date=dt_start,
+                end_date=dt_end,
+                author=template_task.author,
+                user_id=template_task.user_id,
+                student_id=template_task.student_id,
+                is_paid=is_paid,
+                payment_date=payment_date,
+                homework_id=None,
+                homework_required=False,
+                status_id=None,
+                task_type_id=series.task_type_id,
+                duration=duration,
+                comment=None,
+                plan_step_id=None,
+                series_id=series.id,
+                series_exception=False,
+            )
+            db.session.add(task)
+
+        # Удаляем лишние уроки за пределами новой даты (если не проведены/не отменены)
+        removable = []
+        status_ids = {t.status_id for t in existing_tasks if t.status_id}
+        status_map = {}
+        if status_ids:
+            statuses = TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()
+            status_map = {s.id: s for s in statuses}
+        for t in existing_tasks:
+            key = t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None
+            if key in desired_keys:
+                continue
+            st = status_map.get(t.status_id) if t.status_id else None
+            st_name = st.name if st else None
+            st_group = (st.group or '').lower() if st and st.group else ''
+            if st_name in ('Проведён', 'Отменён') or st_group in ('done', 'cancelled'):
+                continue
+            removable.append(t)
+        for t in removable:
+            db.session.delete(t)
+
+        # Обновляем индексы/границы серии
+        db.session.flush()
+        refreshed = Task.query.filter_by(series_id=series.id).order_by(
+            Task.start_date.asc(), Task.id.asc()
+        ).all()
+        for idx, t in enumerate(refreshed):
+            t.series_index = idx
+        series.occurrences_count = len(refreshed)
+        series.end_date = desired_starts[-1]
+        series.recurrence_rule = new_rule
 
         db.session.commit()
         return jsonify({'series': series.to_dict()}), 200
