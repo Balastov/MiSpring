@@ -511,6 +511,40 @@ def recalc_series_homework_from(series_id, task_id):
     return jsonify({'updated': updated})
 
 
+@tasks_bp.route('/api/lesson-series/<int:series_id>', methods=['DELETE'])
+@login_required
+def delete_lesson_series(series_id):
+    series = db.get_or_404(LessonSeries, series_id)
+    if not user_has_role('admin', 'owner') and not (user_has_role('teacher') and series.teacher_id == current_user.id):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    # Удаляем только уроки, которые НЕ проведены и НЕ отменены
+    tasks = Task.query.filter_by(series_id=series.id).all()
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    status_map = {}
+    if status_ids:
+        statuses = TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()
+        status_map = {s.id: s for s in statuses}
+
+    removed = 0
+    for t in tasks:
+        st = status_map.get(t.status_id) if t.status_id else None
+        name = st.name if st else None
+        group = (st.group or '').lower() if st and st.group else ''
+        if name in ('Проведён', 'Отменён') or group in ('done', 'cancelled'):
+            continue
+        db.session.delete(t)
+        removed += 1
+
+    # Если не осталось ни одного урока серии — удалим и запись серии
+    remaining = Task.query.filter_by(series_id=series.id).count()
+    if remaining == 0:
+        db.session.delete(series)
+
+    db.session.commit()
+    return jsonify({'deleted_tasks': removed})
+
+
 @tasks_bp.route('/api/tasks/<int:task_id>', methods=['PUT'])
 @login_required
 def update_task(task_id):

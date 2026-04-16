@@ -118,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lessonSeriesModalClose = document.getElementById('lesson-series-modal-close');
     const lessonSeriesSaveBtn = document.getElementById('lesson-series-save-btn');
     const lessonSeriesCancelBtn = document.getElementById('lesson-series-cancel-btn');
+    const lessonSeriesDeleteBtn = document.getElementById('lesson-series-delete-btn');
     const seriesStudentNameInput = document.getElementById('series-student-name');
     const seriesTaskTypeNameInput = document.getElementById('series-task-type-name');
     const seriesStartDateInput = document.getElementById('series-start-date');
@@ -934,6 +935,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchTasks(currentPage);
                 })
                 .catch(() => alert('Не удалось сохранить серию'));
+        });
+    }
+
+    if (lessonSeriesDeleteBtn) {
+        lessonSeriesDeleteBtn.addEventListener('click', () => {
+            if (!currentSeriesId) {
+                closeLessonSeriesModal();
+                return;
+            }
+            if (!confirm('Удалить всю серию? Будут удалены только уроки, которые не проведены и не отменены.')) {
+                return;
+            }
+            fetch(`/api/lesson-series/${currentSeriesId}`, {
+                method: 'DELETE',
+            })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert(data.error || 'Не удалось удалить серию');
+                        return;
+                    }
+                    closeLessonSeriesModal();
+                    closeModal(); // текущий урок мог быть удалён
+                    if (currentView === 'calendar' && calendar) {
+                        calendar.refetchEvents();
+                    }
+                    fetchTasks(currentPage);
+                    alert(`Удалено уроков: ${data.deleted_tasks}`);
+                })
+                .catch(() => alert('Не удалось удалить серию'));
         });
     }
 
