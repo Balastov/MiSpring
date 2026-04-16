@@ -382,6 +382,22 @@ document.addEventListener('DOMContentLoaded', () => {
             changePasswordBtn.style.display = 'none';
         }
 
+        // Учителю прячем часть служебных полей формы задачи (админ/owner видят всё)
+        const isAdminLike = hasRole('admin', 'owner');
+        const isTeacherOnly = hasRole('teacher') && !isAdminLike;
+        if (isTeacherOnly) {
+            const hideRowByInputId = (inputId) => {
+                const el = document.getElementById(inputId);
+                if (!el) return;
+                const row = el.closest('.form-row');
+                if (row) row.style.display = 'none';
+            };
+            hideRowByInputId('form-id');             // №
+            hideRowByInputId('form-created-at');     // Дата создания
+            hideRowByInputId('form-author');         // Автор
+            hideRowByInputId('form-closing-date');   // Дата закрытия
+        }
+
         // Settings button: visible to all authenticated users
         settingsBtn.style.display = '';
 
