@@ -2471,4 +2471,52 @@ select.filter-control {
     .chat-sidebar {
         width: 44%;
     }
+
+    .chat-panel-header {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+
+    .chat-panel-header > span {
+        font-size: 14px;
+        min-width: 0;
+    }
+
+    .chat-panel-header-actions {
+        margin-left: auto;
+        flex-shrink: 0;
+        gap: 6px;
+    }
+
+    .chat-dialogs-toggle-btn {
+        font-size: 11px;
+        padding: 4px 6px;
+        white-space: nowrap;
+    }
+
+    .chat-panel-close {
+        font-size: 22px;
+    }
+}
+
+@media (max-width: 420px) {
+    .chat-panel-header {
+        flex-wrap: wrap;
+    }
+
+    .chat-panel-header > span {
+        width: 100%;
+        font-size: 13px;
+    }
+
+    .chat-panel-header-actions {
+        width: 100%;
+        justify-content: space-between;
+        margin-left: 0;
+    }
+
+    .chat-dialogs-toggle-btn {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
 }
