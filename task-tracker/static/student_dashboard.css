@@ -166,7 +166,18 @@
     transform: translateY(-1px);
 }
 
-/* Logo */
+/* Logo — тот же шрифт, что у баннера на главной (глобальный .app-brand может теряться в каскаде на мобильных) */
+.sd-topbar .app-brand,
+.sd-logo-wrap .app-brand {
+    font-family: "Comic Sans MS", "Comic Sans", cursive;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: lowercase;
+    letter-spacing: 0.03em;
+    color: #ffffff;
+}
+
 .sd-logo-wrap {
     display: flex;
     align-items: center;
@@ -1028,7 +1039,7 @@
     }
 }
 
-/* Телефон: одна колонка, порядок: центр → ДЗ → календарь и план */
+/* Телефон: одна колонка, порядок: ДЗ → информация по уроку/ДЗ → календарь и план */
 @media (max-width: 767px) {
     .sd-body {
         padding-left: max(0px, env(safe-area-inset-left));
@@ -1056,11 +1067,11 @@
     }
 
     .sd-col-homework {
-        order: 2;
+        order: 1;
     }
 
     .sd-col-middle {
-        order: 1;
+        order: 2;
     }
 
     .sd-col-right {
