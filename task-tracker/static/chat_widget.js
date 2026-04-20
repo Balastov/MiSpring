@@ -134,6 +134,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function isStudentOnlyUser() {
+        return hasRole('student') && !hasRole('teacher') && !hasRole('admin') && !hasRole('owner');
+    }
+
+    function ensureStudentDialogSelected() {
+        if (!isStudentOnlyUser()) return Promise.resolve(false);
+        if (activeDialogId && dialogs.some(d => d.id === activeDialogId)) return Promise.resolve(false);
+        if (dialogs.length) {
+            const firstDialog = dialogs[0];
+            setActiveDialog(firstDialog.id, firstDialog.partner?.display_name || 'Учитель');
+            return Promise.resolve(true);
+        }
+        if (contacts.length) {
+            return openOrCreateDialogWith(contacts[0].id).then(() => true).catch(() => false);
+        }
+        return Promise.resolve(false);
+    }
+
     function renderDialogList() {
         dialogList.innerHTML = '';
         if (!dialogs.length) {
@@ -276,7 +294,9 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshUnreadCount();
             if (!panel.classList.contains('hidden')) {
                 loadDialogs().then(() => {
-                    if (activeDialogId) loadMessages(false);
+                    return ensureStudentDialogSelected();
+                }).then((activated) => {
+                    if (activeDialogId && !activated) loadMessages(false);
                 }).catch(() => {});
             }
         }, 5000);
@@ -302,7 +322,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!panel.classList.contains('hidden')) {
             setSidebarCollapsed(true);
             loadDialogs().then(() => {
-                if (activeDialogId) loadMessages(true);
+                return ensureStudentDialogSelected();
+            }).then((activated) => {
+                if (activeDialogId && !activated) loadMessages(true);
             }).catch(() => {});
         }
     });
