@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fabBadge = document.getElementById('chat-fab-badge');
     const panel = document.getElementById('chat-panel');
     const panelClose = document.getElementById('chat-panel-close');
+    const dialogsToggleBtn = document.getElementById('chat-dialogs-toggle-btn');
     const dialogList = document.getElementById('chat-dialog-list');
     const contactSelect = document.getElementById('chat-contact-select');
     const openBtn = document.getElementById('chat-open-btn');
@@ -125,6 +126,14 @@ document.addEventListener('DOMContentLoaded', () => {
         activeTitle.textContent = activePartnerName || 'Диалог';
         renderDialogList();
         loadMessages(true);
+        setSidebarCollapsed(true);
+    }
+
+    function setSidebarCollapsed(collapsed) {
+        panel.classList.toggle('chat-sidebar-collapsed', !!collapsed);
+        if (dialogsToggleBtn) {
+            dialogsToggleBtn.textContent = collapsed ? 'Выберите диалог' : 'Скрыть диалоги';
+        }
     }
 
     function renderDialogList() {
@@ -294,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         primeUnreadSound();
         panel.classList.toggle('hidden');
         if (!panel.classList.contains('hidden')) {
+            setSidebarCollapsed(true);
             loadDialogs().then(() => {
                 if (activeDialogId) loadMessages(true);
             }).catch(() => {});
@@ -308,6 +318,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (panelClose) {
         panelClose.addEventListener('click', () => panel.classList.add('hidden'));
+    }
+
+    if (dialogsToggleBtn) {
+        dialogsToggleBtn.addEventListener('click', () => {
+            const collapsed = panel.classList.contains('chat-sidebar-collapsed');
+            setSidebarCollapsed(!collapsed);
+        });
     }
 
     if (openBtn && contactSelect) {

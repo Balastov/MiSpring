@@ -2219,6 +2219,26 @@ select.filter-control {
     font-weight: 600;
 }
 
+.chat-panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chat-dialogs-toggle-btn {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-primary);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.chat-dialogs-toggle-btn:hover {
+    border-color: var(--color-primary);
+}
+
 .chat-panel-close {
     border: none;
     background: transparent;
@@ -2240,6 +2260,10 @@ select.filter-control {
     display: flex;
     flex-direction: column;
     min-height: 0;
+}
+
+.chat-panel.chat-sidebar-collapsed .chat-sidebar {
+    display: none;
 }
 
 .chat-new-block {
