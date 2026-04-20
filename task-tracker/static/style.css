@@ -2140,8 +2140,8 @@ select.filter-control {
 /* ===== Chat Floating Widget ===== */
 .chat-fab {
     position: fixed;
-    right: 22px;
-    bottom: 22px;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
     width: 58px;
     height: 58px;
     border: none;
@@ -2211,10 +2211,12 @@ select.filter-control {
 
 .chat-panel {
     position: fixed;
-    right: 22px;
-    bottom: 90px;
-    width: min(760px, calc(100vw - 30px));
-    height: min(560px, calc(100vh - 110px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+    left: auto;
+    width: min(760px, calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    height: min(560px, calc(100vh - 110px - env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100dvh - 110px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -2460,21 +2462,27 @@ select.filter-control {
     box-shadow: 0 0 0 3px rgba(26, 81, 95, 0.12);
 }
 
+/* Планшет и узкий десктоп: панель на всю ширину с отступами */
 @media (max-width: 860px) {
     .chat-panel {
-        right: 8px;
-        left: 8px;
+        right: max(8px, env(safe-area-inset-right, 0px));
+        left: max(8px, env(safe-area-inset-left, 0px));
         width: auto;
-        bottom: 80px;
-        height: min(600px, calc(100vh - 100px));
+        bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+        height: min(600px, calc(100vh - 96px - env(safe-area-inset-bottom, 0px)));
+        max-height: calc(100dvh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        border-radius: var(--radius-lg);
     }
+
     .chat-sidebar {
         width: 44%;
+        min-width: 0;
     }
 
     .chat-panel-header {
         padding: 8px 10px;
         gap: 8px;
+        flex-shrink: 0;
     }
 
     .chat-panel-header > span {
@@ -2490,12 +2498,144 @@ select.filter-control {
 
     .chat-dialogs-toggle-btn {
         font-size: 11px;
-        padding: 4px 6px;
+        padding: 6px 8px;
+        min-height: 36px;
         white-space: nowrap;
     }
 
     .chat-panel-close {
         font-size: 22px;
+        min-width: 40px;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .chat-messages {
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* Телефон: почти на весь экран, список диалогов сверху при открытии */
+@media (max-width: 600px) {
+    .chat-fab {
+        width: 54px;
+        height: 54px;
+        right: max(12px, env(safe-area-inset-right, 0px));
+        bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    }
+
+    .chat-fab-icon-svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .chat-panel {
+        left: 0;
+        right: 0;
+        top: env(safe-area-inset-top, 0px);
+        bottom: env(safe-area-inset-bottom, 0px);
+        width: 100%;
+        max-width: none;
+        height: auto;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        box-sizing: border-box;
+        z-index: 1210;
+    }
+
+    .chat-panel-header {
+        padding: 10px 12px;
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+    }
+
+    .chat-panel-body {
+        min-height: 0;
+    }
+
+    /* Список диалогов не сжимаем в 44% — столбиком сверху, переписка снизу */
+    .chat-panel:not(.chat-sidebar-collapsed) .chat-panel-body {
+        flex-direction: column;
+    }
+
+    .chat-panel:not(.chat-sidebar-collapsed) .chat-sidebar {
+        width: 100%;
+        max-height: min(42vh, 280px);
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+        flex-shrink: 0;
+    }
+
+    .chat-panel.chat-sidebar-collapsed .chat-sidebar {
+        display: none;
+    }
+
+    .chat-panel:not(.chat-sidebar-collapsed) .chat-main {
+        flex: 1;
+        min-height: 0;
+        padding: 8px 10px 12px;
+        padding-left: max(10px, env(safe-area-inset-left, 0px));
+        padding-right: max(10px, env(safe-area-inset-right, 0px));
+    }
+
+    .chat-panel.chat-sidebar-collapsed .chat-main {
+        padding-left: max(10px, env(safe-area-inset-left, 0px));
+        padding-right: max(10px, env(safe-area-inset-right, 0px));
+    }
+
+    .chat-msg {
+        max-width: 88%;
+        font-size: 15px;
+    }
+
+    .chat-input-wrap {
+        align-items: flex-end;
+        gap: 10px;
+    }
+
+    .chat-input {
+        font-size: 16px;
+        padding: 10px 12px;
+        min-height: 44px;
+        max-height: 120px;
+    }
+
+    .chat-input-wrap .btn-primary {
+        flex-shrink: 0;
+        min-height: 44px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .chat-active-title {
+        font-size: 16px;
+    }
+
+    .chat-dialog-item {
+        padding: 12px;
+        min-height: 44px;
+    }
+
+    .chat-dialog-name {
+        font-size: 14px;
+    }
+
+    .chat-new-block {
+        flex-wrap: wrap;
+    }
+
+    .chat-new-block .btn-primary {
+        min-height: 40px;
+    }
+}
+
+@media (max-width: 600px) and (max-height: 480px) {
+    .chat-panel:not(.chat-sidebar-collapsed) .chat-sidebar {
+        max-height: min(32vh, 180px);
     }
 }
 
@@ -2517,6 +2657,9 @@ select.filter-control {
 
     .chat-dialogs-toggle-btn {
         font-size: 12px;
-        padding: 5px 8px;
+        padding: 8px 10px;
+        flex: 1;
+        min-height: 44px;
+        justify-content: center;
     }
 }
