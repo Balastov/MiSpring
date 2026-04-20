@@ -980,29 +980,177 @@
     border: 1px solid #86efac;
 }
 
-/* ===== Responsive ===== */
+/* ===== Responsive: планшет и телефон =====
+   Desktop: от 1025px — три колонки (как .sd-main по умолчанию).
+   Планшет: 768px–1024px — две колонки: слева ДЗ + центр, справа календарь и план.
+   Телефон: до 767px — одна колонка, блоки в удобном порядке + плотная шапка.
+*/
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) and (min-width: 1025px) {
     .sd-main {
-        grid-template-columns: 1fr;
+        grid-template-columns: 260px 1fr 260px;
+    }
+}
+
+/* Планшет: две колонки вместо трёх узких */
+@media (max-width: 1024px) and (min-width: 768px) {
+    .sd-main {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr;
+        gap: 14px;
+        padding: 14px 16px 20px;
+        max-width: none;
+    }
+
+    .sd-col-homework {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .sd-col-middle {
+        grid-column: 1;
+        grid-row: 2;
+        min-height: 0;
+    }
+
+    .sd-col-right {
+        grid-column: 2;
+        grid-row: 1 / -1;
+        align-self: stretch;
+    }
+
+    .sd-card-center {
+        min-height: 220px;
+    }
+
+    .sd-topbar {
+        padding: 10px 16px;
+    }
+}
+
+/* Телефон: одна колонка, порядок: центр → ДЗ → календарь и план */
+@media (max-width: 767px) {
+    .sd-body {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+        font-size: 16px;
     }
 
     .sd-topbar {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
-        gap: 8px;
-        padding: 10px 14px;
+        gap: 10px;
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
+        padding-top: max(10px, env(safe-area-inset-top));
+        padding-bottom: 10px;
+        min-height: 0;
+    }
+
+    .sd-main {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 12px max(20px, env(safe-area-inset-bottom));
+        max-width: none;
+    }
+
+    .sd-col-homework {
+        order: 2;
+    }
+
+    .sd-col-middle {
+        order: 1;
+    }
+
+    .sd-col-right {
+        order: 3;
+    }
+
+    .sd-card-center {
+        min-height: 200px;
     }
 
     .sd-topbar-left,
     .sd-topbar-center,
     .sd-topbar-right {
         justify-content: center;
+        text-align: center;
+        flex-wrap: wrap;
+    }
+
+    .sd-topbar-right {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .sd-topbar-right .my-teacher-card {
+        max-width: 100%;
+    }
+
+    .sd-username {
+        font-size: 14px;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sd-btn-profile {
+        width: 100%;
+        max-width: 280px;
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .sd-next-topic {
+        max-width: none;
+    }
+
+    .sd-next-topic-value {
+        white-space: normal;
+    }
+
+    .sd-card {
+        padding: 14px;
+    }
+
+    .sd-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .sd-hw-card {
+        padding: 12px;
+    }
+
+    .sd-lesson-row,
+    .sd-homework-center-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .sd-lesson-row b {
+        text-align: left;
+    }
+
+    .sd-modal-content {
+        padding: 24px 18px 20px;
+        margin: 0 4px;
     }
 }
 
-@media (max-width: 1100px) and (min-width: 901px) {
+/* Очень узкие экраны */
+@media (max-width: 380px) {
     .sd-main {
-        grid-template-columns: 260px 1fr 260px;
+        padding: 10px 10px max(16px, env(safe-area-inset-bottom));
+    }
+
+    .sd-logo-wrap .app-brand {
+        font-size: 28px;
+    }
+
+    .sd-timer-units {
+        font-size: 15px;
     }
 }
