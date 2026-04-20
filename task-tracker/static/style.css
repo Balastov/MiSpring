@@ -2205,6 +2205,10 @@ select.filter-control {
     overflow: hidden;
 }
 
+.chat-panel.hidden {
+    display: none;
+}
+
 .chat-panel-header {
     display: flex;
     align-items: center;
