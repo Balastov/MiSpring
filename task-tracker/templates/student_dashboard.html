@@ -162,7 +162,14 @@
 
     <!-- Floating Chat -->
     <button id="chat-fab" class="chat-fab hidden" title="Сообщения" aria-label="Сообщения">
-        <span class="chat-fab-icon">✉</span>
+        <span class="chat-fab-icon" aria-hidden="true">
+            <svg class="chat-fab-icon-svg" viewBox="0 0 24 24" role="img">
+                <path d="M5 6.5h14a2.5 2.5 0 0 1 2.5 2.5v6a2.5 2.5 0 0 1-2.5 2.5h-6.2l-4.3 3.2a.7.7 0 0 1-1.1-.56V17.5H5A2.5 2.5 0 0 1 2.5 15V9A2.5 2.5 0 0 1 5 6.5Z"></path>
+                <circle cx="9" cy="12" r="1.1"></circle>
+                <circle cx="12" cy="12" r="1.1"></circle>
+                <circle cx="15" cy="12" r="1.1"></circle>
+            </svg>
+        </span>
         <span id="chat-fab-badge" class="chat-fab-badge hidden">0</span>
     </button>
     <div id="chat-panel" class="chat-panel hidden">
@@ -184,7 +191,6 @@
                 <div id="chat-dialog-list" class="chat-dialog-list"></div>
             </div>
             <div class="chat-main">
-                <div id="chat-main-empty" class="chat-main-empty">Выберите диалог</div>
                 <div id="chat-main-content" class="chat-main-content hidden">
                     <div id="chat-active-title" class="chat-active-title"></div>
                     <div id="chat-messages" class="chat-messages"></div>

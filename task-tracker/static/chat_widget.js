@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const contactSelect = document.getElementById('chat-contact-select');
     const openBtn = document.getElementById('chat-open-btn');
     const newBlock = document.getElementById('chat-new-block');
-    const mainEmpty = document.getElementById('chat-main-empty');
     const mainContent = document.getElementById('chat-main-content');
     const activeTitle = document.getElementById('chat-active-title');
     const messagesEl = document.getElementById('chat-messages');
@@ -121,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function setActiveDialog(dialogId, partnerName) {
         activeDialogId = dialogId;
         activePartnerName = partnerName || '';
-        mainEmpty.classList.add('hidden');
         mainContent.classList.remove('hidden');
         activeTitle.textContent = activePartnerName || 'Диалог';
         renderDialogList();
@@ -212,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (activeDialogId && !dialogs.some(d => d.id === activeDialogId)) {
                     activeDialogId = null;
                     mainContent.classList.add('hidden');
-                    mainEmpty.classList.remove('hidden');
                 }
             });
     }
