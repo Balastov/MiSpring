@@ -307,6 +307,46 @@ class LessonSeries(db.Model):
         }
 
 
+class ChatDialog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_a_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    user_b_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_a_id', 'user_b_id', name='uq_chat_dialog_pair'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_a_id': self.user_a_id,
+            'user_b_id': self.user_b_id,
+            'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M:%S') if self.created_at else None,
+            'updated_at_iso': self.updated_at.strftime('%Y-%m-%dT%H:%M:%S') if self.updated_at else None,
+        }
+
+
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    dialog_id = db.Column(db.Integer, db.ForeignKey('chat_dialog.id'), nullable=False, index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    is_read = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'dialog_id': self.dialog_id,
+            'sender_id': self.sender_id,
+            'text': self.text,
+            'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M:%S') if self.created_at else None,
+            'is_read': self.is_read,
+        }
+
+
 class HomeworkEvidence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.Integer, nullable=False, index=True)

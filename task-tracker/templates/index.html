@@ -1027,7 +1027,42 @@
 
     <div id="app-toast-stack" class="app-toast-stack" aria-live="polite"></div>
 
+    <!-- Floating Chat -->
+    <button id="chat-fab" class="chat-fab hidden" title="Сообщения" aria-label="Сообщения">
+        <span class="chat-fab-icon">✉</span>
+        <span id="chat-fab-badge" class="chat-fab-badge hidden">0</span>
+    </button>
+    <div id="chat-panel" class="chat-panel hidden">
+        <div class="chat-panel-header">
+            <span>Сообщения</span>
+            <button id="chat-panel-close" class="chat-panel-close" aria-label="Закрыть">&times;</button>
+        </div>
+        <div class="chat-panel-body">
+            <div class="chat-sidebar">
+                <div id="chat-new-block" class="chat-new-block hidden">
+                    <select id="chat-contact-select" class="chat-select">
+                        <option value="">Выберите собеседника</option>
+                    </select>
+                    <button id="chat-open-btn" class="btn-primary">Открыть</button>
+                </div>
+                <div id="chat-dialog-list" class="chat-dialog-list"></div>
+            </div>
+            <div class="chat-main">
+                <div id="chat-main-empty" class="chat-main-empty">Выберите диалог</div>
+                <div id="chat-main-content" class="chat-main-content hidden">
+                    <div id="chat-active-title" class="chat-active-title"></div>
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="chat-input-wrap">
+                        <textarea id="chat-input" class="chat-input" rows="2" maxlength="1000" placeholder="Введите сообщение..."></textarea>
+                        <button id="chat-send-btn" class="btn-primary">Отправить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='script.js', v=cache_bust('script.js')) }}"></script>
+    <script src="{{ url_for('static', filename='chat_widget.js', v=cache_bust('chat_widget.js')) }}"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/static/sw.js');

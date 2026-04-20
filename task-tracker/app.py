@@ -24,7 +24,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries
+from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, ChatDialog, ChatMessage
 
 
 # ========== Flask-Login Callbacks ==========
@@ -84,6 +84,7 @@ from routes_telegram import telegram_bp
 from routes_payments import payments_bp
 from routes_calendar import calendar_bp
 from routes_plans import plans_bp
+from routes_chat import chat_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(tasks_bp)
@@ -93,6 +94,7 @@ app.register_blueprint(telegram_bp)
 app.register_blueprint(payments_bp)
 app.register_blueprint(calendar_bp)
 app.register_blueprint(plans_bp)
+app.register_blueprint(chat_bp)
 
 
 # ========== Database Initialization ==========
@@ -264,6 +266,40 @@ with app.app_context():
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_series_student_id ON lesson_series(student_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_series_teacher_id ON lesson_series(teacher_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_series_task_type_id ON lesson_series(task_type_id)')
+        conn.commit()
+
+    # Таблица диалогов чата
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_dialog'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE chat_dialog (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_a_id INTEGER NOT NULL,
+            user_b_id INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )''')
+        cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_dialog_pair ON chat_dialog(user_a_id, user_b_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_dialog_user_a_id ON chat_dialog(user_a_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_dialog_user_b_id ON chat_dialog(user_b_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_dialog_updated_at ON chat_dialog(updated_at)')
+        conn.commit()
+
+    # Таблица сообщений чата
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_message'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE chat_message (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dialog_id INTEGER NOT NULL,
+            sender_id INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            is_read BOOLEAN NOT NULL DEFAULT 0
+        )''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_dialog_id ON chat_message(dialog_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_sender_id ON chat_message(sender_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_created_at ON chat_message(created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_is_read ON chat_message(is_read)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_dialog_id_id ON chat_message(dialog_id, id)')
         conn.commit()
 
     conn.close()
