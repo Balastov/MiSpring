@@ -405,7 +405,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return roleNames.some(r => currentUserData.roles.includes(r));
     }
 
-    const TASK_FIELD_PREFS_STORAGE_KEY = 'task_form_visible_fields_v1';
+    const TASK_FIELD_PREFS_STORAGE_KEY = 'task_form_visible_fields_v2';
+    const TASK_FIELD_PREFS_ROLE_DEFAULTS_KEY = 'task_form_visible_fields_role_defaults_v2';
     let taskFieldVisibilityPrefs = {};
     let isTaskExtraFieldsPanelOpen = false;
 
@@ -456,6 +457,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveTaskFieldVisibilityPrefs() {
         try {
             localStorage.setItem(TASK_FIELD_PREFS_STORAGE_KEY, JSON.stringify(taskFieldVisibilityPrefs));
+        } catch (_) {
+            // Ignore localStorage errors.
+        }
+    }
+
+    function applyRoleBasedTaskFieldDefaults() {
+        if (!currentUserData) return;
+        const isAdminOrTeacher = hasRole('admin', 'owner', 'teacher');
+        if (!isAdminOrTeacher) return;
+        try {
+            if (localStorage.getItem(TASK_FIELD_PREFS_ROLE_DEFAULTS_KEY) === '1') return;
+        } catch (_) {
+            // Continue without marker check.
+        }
+        taskFieldVisibilityPrefs.id = false;
+        taskFieldVisibilityPrefs.created_at = false;
+        taskFieldVisibilityPrefs.end_date = false;
+        taskFieldVisibilityPrefs.closing_date = false;
+        saveTaskFieldVisibilityPrefs();
+        try {
+            localStorage.setItem(TASK_FIELD_PREFS_ROLE_DEFAULTS_KEY, '1');
         } catch (_) {
             // Ignore localStorage errors.
         }
@@ -593,6 +615,8 @@ document.addEventListener('DOMContentLoaded', () => {
             changePasswordBtn.style.display = 'none';
         }
 
+        applyRoleBasedTaskFieldDefaults();
+        renderTaskExtraFieldsPanel();
         // Видимость полей задачи рассчитывается централизованно (роль + логика + пользовательский флаг)
         applyTaskFieldVisibility();
 
