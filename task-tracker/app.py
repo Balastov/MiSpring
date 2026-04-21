@@ -24,7 +24,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, ChatDialog, ChatMessage
+from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, ChatDialog, ChatMessage, ChatPushSubscription
 
 
 # ========== Flask-Login Callbacks ==========
@@ -72,6 +72,13 @@ def student_dashboard():
     if not user_has_role('student') or user_has_role('admin', 'owner', 'teacher'):
         return redirect(url_for('index'))
     return render_template('student_dashboard.html')
+
+
+@app.route('/sw.js')
+def service_worker():
+    response = app.send_static_file('sw.js')
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
 
 
 # ========== Register Blueprints ==========
@@ -300,6 +307,26 @@ with app.app_context():
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_created_at ON chat_message(created_at)')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_is_read ON chat_message(is_read)')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_dialog_id_id ON chat_message(dialog_id, id)')
+        conn.commit()
+
+    # Таблица push-подписок для веб-уведомлений чата
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_push_subscription'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE chat_push_subscription (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh VARCHAR(255) NOT NULL,
+            auth VARCHAR(255) NOT NULL,
+            user_agent VARCHAR(255),
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            last_success_at DATETIME,
+            last_error VARCHAR(255),
+            last_error_at DATETIME
+        )''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_push_subscription_user_id ON chat_push_subscription(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_push_subscription_updated_at ON chat_push_subscription(updated_at)')
         conn.commit()
 
     conn.close()

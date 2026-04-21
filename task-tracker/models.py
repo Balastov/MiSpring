@@ -347,6 +347,29 @@ class ChatMessage(db.Model):
         }
 
 
+class ChatPushSubscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh = db.Column(db.String(255), nullable=False)
+    auth = db.Column(db.String(255), nullable=False)
+    user_agent = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    last_success_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.String(255), nullable=True)
+    last_error_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'endpoint': self.endpoint,
+            'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M:%S') if self.created_at else None,
+            'updated_at_iso': self.updated_at.strftime('%Y-%m-%dT%H:%M:%S') if self.updated_at else None,
+        }
+
+
 class HomeworkEvidence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.Integer, nullable=False, index=True)

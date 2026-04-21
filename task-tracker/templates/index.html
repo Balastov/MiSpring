@@ -1074,7 +1074,7 @@
     <script src="{{ url_for('static', filename='chat_widget.js', v=cache_bust('chat_widget.js')) }}"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/static/sw.js');
+        navigator.serviceWorker.register('/sw.js');
       }
     </script>
 </body>

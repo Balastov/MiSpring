@@ -1,10 +1,18 @@
+import json
+import os
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
 from extensions import db
-from models import ChatDialog, ChatMessage, User, UserRole, Role
+from models import ChatDialog, ChatMessage, ChatPushSubscription, User, UserRole, Role
+
+try:
+    from pywebpush import webpush, WebPushException
+except Exception:  # pragma: no cover - optional dependency
+    webpush = None
+    WebPushException = Exception
 
 
 chat_bp = Blueprint('chat', __name__)
@@ -25,6 +33,11 @@ def _is_teacher():
 
 def _is_student():
     return 'student' in _get_role_names() and not _is_admin_like() and not _is_teacher()
+
+
+def _is_chat_role_allowed():
+    roles = _get_role_names()
+    return bool({'student', 'teacher', 'admin', 'owner'} & roles)
 
 
 def _normalize_pair(user_1_id, user_2_id):
@@ -92,9 +105,79 @@ def _dialog_unread_count(dialog_id):
     ).filter(ChatMessage.sender_id != current_user.id).count()
 
 
+def _webpush_config():
+    public_key = (os.environ.get('WEBPUSH_PUBLIC_KEY') or '').strip()
+    private_key = (os.environ.get('WEBPUSH_PRIVATE_KEY') or '').strip()
+    subject = (os.environ.get('WEBPUSH_SUBJECT') or 'mailto:support@mispring.local').strip()
+    enabled = bool(webpush and public_key and private_key)
+    return {
+        'enabled': enabled,
+        'public_key': public_key if enabled else '',
+        'private_key': private_key if enabled else '',
+        'subject': subject,
+    }
+
+
+def _recipient_id_for_dialog(dialog):
+    if dialog.user_a_id == current_user.id:
+        return dialog.user_b_id
+    if dialog.user_b_id == current_user.id:
+        return dialog.user_a_id
+    return None
+
+
+def _send_push_to_user(user_id, payload):
+    cfg = _webpush_config()
+    if not cfg['enabled'] or not user_id:
+        return 0
+
+    subscriptions = ChatPushSubscription.query.filter_by(user_id=int(user_id)).all()
+    if not subscriptions:
+        return 0
+
+    sent = 0
+    for sub in subscriptions:
+        info = {
+            'endpoint': sub.endpoint,
+            'keys': {
+                'p256dh': sub.p256dh,
+                'auth': sub.auth,
+            }
+        }
+        try:
+            webpush(
+                subscription_info=info,
+                data=json.dumps(payload, ensure_ascii=False),
+                vapid_private_key=cfg['private_key'],
+                vapid_claims={'sub': cfg['subject']},
+                ttl=90,
+            )
+            sub.updated_at = datetime.now()
+            sub.last_success_at = datetime.now()
+            sub.last_error = None
+            sub.last_error_at = None
+            sent += 1
+        except WebPushException as e:
+            sub.updated_at = datetime.now()
+            sub.last_error = str(e)[:255]
+            sub.last_error_at = datetime.now()
+            status_code = getattr(getattr(e, 'response', None), 'status_code', None)
+            # Endpoint expired/unregistered in browser.
+            if status_code in (404, 410):
+                db.session.delete(sub)
+        except Exception as e:  # pragma: no cover
+            sub.updated_at = datetime.now()
+            sub.last_error = str(e)[:255]
+            sub.last_error_at = datetime.now()
+    db.session.commit()
+    return sent
+
+
 @chat_bp.route('/api/chat/dialogs', methods=['GET'])
 @login_required
 def get_chat_dialogs():
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Чат недоступен для текущей роли'}), 403
     allowed_partner_ids = _allowed_partner_ids_for_current_user()
 
     dialogs = ChatDialog.query.filter(
@@ -148,6 +231,8 @@ def get_chat_dialogs():
 @chat_bp.route('/api/chat/dialogs', methods=['POST'])
 @login_required
 def create_or_get_dialog():
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Чат недоступен для текущей роли'}), 403
     data = request.get_json(force=True, silent=True) or {}
     partner_id = data.get('partner_id')
     try:
@@ -190,6 +275,8 @@ def create_or_get_dialog():
 @chat_bp.route('/api/chat/dialogs/<int:dialog_id>/messages', methods=['GET'])
 @login_required
 def get_dialog_messages(dialog_id):
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Чат недоступен для текущей роли'}), 403
     dialog = db.session.get(ChatDialog, dialog_id)
     if not dialog or not _can_access_dialog(dialog):
         return jsonify({'error': 'Диалог не найден или недоступен'}), 404
@@ -225,6 +312,8 @@ def get_dialog_messages(dialog_id):
 @chat_bp.route('/api/chat/dialogs/<int:dialog_id>/messages', methods=['POST'])
 @login_required
 def send_dialog_message(dialog_id):
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Чат недоступен для текущей роли'}), 403
     dialog = db.session.get(ChatDialog, dialog_id)
     if not dialog or not _can_access_dialog(dialog):
         return jsonify({'error': 'Диалог не найден или недоступен'}), 404
@@ -246,12 +335,23 @@ def send_dialog_message(dialog_id):
     dialog.updated_at = datetime.now()
     db.session.add(msg)
     db.session.commit()
+
+    recipient_id = _recipient_id_for_dialog(dialog)
+    snippet = text if len(text) <= 120 else (text[:117] + '...')
+    _send_push_to_user(recipient_id, {
+        'title': f'{current_user.display_name}: новое сообщение',
+        'body': snippet,
+        'url': '/',
+        'dialog_id': dialog.id,
+    })
     return jsonify({'message': {**msg.to_dict(), 'sender_name': current_user.display_name}}), 201
 
 
 @chat_bp.route('/api/chat/dialogs/<int:dialog_id>/read', methods=['POST'])
 @login_required
 def mark_dialog_read(dialog_id):
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Чат недоступен для текущей роли'}), 403
     dialog = db.session.get(ChatDialog, dialog_id)
     if not dialog or not _can_access_dialog(dialog):
         return jsonify({'error': 'Диалог не найден или недоступен'}), 404
@@ -266,6 +366,8 @@ def mark_dialog_read(dialog_id):
 @chat_bp.route('/api/chat/unread-count', methods=['GET'])
 @login_required
 def get_unread_count():
+    if not _is_chat_role_allowed():
+        return jsonify({'unread_count': 0}), 200
     dialogs = ChatDialog.query.filter(
         (ChatDialog.user_a_id == current_user.id) | (ChatDialog.user_b_id == current_user.id)
     ).all()
@@ -277,3 +379,60 @@ def get_unread_count():
             ChatMessage.sender_id != current_user.id
         ).count()
     return jsonify({'unread_count': count})
+
+
+@chat_bp.route('/api/chat/push/public-key', methods=['GET'])
+@login_required
+def get_push_public_key():
+    if not _is_chat_role_allowed():
+        return jsonify({'enabled': False, 'public_key': ''})
+    cfg = _webpush_config()
+    return jsonify({'enabled': cfg['enabled'], 'public_key': cfg['public_key']})
+
+
+@chat_bp.route('/api/chat/push/subscribe', methods=['POST'])
+@login_required
+def subscribe_push():
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Чат недоступен для текущей роли'}), 403
+    data = request.get_json(force=True, silent=True) or {}
+    endpoint = (data.get('endpoint') or '').strip()
+    keys = data.get('keys') if isinstance(data.get('keys'), dict) else {}
+    p256dh = (keys.get('p256dh') or '').strip()
+    auth = (keys.get('auth') or '').strip()
+    if not endpoint or not p256dh or not auth:
+        return jsonify({'error': 'Некорректная push-подписка'}), 400
+
+    sub = ChatPushSubscription.query.filter_by(endpoint=endpoint).first()
+    if not sub:
+        sub = ChatPushSubscription(
+            user_id=current_user.id,
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth,
+            user_agent=(request.headers.get('User-Agent') or '')[:255],
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        db.session.add(sub)
+    else:
+        sub.user_id = current_user.id
+        sub.p256dh = p256dh
+        sub.auth = auth
+        sub.user_agent = (request.headers.get('User-Agent') or '')[:255]
+        sub.updated_at = datetime.now()
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@chat_bp.route('/api/chat/push/unsubscribe', methods=['POST'])
+@login_required
+def unsubscribe_push():
+    data = request.get_json(force=True, silent=True) or {}
+    endpoint = (data.get('endpoint') or '').strip()
+    if not endpoint:
+        return jsonify({'ok': True})
+    ChatPushSubscription.query.filter_by(user_id=current_user.id, endpoint=endpoint).delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({'ok': True})
