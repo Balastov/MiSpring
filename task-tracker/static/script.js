@@ -3598,8 +3598,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         formUserTeacherId.innerHTML = '<option value="">— не назначен —</option>';
                     }
 
-                    // Photo upload for teachers (admin/owner only)
-                    if (isTeacher && canManageAdmin) {
+                    // Photo field only for edited users with teacher role.
+                    if (isTeacher) {
                         formUserPhotoRow.classList.remove('hidden');
                         _pendingPhotoFile = null;
                         formUserPhotoInput.value = '';
