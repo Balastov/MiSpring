@@ -62,9 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const gain = ctx.createGain();
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(freq, start);
-                gain.gain.setValueAtTime(0.0001, start);
-                gain.gain.exponentialRampToValueAtTime(0.08, start + 0.02);
-                gain.gain.exponentialRampToValueAtTime(0.0001, end);
+                // Linear envelope is more stable across browsers than exponential ramps.
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.12, start + 0.02);
+                gain.gain.linearRampToValueAtTime(0.09, start + 0.08);
+                gain.gain.linearRampToValueAtTime(0, end);
                 osc.connect(gain);
                 gain.connect(ctx.destination);
                 osc.start(start);
@@ -211,9 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // force reflow to restart css animation
             void fab.offsetWidth;
             fab.classList.add('chat-fab--pulse');
-            if (prevUnreadTotal > 0) {
-                playUnreadSound();
-            }
+            playUnreadSound();
             if (document.visibilityState !== 'visible' && !hasPushSubscription) {
                 notifyUnread(count);
             }
