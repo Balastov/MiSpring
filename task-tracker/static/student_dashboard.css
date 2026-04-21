@@ -214,6 +214,41 @@
     white-space: nowrap;
 }
 
+.sd-user-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 0;
+}
+
+.sd-timezone-chip {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    line-height: 1.15;
+}
+
+.sd-timezone-main {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.sd-timezone-sub {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+}
+
 /* Profile button */
 .sd-btn-profile {
     background: rgba(255,255,255,0.15);
@@ -1093,6 +1128,10 @@
     .sd-topbar-right {
         flex-direction: column;
         gap: 8px;
+    }
+
+    .sd-user-meta {
+        align-items: center;
     }
 
     .sd-topbar-right .my-teacher-card {

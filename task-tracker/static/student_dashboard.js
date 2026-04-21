@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const myTeacherPhoto = document.getElementById('my-teacher-photo');
     const myTeacherNoPhoto = document.getElementById('my-teacher-no-photo');
     const myTeacherName = document.getElementById('my-teacher-name');
+    const sdTimezoneMain = document.getElementById('sd-timezone-main');
+    const sdTimezoneSub = document.getElementById('sd-timezone-sub');
 
     const sdProfileBtn = document.getElementById('sd-profile-btn');
     const sdProfileModal = document.getElementById('sd-profile-modal');
@@ -98,6 +100,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (b < 1024) return `${b} Б`;
         if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} КБ`;
         return `${(b / (1024 * 1024)).toFixed(2)} МБ`;
+    }
+
+    function formatMinutesAsHours(minutes) {
+        const abs = Math.abs(minutes);
+        const hh = Math.floor(abs / 60);
+        const mm = abs % 60;
+        if (mm === 0) return `${hh}ч`;
+        return `${hh}ч ${mm}м`;
+    }
+
+    function renderTimezoneChip() {
+        if (!sdTimezoneMain || !sdTimezoneSub) return;
+        const tz = studentTimezone || 'UTC+03:00';
+        sdTimezoneMain.textContent = tz === 'UTC+03:00' ? 'МСК (UTC+03:00)' : tz;
+        const diff = studentTzOffsetMinutes - MSK_OFFSET_MINUTES;
+        if (diff === 0) {
+            sdTimezoneSub.textContent = 'совпадает с МСК';
+            return;
+        }
+        const sign = diff > 0 ? '+' : '-';
+        sdTimezoneSub.textContent = `МСК ${sign}${formatMinutesAsHours(diff)}`;
     }
 
     function updateJoinLessonButtonVisibility() {
@@ -732,6 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = user;
             studentTimezone = user.timezone || 'UTC+03:00';
             studentTzOffsetMinutes = parseTimezoneOffsetMinutes(studentTimezone);
+            renderTimezoneChip();
             sdUsername.textContent = user.display_name;
 
             // Hide change password for OAuth users
