@@ -60,16 +60,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const formEndDate = document.getElementById('form-end-date');
     const formAuthor = document.getElementById('form-author');
     const formStudentId = document.getElementById('form-student-id');
-    const studentRow = document.getElementById('student-row');
+    const studentRow = document.getElementById('task-field-row-student');
     const formIsPaid = document.getElementById('form-is-paid');
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
     const formHomeworkRequired = document.getElementById('form-homework-required');
-    const homeworkRequiredRow = document.getElementById('homework-required-row');
-    const homeworkRow = document.getElementById('homework-row');
-    const seriesApplyRow = document.getElementById('series-apply-row');
+    const homeworkRequiredRow = document.getElementById('task-field-row-homework-required');
+    const homeworkRow = document.getElementById('task-field-row-homework');
+    const seriesApplyRow = document.getElementById('task-field-row-series-apply');
     const formPlanStepId = document.getElementById('form-plan-step-id');
-    const planStepRow = document.getElementById('plan-step-row');
+    const planStepRow = document.getElementById('task-field-row-plan-step');
     const planStepWarning = document.getElementById('plan-step-warning');
     let _pendingAdvancePlanStep = null;
     const formStatusId = document.getElementById('form-status-id');
@@ -79,6 +79,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const formDuration = document.getElementById('form-duration');
     const formComment = document.getElementById('form-comment');
     const formClosingDate = document.getElementById('form-closing-date');
+    const taskExtraFieldsToggleBtn = document.getElementById('task-extra-fields-toggle-btn');
+    const taskExtraFieldsPanelRow = document.getElementById('task-extra-fields-panel-row');
+    const taskExtraFieldsPanel = document.getElementById('task-extra-fields-panel');
+
+    const taskFieldRowId = document.getElementById('task-field-row-id');
+    const taskFieldRowTaskType = document.getElementById('task-field-row-task-type');
+    const taskFieldRowCreatedAt = document.getElementById('task-field-row-created-at');
+    const taskFieldRowStartDate = document.getElementById('task-field-row-start-date');
+    const taskFieldRowDuration = document.getElementById('task-field-row-duration');
+    const taskFieldRowSeries = document.getElementById('task-field-row-series');
+    const taskFieldRowEndDate = document.getElementById('task-field-row-end-date');
+    const taskFieldRowAuthor = document.getElementById('task-field-row-author');
+    const taskFieldRowIsPaid = document.getElementById('task-field-row-is-paid');
+    const taskFieldRowPaymentDate = document.getElementById('task-field-row-payment-date');
+    const taskFieldRowStatus = document.getElementById('task-field-row-status');
+    const taskFieldRowComment = document.getElementById('task-field-row-comment');
+    const taskFieldRowClosingDate = document.getElementById('task-field-row-closing-date');
 
     // Quick status buttons
     const quickStatusButtons = document.getElementById('quick-status-buttons');
@@ -388,6 +405,105 @@ document.addEventListener('DOMContentLoaded', () => {
         return roleNames.some(r => currentUserData.roles.includes(r));
     }
 
+    const TASK_FIELD_PREFS_STORAGE_KEY = 'task_form_visible_fields_v1';
+    let taskFieldVisibilityPrefs = {};
+
+    function isTeacherOnlyCurrentUser() {
+        const isAdminLike = hasRole('admin', 'owner');
+        return hasRole('teacher') && !isAdminLike;
+    }
+
+    function isLessonTaskSelected() {
+        const sel = formTaskTypeId && formTaskTypeId.options
+            ? formTaskTypeId.options[formTaskTypeId.selectedIndex]
+            : null;
+        return !!(sel && sel.textContent === 'Урок');
+    }
+
+    function taskFieldConfig() {
+        return [
+            { key: 'id', label: '№', row: taskFieldRowId, logic: () => !isTeacherOnlyCurrentUser() },
+            { key: 'student', label: 'Ученик', row: studentRow, logic: () => isLessonTaskSelected() },
+            { key: 'task_type', label: 'Тип задачи', row: taskFieldRowTaskType },
+            { key: 'created_at', label: 'Дата создания', row: taskFieldRowCreatedAt, logic: () => !isTeacherOnlyCurrentUser() },
+            { key: 'start_date', label: 'Дата начала', row: taskFieldRowStartDate },
+            { key: 'duration', label: 'Продолжительность', row: taskFieldRowDuration },
+            { key: 'series', label: 'Серия уроков', row: taskFieldRowSeries, logic: () => isLessonTaskSelected() },
+            { key: 'end_date', label: 'Дата окончания', row: taskFieldRowEndDate },
+            { key: 'author', label: 'Автор', row: taskFieldRowAuthor, logic: () => !isTeacherOnlyCurrentUser() },
+            { key: 'is_paid', label: 'Оплачено', row: taskFieldRowIsPaid },
+            { key: 'payment_date', label: 'Дата оплаты', row: taskFieldRowPaymentDate },
+            { key: 'homework_required', label: 'ДЗ обязательно', row: homeworkRequiredRow, logic: () => isLessonTaskSelected() },
+            { key: 'homework', label: 'Домашнее задание', row: homeworkRow, logic: () => isLessonTaskSelected() },
+            { key: 'series_apply', label: 'Назначить ДЗ на следующие уроки', row: seriesApplyRow, logic: () => !!currentSeriesId && isLessonTaskSelected() },
+            { key: 'plan_step', label: 'Этап плана', row: planStepRow, logic: () => isLessonTaskSelected() },
+            { key: 'status', label: 'Статус', row: taskFieldRowStatus },
+            { key: 'comment', label: 'Комментарий', row: taskFieldRowComment },
+            { key: 'closing_date', label: 'Дата закрытия', row: taskFieldRowClosingDate, logic: () => !isTeacherOnlyCurrentUser() },
+        ];
+    }
+
+    function loadTaskFieldVisibilityPrefs() {
+        try {
+            const raw = localStorage.getItem(TASK_FIELD_PREFS_STORAGE_KEY);
+            taskFieldVisibilityPrefs = raw ? JSON.parse(raw) : {};
+        } catch (_) {
+            taskFieldVisibilityPrefs = {};
+        }
+    }
+
+    function saveTaskFieldVisibilityPrefs() {
+        try {
+            localStorage.setItem(TASK_FIELD_PREFS_STORAGE_KEY, JSON.stringify(taskFieldVisibilityPrefs));
+        } catch (_) {
+            // Ignore localStorage errors.
+        }
+    }
+
+    function applyTaskFieldVisibility() {
+        taskFieldConfig().forEach(cfg => {
+            if (!cfg.row) return;
+            const enabledByFlag = taskFieldVisibilityPrefs[cfg.key] !== false;
+            const allowedByLogic = typeof cfg.logic === 'function' ? !!cfg.logic() : true;
+            const shouldShow = enabledByFlag && allowedByLogic;
+            cfg.row.classList.toggle('hidden', !shouldShow);
+        });
+    }
+
+    function renderTaskExtraFieldsPanel() {
+        if (!taskExtraFieldsPanel) return;
+        taskExtraFieldsPanel.innerHTML = '';
+        taskFieldConfig().forEach(cfg => {
+            if (!cfg.row) return;
+            const item = document.createElement('label');
+            item.className = 'task-extra-fields-item';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = taskFieldVisibilityPrefs[cfg.key] !== false;
+            checkbox.addEventListener('change', () => {
+                taskFieldVisibilityPrefs[cfg.key] = checkbox.checked;
+                saveTaskFieldVisibilityPrefs();
+                applyTaskFieldVisibility();
+            });
+            const text = document.createElement('span');
+            text.textContent = cfg.label;
+            item.appendChild(checkbox);
+            item.appendChild(text);
+            taskExtraFieldsPanel.appendChild(item);
+        });
+    }
+
+    function initTaskExtraFieldsControls() {
+        loadTaskFieldVisibilityPrefs();
+        renderTaskExtraFieldsPanel();
+        applyTaskFieldVisibility();
+        if (taskExtraFieldsToggleBtn && taskExtraFieldsPanelRow) {
+            taskExtraFieldsToggleBtn.addEventListener('click', () => {
+                taskExtraFieldsPanelRow.classList.toggle('hidden');
+            });
+        }
+    }
+
     function copyTextToClipboard(text) {
         const val = String(text || '');
         if (!val) return Promise.resolve(false);
@@ -465,21 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
             changePasswordBtn.style.display = 'none';
         }
 
-        // Учителю прячем часть служебных полей формы задачи (админ/owner видят всё)
-        const isAdminLike = hasRole('admin', 'owner');
-        const isTeacherOnly = hasRole('teacher') && !isAdminLike;
-        if (isTeacherOnly) {
-            const hideRowByInputId = (inputId) => {
-                const el = document.getElementById(inputId);
-                if (!el) return;
-                const row = el.closest('.form-row');
-                if (row) row.style.display = 'none';
-            };
-            hideRowByInputId('form-id');             // №
-            hideRowByInputId('form-created-at');     // Дата создания
-            hideRowByInputId('form-author');         // Автор
-            hideRowByInputId('form-closing-date');   // Дата закрытия
-        }
+        // Видимость полей задачи рассчитывается централизованно (роль + логика + пользовательский флаг)
+        applyTaskFieldVisibility();
 
         // Settings button: visible to all authenticated users
         settingsBtn.style.display = '';
@@ -489,6 +592,8 @@ document.addEventListener('DOMContentLoaded', () => {
             taskListSection.style.display = 'none';
         }
     }
+
+    initTaskExtraFieldsControls();
 
     fetch('/api/auth/me')
         .then(r => {
@@ -826,12 +931,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const sel = formTaskTypeId.options[formTaskTypeId.selectedIndex];
         const isLesson = sel && sel.textContent === 'Урок';
 
-        // Show/hide student, homework_required, and homework fields
-        studentRow.style.display = isLesson ? '' : 'none';
-        homeworkRequiredRow.style.display = isLesson ? '' : 'none';
-        homeworkRow.style.display = isLesson ? '' : 'none';
-        if (planStepRow) planStepRow.style.display = isLesson ? '' : 'none';
-
         if (!isLesson) {
             formStudentId.value = '';
             formHomeworkRequired.checked = true; // Reset to default
@@ -846,6 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // When switching to lesson type, set homework_required to true by default
             formHomeworkRequired.checked = true;
         }
+        applyTaskFieldVisibility();
     }
 
     formTaskTypeId.addEventListener('change', () => {
@@ -964,9 +1064,11 @@ document.addEventListener('DOMContentLoaded', () => {
     addTaskBtn.addEventListener('click', () => {
         editingTaskId = null;
         originalStudentId = null;
+        currentSeriesId = null;
         taskModalTitle.textContent = 'Создание задачи';
         taskSubmitBtn.textContent = 'Подтвердить и создать';
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
+        if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
 
         // Fetch next task ID from API
         fetch('/api/tasks?page=1')
@@ -1048,6 +1150,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (lessonType) formTaskTypeId.value = lessonType.id;
                 updateLessonFieldsVisibility();
                 updateQuickStatusButtons();
+                applyTaskFieldVisibility();
 
                 populateHomeworkSelectOptions([]);
 
@@ -1059,6 +1162,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formId.value = 'Авто';
                 modal.classList.remove('hidden');
                 syncTaskDeleteButtonVisibility();
+                applyTaskFieldVisibility();
             });
     });
 
@@ -1072,10 +1176,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSeriesId = null;
         syncTaskDeleteButtonVisibility();
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
-        if (seriesApplyRow) seriesApplyRow.classList.add('hidden');
+        if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
         if (formRecurrenceRule) formRecurrenceRule.value = '';
         if (formSeriesUntilDate) formSeriesUntilDate.value = '';
         updateSeriesUntilState();
+        applyTaskFieldVisibility();
     }
 
     modalClose.addEventListener('click', closeModal);
@@ -1511,6 +1616,7 @@ document.addEventListener('DOMContentLoaded', () => {
             editingTaskId = taskId;
             taskModalTitle.textContent = 'Редактирование задачи';
             taskSubmitBtn.textContent = 'Подтвердить изменения';
+            if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
 
             formId.value = task.id;
             if (formDescription) formDescription.value = task.description || '';
@@ -1539,11 +1645,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (task.series_id) {
                 currentSeriesId = task.series_id;
                 if (taskSeriesBadge) taskSeriesBadge.classList.remove('hidden');
-                if (seriesApplyRow) seriesApplyRow.classList.remove('hidden');
             } else {
                 currentSeriesId = null;
                 if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
-                if (seriesApplyRow) seriesApplyRow.classList.add('hidden');
             }
 
             formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
@@ -1570,6 +1674,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadPlanStepsForStudent(task.student_id, task.plan_step_id);
             updateQuickStatusButtons();
             checkAndApplyPrepaid();
+            applyTaskFieldVisibility();
             modal.classList.remove('hidden');
             syncTaskDeleteButtonVisibility();
         });
@@ -1973,6 +2078,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     editingTaskId = task.id;
                     taskModalTitle.textContent = 'Редактирование задачи';
                     taskSubmitBtn.textContent = 'Подтвердить изменения';
+                    if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
 
                     formId.value = task.id;
                     if (formDescription) formDescription.value = task.description || '';
@@ -1999,6 +2105,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     formStudentId.value = task.student_id || '';
                     originalStudentId = task.student_id || null; // Store original for confirmation
+                    if (task.series_id) {
+                        currentSeriesId = task.series_id;
+                        if (taskSeriesBadge) taskSeriesBadge.classList.remove('hidden');
+                    } else {
+                        currentSeriesId = null;
+                        if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
+                    }
 
                     // Populate status dropdown
                     formStatusId.innerHTML = '<option value="">-- Выберите статус --</option>';
@@ -2026,6 +2139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadHomeworkOptionsForStudent(task.student_id, task.homework_id || null);
 
                     loadPlanStepsForStudent(task.student_id, task.plan_step_id);
+                    applyTaskFieldVisibility();
                     modal.classList.remove('hidden');
                     syncTaskDeleteButtonVisibility();
                 });

@@ -147,16 +147,23 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="task-modal-title">Создание задачи</h2>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div id="task-series-badge" class="task-series-badge hidden" title="Урок из серии">
-                        <span class="task-series-icon">&#8635;</span>
-                        <button type="button" class="btn-link" id="open-lesson-series-btn">Редактировать серию</button>
+                <div style="display:flex;align-items:flex-start;gap:10px;">
+                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;">
+                        <div id="task-series-badge" class="task-series-badge hidden" title="Урок из серии">
+                            <span class="task-series-icon">&#8635;</span>
+                            <button type="button" class="btn-link" id="open-lesson-series-btn">Редактировать серию</button>
+                        </div>
+                        <button type="button" class="btn-secondary btn-compact" id="task-extra-fields-toggle-btn">Дополнительные поля</button>
                     </div>
                     <button class="modal-close" id="modal-close">&times;</button>
                 </div>
             </div>
             <form id="task-form" class="task-form" novalidate>
-                <div class="form-row">
+                <div class="form-row hidden" id="task-extra-fields-panel-row">
+                    <label>Показывать поля</label>
+                    <div id="task-extra-fields-panel" class="task-extra-fields-panel"></div>
+                </div>
+                <div class="form-row" id="task-field-row-id">
                     <label>№</label>
                     <input type="text" id="form-id" value="Авто" readonly>
                 </div>
@@ -164,27 +171,27 @@
                     <label>Описание</label>
                     <input type="text" id="form-description" maxlength="100">
                 </div> -->
-                <div class="form-row" id="student-row">
+                <div class="form-row" id="task-field-row-student">
                     <label>Ученик*</label>
                     <select id="form-student-id" class="form-select">
                         <option value="">-- Выберите ученика --</option>
                     </select>
                 </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-task-type">
                     <label>Тип задачи*</label>
                     <select id="form-task-type-id" class="form-select" required>
                         <option value="">-- Выберите тип --</option>
                     </select>
                 </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-created-at">
                     <label>Дата создания</label>
                     <input type="datetime-local" id="form-created-at" readonly>
                 </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-start-date">
                     <label>Дата начала*</label>
                     <input type="datetime-local" id="form-start-date" step="900" required>
                 </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-duration">
                     <label>Продолжительность</label>
                     <select id="form-duration" class="form-select" disabled>
                         <option value="">-- Выберите --</option>
@@ -194,54 +201,7 @@
                         <option value="120">2 часа</option>
                     </select>
                 </div>
-                <div class="form-row">
-                    <label>Дата окончания</label>
-                    <input type="datetime-local" id="form-end-date" readonly>
-                </div>
-                <div class="form-row">
-                    <label>Автор</label>
-                    <input type="text" id="form-author" maxlength="100" value="Система" readonly>
-                </div>
-                <div class="form-row">
-                    <label>Оплачено</label>
-                    <input type="checkbox" id="form-is-paid">
-                </div>
-                <div class="form-row">
-                    <label>Дата оплаты</label>
-                    <input type="datetime-local" id="form-payment-date">
-                </div>
-                <div class="form-row" id="homework-required-row">
-                    <label>ДЗ обязательно</label>
-                    <input type="checkbox" id="form-homework-required">
-                </div>
-                <div class="form-row" id="homework-row">
-                    <label>Домашнее задание</label>
-                    <select id="form-homework-id" class="form-select">
-                        <option value="">-- Выберите --</option>
-                    </select>
-                </div>
-                <div class="form-row hidden" id="series-apply-row">
-                    <label></label>
-                    <button type="button" class="btn-secondary" id="apply-series-homework-btn">Назначить ДЗ на следующие уроки</button>
-                </div>
-                <div class="form-row" id="plan-step-row">
-                    <label>Этап плана</label>
-                    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
-                        <select id="form-plan-step-id" class="form-select">
-                            <option value="">-- Выберите этап --</option>
-                        </select>
-                        <span id="plan-step-warning" class="hidden" style="color:var(--color-warning);font-size:13px;">
-                            Необходимо назначить план обучения этому ученику
-                        </span>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <label>Статус</label>
-                    <select id="form-status-id" class="form-select">
-                        <option value="">-- Выберите статус --</option>
-                    </select>
-                </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-series">
                     <label>Серия уроков</label>
                     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
@@ -259,11 +219,58 @@
                         </label>
                     </div>
                 </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-end-date">
+                    <label>Дата окончания</label>
+                    <input type="datetime-local" id="form-end-date" readonly>
+                </div>
+                <div class="form-row" id="task-field-row-author">
+                    <label>Автор</label>
+                    <input type="text" id="form-author" maxlength="100" value="Система" readonly>
+                </div>
+                <div class="form-row" id="task-field-row-is-paid">
+                    <label>Оплачено</label>
+                    <input type="checkbox" id="form-is-paid">
+                </div>
+                <div class="form-row" id="task-field-row-payment-date">
+                    <label>Дата оплаты</label>
+                    <input type="datetime-local" id="form-payment-date">
+                </div>
+                <div class="form-row" id="task-field-row-homework-required">
+                    <label>ДЗ обязательно</label>
+                    <input type="checkbox" id="form-homework-required">
+                </div>
+                <div class="form-row" id="task-field-row-homework">
+                    <label>Домашнее задание</label>
+                    <select id="form-homework-id" class="form-select">
+                        <option value="">-- Выберите --</option>
+                    </select>
+                </div>
+                <div class="form-row hidden" id="task-field-row-series-apply">
+                    <label></label>
+                    <button type="button" class="btn-secondary" id="apply-series-homework-btn">Назначить ДЗ на следующие уроки</button>
+                </div>
+                <div class="form-row" id="task-field-row-plan-step">
+                    <label>Этап плана</label>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                        <select id="form-plan-step-id" class="form-select">
+                            <option value="">-- Выберите этап --</option>
+                        </select>
+                        <span id="plan-step-warning" class="hidden" style="color:var(--color-warning);font-size:13px;">
+                            Необходимо назначить план обучения этому ученику
+                        </span>
+                    </div>
+                </div>
+                <div class="form-row" id="task-field-row-status">
+                    <label>Статус</label>
+                    <select id="form-status-id" class="form-select">
+                        <option value="">-- Выберите статус --</option>
+                    </select>
+                </div>
+                <div class="form-row" id="task-field-row-comment">
                     <label>Комментарий</label>
                     <textarea id="form-comment" maxlength="500" rows="3"></textarea>
                 </div>
-                <div class="form-row">
+                <div class="form-row" id="task-field-row-closing-date">
                     <label>Дата закрытия</label>
                     <input type="datetime-local" id="form-closing-date">
                 </div>

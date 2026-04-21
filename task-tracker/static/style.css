@@ -532,6 +532,38 @@ select.filter-control {
     text-decoration: underline;
 }
 
+.btn-compact {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.task-extra-fields-panel {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-subtle);
+}
+
+.task-extra-fields-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.task-extra-fields-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
 .modal-header h2 {
     margin: 0;
     font-size: 20px;
