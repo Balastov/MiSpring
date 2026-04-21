@@ -407,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const TASK_FIELD_PREFS_STORAGE_KEY = 'task_form_visible_fields_v1';
     let taskFieldVisibilityPrefs = {};
+    let isTaskExtraFieldsPanelOpen = false;
 
     function isTeacherOnlyCurrentUser() {
         const isAdminLike = hasRole('admin', 'owner');
@@ -493,13 +494,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function setTaskExtraFieldsPanelVisible(visible) {
+        isTaskExtraFieldsPanelOpen = !!visible;
+        if (taskExtraFieldsPanelRow) {
+            taskExtraFieldsPanelRow.classList.toggle('hidden', !isTaskExtraFieldsPanelOpen);
+        }
+        if (taskExtraFieldsToggleBtn) {
+            taskExtraFieldsToggleBtn.setAttribute('aria-expanded', String(isTaskExtraFieldsPanelOpen));
+        }
+    }
+
     function initTaskExtraFieldsControls() {
         loadTaskFieldVisibilityPrefs();
         renderTaskExtraFieldsPanel();
         applyTaskFieldVisibility();
+        setTaskExtraFieldsPanelVisible(false);
         if (taskExtraFieldsToggleBtn && taskExtraFieldsPanelRow) {
             taskExtraFieldsToggleBtn.addEventListener('click', () => {
-                taskExtraFieldsPanelRow.classList.toggle('hidden');
+                setTaskExtraFieldsPanelVisible(!isTaskExtraFieldsPanelOpen);
             });
         }
     }
@@ -1068,7 +1080,7 @@ document.addEventListener('DOMContentLoaded', () => {
         taskModalTitle.textContent = 'Создание задачи';
         taskSubmitBtn.textContent = 'Подтвердить и создать';
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
-        if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
+        setTaskExtraFieldsPanelVisible(false);
 
         // Fetch next task ID from API
         fetch('/api/tasks?page=1')
@@ -1176,7 +1188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSeriesId = null;
         syncTaskDeleteButtonVisibility();
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
-        if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
+        setTaskExtraFieldsPanelVisible(false);
         if (formRecurrenceRule) formRecurrenceRule.value = '';
         if (formSeriesUntilDate) formSeriesUntilDate.value = '';
         updateSeriesUntilState();
@@ -1616,7 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             editingTaskId = taskId;
             taskModalTitle.textContent = 'Редактирование задачи';
             taskSubmitBtn.textContent = 'Подтвердить изменения';
-            if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
+            setTaskExtraFieldsPanelVisible(false);
 
             formId.value = task.id;
             if (formDescription) formDescription.value = task.description || '';
@@ -2078,7 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     editingTaskId = task.id;
                     taskModalTitle.textContent = 'Редактирование задачи';
                     taskSubmitBtn.textContent = 'Подтвердить изменения';
-                    if (taskExtraFieldsPanelRow) taskExtraFieldsPanelRow.classList.add('hidden');
+                    setTaskExtraFieldsPanelVisible(false);
 
                     formId.value = task.id;
                     if (formDescription) formDescription.value = task.description || '';
