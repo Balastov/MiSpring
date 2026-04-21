@@ -502,7 +502,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch('/api/my-teacher')
                     .then(r => r.json())
                     .then(data => {
-                        if (!data.teacher) return;
+                        if (!data.teacher) {
+                            myTeacherCard.classList.add('hidden');
+                            myTeacherName.textContent = '';
+                            myTeacherPhoto.classList.add('hidden');
+                            myTeacherNoPhoto.classList.add('hidden');
+                            return;
+                        }
                         myTeacherCard.classList.remove('hidden');
                         myTeacherName.textContent = data.teacher.display_name;
                         if (data.teacher.photo_url) {
@@ -514,7 +520,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             myTeacherNoPhoto.classList.remove('hidden');
                         }
                     })
-                    .catch(() => {});
+                    .catch(() => {
+                        myTeacherCard.classList.add('hidden');
+                        myTeacherName.textContent = '';
+                        myTeacherPhoto.classList.add('hidden');
+                        myTeacherNoPhoto.classList.add('hidden');
+                    });
             }
             // Load task list immediately
             loadFilterStudents();
