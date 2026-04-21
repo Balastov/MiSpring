@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let prevUnreadByDialog = {};
     let unreadSoundPrimed = false;
     let unreadAudioCtx = null;
+    let unreadNotifyPrimed = false;
+    let lastUnreadNotifyAt = 0;
 
     function ensureAudioCtx() {
         if (!window.AudioContext && !window.webkitAudioContext) return null;
@@ -69,6 +71,42 @@ document.addEventListener('DOMContentLoaded', () => {
         unreadSoundPrimed = true;
     }
 
+    function notifyUnread(count) {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+        // Throttle noisy polling updates.
+        const now = Date.now();
+        if (now - lastUnreadNotifyAt < 4000) return;
+        lastUnreadNotifyAt = now;
+        const title = 'MiSpring: новое сообщение';
+        const body = count > 1
+            ? `У вас ${count} непрочитанных сообщений`
+            : 'У вас новое непрочитанное сообщение';
+        try {
+            const n = new Notification(title, { body, tag: 'mispring-chat-unread', renotify: true });
+            n.onclick = () => {
+                try { window.focus(); } catch (_) {}
+                panel.classList.remove('hidden');
+                setSidebarCollapsed(true);
+                loadDialogs().then(() => {
+                    if (activeDialogId) loadMessages(true);
+                }).catch(() => {});
+                n.close();
+            };
+        } catch (_) {
+            // ignore notification errors
+        }
+    }
+
+    function primeUnreadNotifications() {
+        if (unreadNotifyPrimed) return;
+        if (!('Notification' in window)) return;
+        unreadNotifyPrimed = true;
+        if (Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
+    }
+
     function hasRole(name) {
         return me && Array.isArray(me.roles) && me.roles.includes(name);
     }
@@ -92,6 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
             fab.classList.add('chat-fab--pulse');
             if (prevUnreadTotal > 0) {
                 playUnreadSound();
+            }
+            if (document.visibilityState !== 'visible') {
+                notifyUnread(count);
             }
         }
         prevUnreadTotal = count;
@@ -318,6 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fab.addEventListener('click', () => {
         primeUnreadSound();
+        primeUnreadNotifications();
         panel.classList.toggle('hidden');
         if (!panel.classList.contains('hidden')) {
             setSidebarCollapsed(true);
@@ -329,10 +371,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.addEventListener('keydown', primeUnreadSound, { once: true });
-    document.addEventListener('click', primeUnreadSound, { once: true });
+    const primeNotificationsOnInteract = () => {
+        primeUnreadSound();
+        primeUnreadNotifications();
+    };
+
+    document.addEventListener('keydown', primeNotificationsOnInteract, { once: true });
+    document.addEventListener('click', primeNotificationsOnInteract, { once: true });
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') primeUnreadSound();
+        if (document.visibilityState === 'visible') {
+            primeUnreadSound();
+            primeUnreadNotifications();
+        }
     });
 
     if (panelClose) {
