@@ -366,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentBalanceStudentId = null;
     let currentBalanceStudentName = null;
     let currentPaymentStudentLessonPrice = null;
+    const startupSection = new URLSearchParams(window.location.search).get('section');
 
     // ========== Auth: Fetch Current User ==========
 
@@ -526,6 +527,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         myTeacherPhoto.classList.add('hidden');
                         myTeacherNoPhoto.classList.add('hidden');
                     });
+            }
+            if (startupSection === 'telegram') {
+                showTelegramPage();
+                return;
             }
             // Load task list immediately
             loadFilterStudents();

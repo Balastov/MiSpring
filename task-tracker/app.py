@@ -60,7 +60,9 @@ def inject_cache_bust():
 @login_required
 def index():
     from helpers import user_has_role
-    if user_has_role('student') and not user_has_role('admin', 'owner', 'teacher'):
+    is_student_only = user_has_role('student') and not user_has_role('admin', 'owner', 'teacher')
+    # Разрешаем ученику открыть тот же экран "Ссылки и интеграции", что и в главном интерфейсе.
+    if is_student_only and request.args.get('section') != 'telegram':
         return redirect(url_for('student_dashboard'))
     return render_template('index.html')
 
