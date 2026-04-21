@@ -126,6 +126,8 @@ with app.app_context():
         cursor.execute('ALTER TABLE user ADD COLUMN teacher_id INTEGER')
     if 'teacher_photo' not in user_columns:
         cursor.execute('ALTER TABLE user ADD COLUMN teacher_photo VARCHAR(200)')
+    if 'password_plain' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN password_plain VARCHAR(255)')
     conn.commit()
 
     # Создаём папку для фото учителей

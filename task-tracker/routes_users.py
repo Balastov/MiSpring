@@ -2,26 +2,82 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import current_user, login_required
 from extensions import db
 from models import User, UserRole, Role
-from helpers import require_role
+from helpers import require_role, user_has_role
 import secrets
 import os
 
 users_bp = Blueprint('users', __name__)
 
 
+def _is_admin_like():
+    return user_has_role('admin', 'owner')
+
+
+def _is_teacher():
+    return user_has_role('teacher') and not _is_admin_like()
+
+
+def _is_student_user(user):
+    roles = set(user.get_roles() if user else [])
+    return 'student' in roles
+
+
+def _can_teacher_manage_student(user):
+    if not user or not _is_teacher():
+        return False
+    if not _is_student_user(user):
+        return False
+    return int(user.teacher_id or 0) == int(current_user.id or 0)
+
+
+def _can_view_student_credentials(user):
+    if not user or not _is_student_user(user):
+        return False
+    if _is_admin_like():
+        return True
+    return _can_teacher_manage_student(user)
+
+
 @users_bp.route('/api/users', methods=['GET'])
-@require_role('admin', 'owner')
+@login_required
 def get_users():
+    if not (_is_admin_like() or _is_teacher()):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
     page = request.args.get('page', 1, type=int)
     per_page = 50
-    paginator = db.paginate(
-        db.select(User).order_by(User.id),
-        page=page, per_page=per_page, error_out=False
-    )
+    query = db.select(User)
+
+    if _is_teacher():
+        student_role = Role.query.filter_by(name='student').first()
+        if not student_role:
+            return jsonify({
+                'users': [],
+                'total': 0,
+                'pages': 0,
+                'current_page': 1,
+                'next_id': 1,
+            })
+        query = (
+            query.join(UserRole, UserRole.user_id == User.id)
+            .where(
+                UserRole.role_id == student_role.id,
+                User.teacher_id == current_user.id,
+            )
+        )
+
+    paginator = db.paginate(query.order_by(User.id), page=page, per_page=per_page, error_out=False)
     max_id_result = db.session.execute(db.select(db.func.max(User.id))).scalar()
     next_id = (max_id_result or 0) + 1
+    payload = []
+    for u in paginator.items:
+        item = u.to_dict()
+        if _can_view_student_credentials(u):
+            item['plain_password'] = u.password_plain or ''
+        payload.append(item)
+
     return jsonify({
-        'users': [u.to_dict() for u in paginator.items],
+        'users': payload,
         'total': paginator.total,
         'pages': paginator.pages,
         'current_page': paginator.page,
@@ -53,6 +109,7 @@ def add_user():
         display_name=display_name,
     )
     user.set_password(password)
+    user.password_plain = password
     db.session.add(user)
     db.session.commit()
 
@@ -108,11 +165,20 @@ def delete_user(user_id):
 
 
 @users_bp.route('/api/users/<int:user_id>/reset-password', methods=['POST'])
-@require_role('admin', 'owner')
+@login_required
 def reset_user_password(user_id):
+    if not (_is_admin_like() or _is_teacher()):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
     user = db.get_or_404(User, user_id)
+    if not _is_student_user(user):
+        return jsonify({'error': 'Сброс пароля доступен только для учеников'}), 400
+    if _is_teacher() and not _can_teacher_manage_student(user):
+        return jsonify({'error': 'Недостаточно прав для этого ученика'}), 403
+
     new_password = secrets.token_urlsafe(8)
     user.set_password(new_password)
+    user.password_plain = new_password
     db.session.commit()
     return jsonify({'new_password': new_password})
 

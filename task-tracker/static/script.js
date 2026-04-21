@@ -233,6 +233,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const formUserPhotoInput = document.getElementById('form-user-photo-input');
     const formUserPhotoPreview = document.getElementById('form-user-photo-preview');
     const formUserPhotoName = document.getElementById('form-user-photo-name');
+    const formStudentCredentialsRow = document.getElementById('form-student-credentials-row');
+    const formStudentLoginView = document.getElementById('form-student-login-view');
+    const formStudentPasswordView = document.getElementById('form-student-password-view');
+    const copyStudentLoginBtn = document.getElementById('copy-student-login-btn');
+    const copyStudentPasswordBtn = document.getElementById('copy-student-password-btn');
     let _pendingPhotoFile = null;
 
     // Teacher card (main page)
@@ -366,6 +371,28 @@ document.addEventListener('DOMContentLoaded', () => {
     function hasRole(...roleNames) {
         if (!currentUserData || !currentUserData.roles) return false;
         return roleNames.some(r => currentUserData.roles.includes(r));
+    }
+
+    function copyTextToClipboard(text) {
+        const val = String(text || '');
+        if (!val) return Promise.resolve(false);
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(val).then(() => true).catch(() => false);
+        }
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = val;
+            ta.style.position = 'fixed';
+            ta.style.left = '-1000px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return Promise.resolve(!!ok);
+        } catch (_) {
+            return Promise.resolve(false);
+        }
     }
 
     function applyRBAC() {
@@ -3189,6 +3216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showUsersPage() {
         hideAllPages();
         usersPage.classList.remove('hidden');
+        addUserBtn.style.display = hasRole('admin', 'owner') ? '' : 'none';
         currentUsersPage = 1;
         fetchUsers();
     }
@@ -3210,7 +3238,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderUsers(users) {
-        const canManage = hasRole('admin', 'owner', 'teacher');
+        const canAdminLike = hasRole('admin', 'owner');
+        const canTeacherOnly = hasRole('teacher') && !canAdminLike;
+        const canManage = canAdminLike || canTeacherOnly;
         const usersTheadRow = document.querySelector('#users-table thead tr');
 
         if (canManage) {
@@ -3240,6 +3270,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const balanceBtn = isStudent
                     ? `<button class="btn-balance" data-id="${user.id}" data-name="${escapeAttr(user.display_name)}">Баланс</button>`
                     : '';
+                const deleteCell = canAdminLike
+                    ? `<td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>`
+                    : '<td></td>';
                 tr.innerHTML = `
                     <td>${user.id}</td>
                     <td>${escapeHtml(user.username)}</td>
@@ -3252,7 +3285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
                     <td class="cell-bool">${user.telegram_notifications ? '✓' : '✗'}</td>
                     <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
-                    <td><button class="btn-delete" data-id="${user.id}">Удалить</button></td>
+                    ${deleteCell}
                     <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
                     <td>${balanceBtn}</td>`;
             } else {
@@ -3306,12 +3339,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 editingUserId = null;
                 userModalTitle.textContent = 'Создание пользователя';
                 userSubmitBtn.textContent = 'Подтвердить и создать';
+                userSubmitBtn.classList.remove('hidden');
                 formUserIdDisplay.value = data.next_id;
                 formUserUsername.value = '';
                 formUserUsername.readOnly = false;
                 formUserDisplayName.value = '';
                 formUserPassword.value = '';
                 formUserPasswordRow.style.display = '';
+                if (formStudentCredentialsRow) formStudentCredentialsRow.classList.add('hidden');
+                if (formStudentLoginView) formStudentLoginView.value = '';
+                if (formStudentPasswordView) formStudentPasswordView.value = '';
                 formUserIsActive.checked = true;
 
                 // Render role checkboxes
@@ -3352,8 +3389,26 @@ document.addEventListener('DOMContentLoaded', () => {
         userForm.reset();
         editingUserId = null;
         _pendingPhotoFile = null;
+        if (formStudentCredentialsRow) formStudentCredentialsRow.classList.add('hidden');
+        if (formStudentLoginView) formStudentLoginView.value = '';
+        if (formStudentPasswordView) formStudentPasswordView.value = '';
         formUserPhotoPreview.classList.add('hidden');
         formUserPhotoName.textContent = 'макс. 5 МБ';
+    }
+
+    if (copyStudentLoginBtn) {
+        copyStudentLoginBtn.addEventListener('click', () => {
+            copyTextToClipboard(formStudentLoginView ? formStudentLoginView.value : '').then((ok) => {
+                alert(ok ? 'Логин скопирован в буфер обмена' : 'Не удалось скопировать логин');
+            });
+        });
+    }
+    if (copyStudentPasswordBtn) {
+        copyStudentPasswordBtn.addEventListener('click', () => {
+            copyTextToClipboard(formStudentPasswordView ? formStudentPasswordView.value : '').then((ok) => {
+                alert(ok ? 'Пароль скопирован в буфер обмена' : 'Не удалось скопировать пароль');
+            });
+        });
     }
 
     if (formUserPhotoBtn) {
@@ -3387,6 +3442,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     userForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        if (editingUserId && !hasRole('admin', 'owner')) {
+            closeUserModal();
+            return;
+        }
         const username = formUserUsername.value.trim();
         const displayName = formUserDisplayName.value.trim();
         const password = formUserPassword.value;
@@ -3487,6 +3546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     editingUserId = user.id;
                     userModalTitle.textContent = 'Изменение пользователя';
                     userSubmitBtn.textContent = 'Подтвердить изменения';
+                    userSubmitBtn.classList.toggle('hidden', !hasRole('admin', 'owner'));
                     formUserIdDisplay.value = user.id;
                     formUserUsername.value = user.username;
                     formUserUsername.readOnly = true;
@@ -3495,10 +3555,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     formUserPasswordRow.style.display = 'none';
                     formUserIsActive.checked = user.is_active;
 
+                    const isStudent = user.roles.includes('student');
+                    const canViewStudentCredentials = hasRole('admin', 'owner', 'teacher');
+                    if (formStudentCredentialsRow) {
+                        if (isStudent && canViewStudentCredentials) {
+                            formStudentCredentialsRow.classList.remove('hidden');
+                            if (formStudentLoginView) formStudentLoginView.value = user.username || '';
+                            if (formStudentPasswordView) formStudentPasswordView.value = user.plain_password || '';
+                            if (copyStudentPasswordBtn) copyStudentPasswordBtn.disabled = !(user.plain_password || '').trim();
+                        } else {
+                            formStudentCredentialsRow.classList.add('hidden');
+                            if (formStudentLoginView) formStudentLoginView.value = '';
+                            if (formStudentPasswordView) formStudentPasswordView.value = '';
+                            if (copyStudentPasswordBtn) copyStudentPasswordBtn.disabled = false;
+                        }
+                    }
+
                     renderRoleCheckboxes(rolesData.roles, user.roles);
 
                     // Show lesson_price for students (teacher/admin only)
-                    const isStudent = user.roles.includes('student');
                     const isTeacher = user.roles.includes('teacher');
                     const canManage = hasRole('admin', 'owner', 'teacher');
                     const canManageAdmin = hasRole('admin', 'owner');
@@ -3565,7 +3640,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data.new_password) {
-                        alert(`Новый пароль: ${data.new_password}\n\nСообщите его пользователю.`);
+                        copyTextToClipboard(data.new_password).then((copied) => {
+                            const copyHint = copied ? '\nПароль скопирован в буфер обмена.' : '\nНе удалось скопировать автоматически.';
+                            alert(`Новый пароль: ${data.new_password}\n${copyHint}\n\nСообщите его пользователю.`);
+                        });
                     } else if (data.error) {
                         alert(data.error);
                     }
