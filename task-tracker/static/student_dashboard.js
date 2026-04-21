@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const myTeacherPhoto = document.getElementById('my-teacher-photo');
     const myTeacherNoPhoto = document.getElementById('my-teacher-no-photo');
     const myTeacherName = document.getElementById('my-teacher-name');
+    const sdProfileTimezoneWrap = document.getElementById('sd-profile-timezone-wrap');
     const sdTimezoneMain = document.getElementById('sd-timezone-main');
     const sdTimezoneSub = document.getElementById('sd-timezone-sub');
 
@@ -111,14 +112,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTimezoneChip() {
-        if (!sdTimezoneMain || !sdTimezoneSub) return;
+        if (!sdProfileTimezoneWrap || !sdTimezoneMain || !sdTimezoneSub) return;
         const tz = studentTimezone || 'UTC+03:00';
-        sdTimezoneMain.textContent = tz === 'UTC+03:00' ? 'МСК (UTC+03:00)' : tz;
-        const diff = studentTzOffsetMinutes - MSK_OFFSET_MINUTES;
-        if (diff === 0) {
-            sdTimezoneSub.textContent = 'совпадает с МСК';
+        if (tz === 'UTC+03:00') {
+            sdProfileTimezoneWrap.classList.add('sd-hidden');
             return;
         }
+        sdProfileTimezoneWrap.classList.remove('sd-hidden');
+        sdTimezoneMain.textContent = tz;
+        const diff = studentTzOffsetMinutes - MSK_OFFSET_MINUTES;
         const sign = diff > 0 ? '+' : '-';
         sdTimezoneSub.textContent = `МСК ${sign}${formatMinutesAsHours(diff)}`;
     }
@@ -600,7 +602,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Profile Actions =====
 
-    sdProfileBtn.addEventListener('click', () => openModal(sdProfileModal));
+    sdProfileBtn.addEventListener('click', () => {
+        renderTimezoneChip();
+        openModal(sdProfileModal);
+    });
     sdProfileModalClose.addEventListener('click', () => closeModal(sdProfileModal));
     sdProfileModal.addEventListener('click', e => { if (e.target === sdProfileModal) closeModal(sdProfileModal); });
 

@@ -54,13 +54,7 @@
                     <span id="my-teacher-name" class="my-teacher-name"></span>
                 </div>
             </div>
-            <div class="sd-user-meta">
-                <span class="sd-username" id="sd-username">…</span>
-                <div class="sd-timezone-chip" id="sd-timezone-chip">
-                    <span class="sd-timezone-main" id="sd-timezone-main">МСК (UTC+03:00)</span>
-                    <span class="sd-timezone-sub" id="sd-timezone-sub">совпадает с МСК</span>
-                </div>
-            </div>
+            <span class="sd-username" id="sd-username">…</span>
             <button class="sd-btn-profile" id="sd-profile-btn">Личный кабинет</button>
         </div>
     </header>
@@ -117,6 +111,13 @@
         <div class="sd-modal-content">
             <button class="sd-modal-close" id="sd-profile-modal-close">&times;</button>
             <h2 class="sd-modal-title">Личный кабинет</h2>
+            <div id="sd-profile-timezone-wrap" class="sd-profile-timezone-wrap sd-hidden">
+                <span class="sd-profile-timezone-label">Ваш часовой пояс</span>
+                <div class="sd-profile-timezone-chip">
+                    <span class="sd-timezone-main" id="sd-timezone-main"></span>
+                    <span class="sd-timezone-sub" id="sd-timezone-sub"></span>
+                </div>
+            </div>
             <div class="sd-profile-actions">
                 <button class="sd-profile-link" id="sd-telegram-btn">Telegram уведомления</button>
                 <button class="sd-profile-link" id="sd-change-password-btn">Сменить пароль</button>

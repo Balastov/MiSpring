@@ -214,38 +214,45 @@
     white-space: nowrap;
 }
 
-.sd-user-meta {
+.sd-profile-timezone-wrap {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    min-width: 0;
+    gap: 6px;
+    margin: -4px 0 10px;
 }
 
-.sd-timezone-chip {
+.sd-profile-timezone-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sd-text-muted);
+    font-weight: 700;
+}
+
+.sd-profile-timezone-chip {
     display: inline-flex;
     flex-direction: column;
-    gap: 1px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.38);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
-    line-height: 1.15;
+    gap: 2px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 7px 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(26, 81, 95, 0.09), rgba(36, 106, 120, 0.14));
+    border: 1px solid rgba(26, 81, 95, 0.26);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .sd-timezone-main {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.02em;
-    color: #fff;
+    color: var(--sd-primary);
     white-space: nowrap;
 }
 
 .sd-timezone-sub {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.9);
+    font-size: 11px;
+    color: var(--sd-text-muted);
     white-space: nowrap;
 }
 
@@ -1128,10 +1135,6 @@
     .sd-topbar-right {
         flex-direction: column;
         gap: 8px;
-    }
-
-    .sd-user-meta {
-        align-items: center;
     }
 
     .sd-topbar-right .my-teacher-card {
