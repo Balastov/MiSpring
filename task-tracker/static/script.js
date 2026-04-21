@@ -368,6 +368,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPaymentStudentLessonPrice = null;
     const startupSection = new URLSearchParams(window.location.search).get('section');
 
+    function showPageByKey(pageKey) {
+        if (pageKey === 'statuses') return showStatusesPage();
+        if (pageKey === 'task-types') return showTaskTypesPage();
+        if (pageKey === 'roles') return showRolesPage();
+        if (pageKey === 'users') return showUsersPage();
+        if (pageKey === 'homework') return showHomeworkPage();
+        if (pageKey === 'telegram') return showTelegramPage();
+        if (pageKey === 'reports') return showReportsPage();
+        if (pageKey === 'homework-review') return showHomeworkReviewPage();
+        if (pageKey === 'plan-templates') return showPlanTemplatesPage();
+        return showMainPage();
+    }
+
     // ========== Auth: Fetch Current User ==========
 
     function hasRole(...roleNames) {
@@ -485,6 +498,11 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(user => {
             currentUserData = user;
             applyRBAC();
+            try {
+                if (!history.state || !history.state.appPage) {
+                    history.replaceState({ appPage: 'main' }, '', window.location.href);
+                }
+            } catch (_) {}
             // Show "Мой план" button if student has a plan
             if (hasRole('student') && myPlanBtn) {
                 fetch('/api/my-plan')
@@ -530,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (startupSection === 'telegram') {
                 showTelegramPage();
+                try { history.replaceState({ appPage: 'telegram' }, '', window.location.href); } catch (_) {}
                 return;
             }
             // Load task list immediately
@@ -2081,27 +2100,16 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', (e) => {
             const option = e.target.dataset.option;
             settingsModal.classList.add('hidden');
-
-            if (option === 'statuses') {
-                showStatusesPage();
-            } else if (option === 'task-types') {
-                showTaskTypesPage();
-            } else if (option === 'roles') {
-                showRolesPage();
-            } else if (option === 'users') {
-                showUsersPage();
-            } else if (option === 'homework') {
-                showHomeworkPage();
-            } else if (option === 'telegram') {
-                showTelegramPage();
-            } else if (option === 'reports') {
-                showReportsPage();
-            } else if (option === 'homework-review') {
-                showHomeworkReviewPage();
-            } else if (option === 'plan-templates') {
-                showPlanTemplatesPage();
-            }
+            showPageByKey(option);
+            try {
+                history.pushState({ appPage: option }, '', window.location.href);
+            } catch (_) {}
         });
+    });
+
+    window.addEventListener('popstate', (event) => {
+        const pageKey = (event && event.state && event.state.appPage) || 'main';
+        showPageByKey(pageKey);
     });
 
     // ========== Placeholder Modal ==========
