@@ -599,6 +599,10 @@ select.filter-control {
     margin-bottom: 16px;
 }
 
+.form-row.hidden {
+    display: none;
+}
+
 .form-row label {
     flex: 0 0 150px;
     font-weight: 500;
