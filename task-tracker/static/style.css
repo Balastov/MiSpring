@@ -1670,6 +1670,10 @@ select.filter-control {
     margin-right: 10px;
 }
 
+.my-teacher-card.hidden {
+    display: none;
+}
+
 .top-bar .my-teacher-card {
     margin-right: 0;
     margin-left: 6px;

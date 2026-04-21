@@ -555,6 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (!data.teacher) {
                     myTeacherCard.classList.add('hidden');
+                    myTeacherName.textContent = '';
+                    myTeacherPhoto.classList.add('hidden');
+                    myTeacherNoPhoto.classList.add('hidden');
                     return;
                 }
                 myTeacherCard.classList.remove('hidden');
@@ -570,6 +573,9 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(() => {
                 myTeacherCard.classList.add('hidden');
+                myTeacherName.textContent = '';
+                myTeacherPhoto.classList.add('hidden');
+                myTeacherNoPhoto.classList.add('hidden');
             });
     }
 
