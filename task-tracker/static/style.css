@@ -331,6 +331,11 @@ select.filter-control {
     font-size: 12px;
 }
 
+#calendar-container .fc .fc-timegrid-event {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
 .fc-event.fc-event-series {
     position: relative;
 }

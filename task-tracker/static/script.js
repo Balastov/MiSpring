@@ -1464,6 +1464,9 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             height: '100%',
             eventDisplay: 'block',
+            // Keep short lessons visually proportional in timeGrid.
+            eventMinHeight: 26,
+            eventShortHeight: 26,
             dayMaxEvents: 4,
         });
         calendar.render();
