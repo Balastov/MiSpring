@@ -5,8 +5,10 @@ from models import User, UserRole, Role
 from helpers import require_role, user_has_role
 import secrets
 import os
+import re
 
 users_bp = Blueprint('users', __name__)
+TZ_PATTERN = re.compile(r'^UTC([+-])(0\d|1[0-4]):([0-5]\d)$')
 
 
 def _is_admin_like():
@@ -36,6 +38,24 @@ def _can_view_student_credentials(user):
     if _is_admin_like():
         return True
     return _can_teacher_manage_student(user)
+
+
+def _normalize_timezone(raw):
+    value = str(raw or '').strip().upper()
+    if not value:
+        value = 'UTC+03:00'
+    m = TZ_PATTERN.match(value)
+    if not m:
+        return None
+    sign = m.group(1)
+    hh = int(m.group(2))
+    mm = int(m.group(3))
+    total = hh * 60 + mm
+    if sign == '-':
+        total = -total
+    if total < -12 * 60 or total > 14 * 60:
+        return None
+    return value
 
 
 @users_bp.route('/api/users', methods=['GET'])
@@ -103,10 +123,14 @@ def add_user():
     password = data.get('password') or ''
     if len(password) < 6:
         return jsonify({'error': 'Пароль: минимум 6 символов'}), 400
+    timezone = _normalize_timezone(data.get('timezone'))
+    if timezone is None:
+        return jsonify({'error': 'Некорректный часовой пояс'}), 400
 
     user = User(
         username=username,
         display_name=display_name,
+        timezone=timezone,
     )
     user.set_password(password)
     user.password_plain = password
@@ -123,10 +147,25 @@ def add_user():
 
 
 @users_bp.route('/api/users/<int:user_id>', methods=['PUT'])
-@require_role('admin', 'owner')
+@login_required
 def update_user(user_id):
+    if not (_is_admin_like() or _is_teacher()):
+        return jsonify({'error': 'Недостаточно прав'}), 403
     user = db.get_or_404(User, user_id)
     data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Некорректный payload'}), 400
+
+    if _is_teacher():
+        if not _can_teacher_manage_student(user):
+            return jsonify({'error': 'Недостаточно прав для этого ученика'}), 403
+        # Учитель может менять только часовой пояс своих учеников.
+        timezone = _normalize_timezone(data.get('timezone'))
+        if timezone is None:
+            return jsonify({'error': 'Некорректный часовой пояс'}), 400
+        user.timezone = timezone
+        db.session.commit()
+        return jsonify(user.to_dict())
 
     if 'display_name' in data:
         display_name = (data['display_name'] or '').strip()
@@ -145,6 +184,12 @@ def update_user(user_id):
 
     if 'teacher_id' in data:
         user.teacher_id = data['teacher_id'] or None
+
+    if 'timezone' in data:
+        timezone = _normalize_timezone(data.get('timezone'))
+        if timezone is None:
+            return jsonify({'error': 'Некорректный часовой пояс'}), 400
+        user.timezone = timezone
 
     db.session.commit()
     return jsonify(user.to_dict())

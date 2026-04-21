@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let monthLessons = [];
     let lessonMapByDate = {};
     let selectedHomeworkTaskId = null;
+    let studentTimezone = 'UTC+03:00';
+    let studentTzOffsetMinutes = 180;
+    const MSK_OFFSET_MINUTES = 180;
 
     // ===== Element refs =====
     const sdUsername = document.getElementById('sd-username');
@@ -127,17 +130,76 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    function normalizeDateKey(d) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
+    function parseTimezoneOffsetMinutes(value) {
+        const m = String(value || '').trim().toUpperCase().match(/^UTC([+-])(\d{2}):(\d{2})$/);
+        if (!m) return MSK_OFFSET_MINUTES;
+        const sign = m[1] === '-' ? -1 : 1;
+        const hh = parseInt(m[2], 10);
+        const mm = parseInt(m[3], 10);
+        return sign * (hh * 60 + mm);
+    }
+
+    function parseMskIsoToUtcMs(iso) {
+        if (!iso) return null;
+        const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (!m) return null;
+        const y = parseInt(m[1], 10);
+        const mo = parseInt(m[2], 10);
+        const d = parseInt(m[3], 10);
+        const hh = parseInt(m[4], 10);
+        const mm = parseInt(m[5], 10);
+        const ss = parseInt(m[6] || '0', 10);
+        return Date.UTC(y, mo - 1, d, hh, mm, ss) - (MSK_OFFSET_MINUTES * 60 * 1000);
+    }
+
+    function datePartsAtOffset(utcMs, offsetMinutes) {
+        const d = new Date(utcMs + (offsetMinutes * 60 * 1000));
+        return {
+            year: d.getUTCFullYear(),
+            month: d.getUTCMonth(), // 0..11
+            day: d.getUTCDate(),
+            hour: d.getUTCHours(),
+            minute: d.getUTCMinutes(),
+        };
+    }
+
+    function normalizeDateKeyFromUtcMs(utcMs, offsetMinutes) {
+        const p = datePartsAtOffset(utcMs, offsetMinutes);
+        const y = p.year;
+        const m = String(p.month + 1).padStart(2, '0');
+        const day = String(p.day).padStart(2, '0');
         return `${y}-${m}-${day}`;
+    }
+
+    function formatDateFromUtcMs(utcMs, offsetMinutes) {
+        const p = datePartsAtOffset(utcMs, offsetMinutes);
+        return `${String(p.day).padStart(2, '0')}.${String(p.month + 1).padStart(2, '0')}.${p.year}`;
+    }
+
+    function formatTimeFromUtcMs(utcMs, offsetMinutes) {
+        const p = datePartsAtOffset(utcMs, offsetMinutes);
+        return `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;
+    }
+
+    function enrichLessonTime(lesson) {
+        const utcMs = parseMskIsoToUtcMs(lesson.start_date_iso);
+        if (utcMs == null) return lesson;
+        const localDate = formatDateFromUtcMs(utcMs, studentTzOffsetMinutes);
+        const localTime = formatTimeFromUtcMs(utcMs, studentTzOffsetMinutes);
+        const mskTime = formatTimeFromUtcMs(utcMs, MSK_OFFSET_MINUTES);
+        return {
+            ...lesson,
+            date: localDate,
+            time: `${localTime} (МСК ${mskTime})`,
+            local_date_key: normalizeDateKeyFromUtcMs(utcMs, studentTzOffsetMinutes),
+            _utc_ms: utcMs,
+        };
     }
 
     function buildLessonMap(lessons) {
         const map = {};
         lessons.forEach(lesson => {
-            const key = lesson.date_iso;
+            const key = lesson.local_date_key || lesson.date_iso;
             if (!key) return;
             if (!map[key]) map[key] = [];
             map[key].push(lesson);
@@ -147,12 +209,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Countdown Timer =====
 
-    function startCountdown(isoDate) {
-        const target = new Date(isoDate);
+    function startCountdown(targetUtcMs) {
+        if (!targetUtcMs) return;
         if (timerInterval) clearInterval(timerInterval);
 
         function tick() {
-            const diff = Math.max(0, target - Date.now());
+            const diff = Math.max(0, targetUtcMs - Date.now());
             if (diff === 0) {
                 clearInterval(timerInterval);
                 sdTimerBlock.classList.add('sd-hidden');
@@ -307,10 +369,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMiniCalendar() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth();
-        const today = now.getDate();
+        const nowParts = datePartsAtOffset(Date.now(), studentTzOffsetMinutes);
+        const year = nowParts.year;
+        const month = nowParts.month;
+        const today = nowParts.day;
 
         const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь',
                             'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -319,15 +381,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // days with lessons in current month
         const lessonDays = new Set();
         monthLessons.forEach(lesson => {
-            if (lesson.start_date_iso) {
-                const d = new Date(lesson.start_date_iso);
-                if (d.getFullYear() === year && d.getMonth() === month) {
-                    lessonDays.add(d.getDate());
+            if (lesson._utc_ms != null) {
+                const p = datePartsAtOffset(lesson._utc_ms, studentTzOffsetMinutes);
+                if (p.year === year && p.month === month) {
+                    lessonDays.add(p.day);
                 }
             }
         });
 
-        const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+        const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay(); // 0=Sun
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         // Convert Sunday-first to Monday-first
         const startOffset = (firstDay + 6) % 7;
@@ -358,17 +420,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadLessonsForCurrentMonth() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
+        const nowParts = datePartsAtOffset(Date.now(), studentTzOffsetMinutes);
+        const year = nowParts.year;
+        const month = nowParts.month + 1;
         return fetch(`/api/my-lessons-month?year=${year}&month=${month}`)
             .then(r => r.json())
             .then(data => {
-                monthLessons = data.lessons || [];
+                monthLessons = (data.lessons || []).map(enrichLessonTime);
                 lessonMapByDate = buildLessonMap(monthLessons);
                 renderMiniCalendar();
                 if (!selectedHomeworkTaskId) {
-                    renderLessonInfoForDate(normalizeDateKey(now));
+                    renderLessonInfoForDate(normalizeDateKeyFromUtcMs(Date.now(), studentTzOffsetMinutes));
                 }
             })
             .catch(() => {
@@ -376,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 lessonMapByDate = {};
                 renderMiniCalendar();
                 if (!selectedHomeworkTaskId) {
-                    renderLessonInfoForDate(normalizeDateKey(now));
+                    renderLessonInfoForDate(normalizeDateKeyFromUtcMs(Date.now(), studentTzOffsetMinutes));
                 }
             });
     }
@@ -493,8 +555,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (data.lesson) {
-                    nextLessonStartAt = new Date(data.lesson.start_date_iso);
-                    startCountdown(data.lesson.start_date_iso);
+                    nextLessonStartAt = parseMskIsoToUtcMs(data.lesson.start_date_iso);
+                    startCountdown(nextLessonStartAt);
                     if (data.lesson.plan_step_title) {
                         sdNextTopicValue.textContent = data.lesson.plan_step_title;
                         sdNextTopic.classList.remove('sd-hidden');
@@ -575,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const now = Date.now();
-            const msToLesson = nextLessonStartAt ? (nextLessonStartAt.getTime() - now) : 0;
+            const msToLesson = nextLessonStartAt ? (nextLessonStartAt - now) : 0;
             const fifteenMinutes = 15 * 60 * 1000;
             if (msToLesson > fifteenMinutes) {
                 openModal(sdJoinConfirmModal);
@@ -668,6 +730,8 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(user => {
             currentUser = user;
+            studentTimezone = user.timezone || 'UTC+03:00';
+            studentTzOffsetMinutes = parseTimezoneOffsetMinutes(studentTimezone);
             sdUsername.textContent = user.display_name;
 
             // Hide change password for OAuth users

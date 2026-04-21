@@ -128,6 +128,9 @@ with app.app_context():
         cursor.execute('ALTER TABLE user ADD COLUMN teacher_photo VARCHAR(200)')
     if 'password_plain' not in user_columns:
         cursor.execute('ALTER TABLE user ADD COLUMN password_plain VARCHAR(255)')
+    if 'timezone' not in user_columns:
+        cursor.execute("ALTER TABLE user ADD COLUMN timezone VARCHAR(16) DEFAULT 'UTC+03:00'")
+    cursor.execute("UPDATE user SET timezone = 'UTC+03:00' WHERE timezone IS NULL OR TRIM(timezone) = ''")
     conn.commit()
 
     # Создаём папку для фото учителей

@@ -13,6 +13,7 @@ class User(UserMixin, db.Model):
     yandex_id = db.Column(db.String(100), unique=True, nullable=True)
     vk_id = db.Column(db.String(100), unique=True, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
+    timezone = db.Column(db.String(16), nullable=False, default='UTC+03:00')
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Telegram integration
@@ -64,6 +65,7 @@ class User(UserMixin, db.Model):
             'yandex_id': self.yandex_id,
             'vk_id': self.vk_id,
             'is_active': self.is_active,
+            'timezone': self.timezone or 'UTC+03:00',
             'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
             'roles': self.get_roles(),
             'auth_source': self.get_auth_source(),

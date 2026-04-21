@@ -222,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formUserPassword = document.getElementById('form-user-password');
     const formUserPasswordRow = document.getElementById('form-user-password-row');
     const formUserIsActive = document.getElementById('form-user-is-active');
+    const formUserTimezone = document.getElementById('form-user-timezone');
     const formUserRoles = document.getElementById('form-user-roles');
     const userSubmitBtn = document.getElementById('user-submit-btn');
     const formUserLessonPriceRow = document.getElementById('form-user-lesson-price-row');
@@ -393,6 +394,47 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (_) {
             return Promise.resolve(false);
         }
+    }
+
+    function timezoneOptions() {
+        return [
+            { value: 'UTC-12:00', label: 'UTC-12:00' },
+            { value: 'UTC-11:00', label: 'UTC-11:00' },
+            { value: 'UTC-10:00', label: 'UTC-10:00' },
+            { value: 'UTC-09:00', label: 'UTC-09:00' },
+            { value: 'UTC-08:00', label: 'UTC-08:00' },
+            { value: 'UTC-07:00', label: 'UTC-07:00' },
+            { value: 'UTC-06:00', label: 'UTC-06:00' },
+            { value: 'UTC-05:00', label: 'UTC-05:00' },
+            { value: 'UTC-04:00', label: 'UTC-04:00' },
+            { value: 'UTC-03:00', label: 'UTC-03:00' },
+            { value: 'UTC-02:00', label: 'UTC-02:00' },
+            { value: 'UTC-01:00', label: 'UTC-01:00' },
+            { value: 'UTC+00:00', label: 'UTC+00:00' },
+            { value: 'UTC+01:00', label: 'UTC+01:00' },
+            { value: 'UTC+02:00', label: 'UTC+02:00' },
+            { value: 'UTC+03:00', label: 'МСК (UTC+03:00)' },
+            { value: 'UTC+04:00', label: 'UTC+04:00' },
+            { value: 'UTC+05:00', label: 'UTC+05:00' },
+            { value: 'UTC+06:00', label: 'UTC+06:00' },
+            { value: 'UTC+07:00', label: 'UTC+07:00' },
+            { value: 'UTC+08:00', label: 'UTC+08:00' },
+            { value: 'UTC+09:00', label: 'UTC+09:00' },
+            { value: 'UTC+10:00', label: 'UTC+10:00' },
+            { value: 'UTC+11:00', label: 'UTC+11:00' },
+            { value: 'UTC+12:00', label: 'UTC+12:00' },
+            { value: 'UTC+13:00', label: 'UTC+13:00' },
+            { value: 'UTC+14:00', label: 'UTC+14:00' },
+        ];
+    }
+
+    function renderTimezoneOptions(selectedValue) {
+        if (!formUserTimezone) return;
+        const selected = selectedValue || 'UTC+03:00';
+        formUserTimezone.innerHTML = timezoneOptions().map(opt => (
+            `<option value="${opt.value}" ${opt.value === selected ? 'selected' : ''}>${opt.label}</option>`
+        )).join('');
+        if (!formUserTimezone.value) formUserTimezone.value = 'UTC+03:00';
     }
 
     function applyRBAC() {
@@ -3344,15 +3386,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 formUserUsername.value = '';
                 formUserUsername.readOnly = false;
                 formUserDisplayName.value = '';
+                formUserDisplayName.readOnly = false;
                 formUserPassword.value = '';
                 formUserPasswordRow.style.display = '';
                 if (formStudentCredentialsRow) formStudentCredentialsRow.classList.add('hidden');
                 if (formStudentLoginView) formStudentLoginView.value = '';
                 if (formStudentPasswordView) formStudentPasswordView.value = '';
                 formUserIsActive.checked = true;
+                formUserIsActive.disabled = false;
+                if (formUserTimezone) {
+                    renderTimezoneOptions('UTC+03:00');
+                    formUserTimezone.disabled = false;
+                }
 
                 // Render role checkboxes
                 renderRoleCheckboxes(rolesData.roles, []);
+                formUserRoles.querySelectorAll('input[name="user-role"]').forEach(cb => { cb.disabled = false; });
 
                 // Hide lesson_price, teacher, photo for new users
                 formUserLessonPriceRow.classList.add('hidden');
@@ -3360,6 +3409,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 formUserTeacherRow.classList.add('hidden');
                 formUserPhotoRow.classList.add('hidden');
                 formUserPhotoPreview.classList.add('hidden');
+                formUserLessonPrice.disabled = false;
+                formUserTeacherId.disabled = false;
+                formUserPhotoBtn.disabled = false;
                 _pendingPhotoFile = null;
 
                 userModal.classList.remove('hidden');
@@ -3392,6 +3444,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (formStudentCredentialsRow) formStudentCredentialsRow.classList.add('hidden');
         if (formStudentLoginView) formStudentLoginView.value = '';
         if (formStudentPasswordView) formStudentPasswordView.value = '';
+        if (formUserTimezone) {
+            renderTimezoneOptions('UTC+03:00');
+            formUserTimezone.disabled = false;
+        }
+        formUserDisplayName.readOnly = false;
+        formUserIsActive.disabled = false;
+        formUserRoles.querySelectorAll('input[name="user-role"]').forEach(cb => { cb.disabled = false; });
+        formUserLessonPrice.disabled = false;
+        formUserTeacherId.disabled = false;
+        formUserPhotoBtn.disabled = false;
         formUserPhotoPreview.classList.add('hidden');
         formUserPhotoName.textContent = 'макс. 5 МБ';
     }
@@ -3442,14 +3504,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     userForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        if (editingUserId && !hasRole('admin', 'owner')) {
-            closeUserModal();
-            return;
-        }
+        const isAdminLike = hasRole('admin', 'owner');
+        const isTeacherOnly = hasRole('teacher') && !isAdminLike;
         const username = formUserUsername.value.trim();
         const displayName = formUserDisplayName.value.trim();
         const password = formUserPassword.value;
         const isActive = formUserIsActive.checked;
+        const timezone = (formUserTimezone && formUserTimezone.value) ? formUserTimezone.value : 'UTC+03:00';
 
         if (!username) { alert('Логин обязателен'); return; }
         if (!displayName) { alert('Имя обязательно'); return; }
@@ -3460,15 +3521,20 @@ document.addEventListener('DOMContentLoaded', () => {
             roleIds.push(parseInt(cb.value));
         });
 
-        const userData = {
-            display_name: displayName,
-            is_active: isActive,
-            role_ids: roleIds,
-        };
+        const userData = { timezone };
+        if (isAdminLike) {
+            userData.display_name = displayName;
+            userData.is_active = isActive;
+            userData.role_ids = roleIds;
+        }
 
         if (editingUserId) {
+            if (!isAdminLike && !isTeacherOnly) {
+                closeUserModal();
+                return;
+            }
             // Update — sequential to avoid SQLite locking
-            if (!formUserTeacherRow.classList.contains('hidden')) {
+            if (isAdminLike && !formUserTeacherRow.classList.contains('hidden')) {
                 userData.teacher_id = formUserTeacherId.value ? parseInt(formUserTeacherId.value) : null;
             }
 
@@ -3481,7 +3547,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(checkOk)
             .then(() => {
-                if (!formUserLessonPriceRow.classList.contains('hidden')) {
+                if (isAdminLike && !formUserLessonPriceRow.classList.contains('hidden')) {
                     const priceVal = formUserLessonPrice.value;
                     return fetch(`/api/students/${editingUserId}/lesson-price`, {
                         method: 'PUT',
@@ -3491,7 +3557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             })
             .then(() => {
-                if (_pendingPhotoFile) {
+                if (isAdminLike && _pendingPhotoFile) {
                     const fd = new FormData();
                     fd.append('photo', _pendingPhotoFile);
                     return fetch(`/api/users/${editingUserId}/photo`, { method: 'POST', body: fd }).then(checkOk);
@@ -3504,6 +3570,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => alert(err.message));
         } else {
             // Create
+            if (!isAdminLike) {
+                closeUserModal();
+                return;
+            }
             if (!password || password.length < 6) {
                 alert('Пароль: минимум 6 символов');
                 return;
@@ -3546,7 +3616,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     editingUserId = user.id;
                     userModalTitle.textContent = 'Изменение пользователя';
                     userSubmitBtn.textContent = 'Подтвердить изменения';
-                    userSubmitBtn.classList.toggle('hidden', !hasRole('admin', 'owner'));
+                    const canAdminLike = hasRole('admin', 'owner');
+                    const canTeacherOnly = hasRole('teacher') && !canAdminLike;
+                    userSubmitBtn.classList.toggle('hidden', !(canAdminLike || canTeacherOnly));
                     formUserIdDisplay.value = user.id;
                     formUserUsername.value = user.username;
                     formUserUsername.readOnly = true;
@@ -3554,6 +3626,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     formUserPassword.value = '';
                     formUserPasswordRow.style.display = 'none';
                     formUserIsActive.checked = user.is_active;
+                    renderTimezoneOptions(user.timezone || 'UTC+03:00');
 
                     const isStudent = user.roles.includes('student');
                     const canViewStudentCredentials = hasRole('admin', 'owner', 'teacher');
@@ -3572,6 +3645,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     renderRoleCheckboxes(rolesData.roles, user.roles);
+                    formUserDisplayName.readOnly = canTeacherOnly;
+                    formUserIsActive.disabled = canTeacherOnly;
+                    if (formUserTimezone) {
+                        formUserTimezone.disabled = !(canAdminLike || (canTeacherOnly && isStudent));
+                    }
+                    formUserRoles.querySelectorAll('input[name="user-role"]').forEach(cb => {
+                        cb.disabled = canTeacherOnly;
+                    });
 
                     // Show lesson_price for students (teacher/admin only)
                     const isTeacher = user.roles.includes('teacher');
@@ -3580,9 +3661,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (isStudent && canManage) {
                         formUserLessonPriceRow.classList.remove('hidden');
                         formUserLessonPrice.value = user.lesson_price != null ? user.lesson_price : '';
+                        formUserLessonPrice.disabled = canTeacherOnly;
                     } else {
                         formUserLessonPriceRow.classList.add('hidden');
                         formUserLessonPrice.value = '';
+                        formUserLessonPrice.disabled = false;
                     }
 
                     // Teacher selector for students (admin/owner only)
@@ -3593,9 +3676,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (user.teacher_id) formUserTeacherId.value = user.teacher_id;
                         });
                         formUserTeacherRow.classList.remove('hidden');
+                        formUserTeacherId.disabled = false;
                     } else {
                         formUserTeacherRow.classList.add('hidden');
                         formUserTeacherId.innerHTML = '<option value="">— не назначен —</option>';
+                        formUserTeacherId.disabled = false;
                     }
 
                     // Photo field only for edited users with teacher role.
@@ -3604,6 +3689,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         _pendingPhotoFile = null;
                         formUserPhotoInput.value = '';
                         formUserPhotoName.textContent = 'макс. 5 МБ';
+                        formUserPhotoBtn.disabled = !canManageAdmin;
                         if (user.teacher_photo) {
                             formUserPhotoPreview.src = `/static/uploads/teacher_photos/${user.teacher_photo}`;
                             formUserPhotoPreview.classList.remove('hidden');
@@ -3613,6 +3699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         formUserPhotoRow.classList.add('hidden');
                         formUserPhotoPreview.classList.add('hidden');
+                        formUserPhotoBtn.disabled = false;
                         _pendingPhotoFile = null;
                     }
 
