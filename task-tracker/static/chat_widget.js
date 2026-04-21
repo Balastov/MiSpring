@@ -51,17 +51,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!ctx) return;
         try {
             const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(620, now);
-            gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.exponentialRampToValueAtTime(0.045, now + 0.015);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.20);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.22);
+            // 4-note motif: A#4, F5, A#4, E5 with 0.3s spacing.
+            const notes = [466.16, 698.46, 466.16, 659.25];
+            const step = 0.3;
+            const duration = 0.2;
+            notes.forEach((freq, index) => {
+                const start = now + (index * step);
+                const end = start + duration;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, start);
+                gain.gain.setValueAtTime(0.0001, start);
+                gain.gain.exponentialRampToValueAtTime(0.08, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, end);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(end + 0.01);
+            });
         } catch (_) {
             // ignore audio errors
         }
