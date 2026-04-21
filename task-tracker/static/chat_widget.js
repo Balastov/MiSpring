@@ -262,6 +262,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return hasRole('student') && !hasRole('teacher') && !hasRole('admin') && !hasRole('owner');
     }
 
+    function shouldOpenDialogsListByDefault() {
+        return hasRole('admin') || hasRole('teacher');
+    }
+
     function ensureStudentDialogSelected() {
         if (!isStudentOnlyUser()) return Promise.resolve(false);
         if (activeDialogId && dialogs.some(d => d.id === activeDialogId)) return Promise.resolve(false);
@@ -448,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
         primeUnreadNotifications();
         panel.classList.toggle('hidden');
         if (!panel.classList.contains('hidden')) {
-            setSidebarCollapsed(true);
+            setSidebarCollapsed(!shouldOpenDialogsListByDefault());
             loadDialogs().then(() => {
                 return ensureStudentDialogSelected();
             }).then((activated) => {
