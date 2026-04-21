@@ -72,13 +72,30 @@ def _allowed_partner_ids_for_current_user():
         return allowed_student_ids
 
     if _is_student():
+        allowed = set()
+
+        # Базовый партнёр ученика — назначенный учитель.
         teacher_id = current_user.teacher_id
-        if not teacher_id:
-            return set()
-        teacher = db.session.get(User, teacher_id)
-        if not teacher or not teacher.is_active:
-            return set()
-        return {teacher.id}
+        if teacher_id:
+            teacher = db.session.get(User, teacher_id)
+            if teacher and teacher.is_active:
+                allowed.add(teacher.id)
+
+        # Дополнительно разрешаем уже существующие диалоги:
+        # если первым написал админ/другой пользователь, ученик видит этот диалог.
+        dialogs = ChatDialog.query.filter(
+            (ChatDialog.user_a_id == current_user.id) | (ChatDialog.user_b_id == current_user.id)
+        ).all()
+        partner_ids = set()
+        for d in dialogs:
+            pid = d.user_b_id if d.user_a_id == current_user.id else d.user_a_id
+            if pid:
+                partner_ids.add(pid)
+        if partner_ids:
+            active_partners = User.query.filter(User.id.in_(partner_ids), User.is_active == True).all()
+            allowed.update(u.id for u in active_partners)
+
+        return allowed
 
     return set()
 
