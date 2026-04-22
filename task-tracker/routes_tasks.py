@@ -1225,6 +1225,7 @@ def get_my_next_lesson():
         'start_date_iso': task.start_date.strftime('%Y-%m-%dT%H:%M:%S'),
         'start_date': task.start_date.strftime('%d.%m.%Y %H:%M') if task.start_date else None,
         'plan_step_title': plan_step_title,
+        'is_paid': bool(task.is_paid),
     }})
 
 

@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdTimerMinutes = document.getElementById('sd-timer-minutes');
     const sdNextTopicValue = document.getElementById('sd-next-topic-value');
     const sdNextTopic = document.getElementById('sd-next-topic');
+    const sdNextPaymentRow = document.getElementById('sd-next-payment-row');
+    const sdNextPaymentBadge = document.getElementById('sd-next-payment-badge');
     const sdJoinLessonBtn = document.getElementById('sd-join-lesson-btn');
     const sdJoinConfirmModal = document.getElementById('sd-join-confirm-modal');
     const sdJoinConfirmYes = document.getElementById('sd-join-confirm-yes');
@@ -588,20 +590,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.lesson) {
                     nextLessonStartAt = parseMskIsoToUtcMs(data.lesson.start_date_iso);
                     startCountdown(nextLessonStartAt);
-                    if (data.lesson.plan_step_title) {
-                        sdNextTopicValue.textContent = data.lesson.plan_step_title;
-                        sdNextTopic.classList.remove('sd-hidden');
+                    sdNextTopicValue.textContent = data.lesson.plan_step_title || '—';
+                    sdNextTopic.classList.remove('sd-hidden');
+                    if (sdNextPaymentRow && sdNextPaymentBadge) {
+                        const isPaid = !!data.lesson.is_paid;
+                        sdNextPaymentBadge.textContent = isPaid ? 'Оплачен' : 'Не оплачен';
+                        sdNextPaymentBadge.classList.toggle('paid', isPaid);
+                        sdNextPaymentBadge.classList.toggle('unpaid', !isPaid);
+                        sdNextPaymentRow.classList.remove('sd-hidden');
                     }
                     updateJoinLessonButtonVisibility();
                 } else {
                     nextLessonStartAt = null;
                     sdTimerBlock.classList.add('sd-hidden');
+                    sdNextTopic.classList.add('sd-hidden');
+                    if (sdNextPaymentRow) sdNextPaymentRow.classList.add('sd-hidden');
                     updateJoinLessonButtonVisibility();
                 }
             })
             .catch(() => {
                 nextLessonStartAt = null;
                 sdTimerBlock.classList.add('sd-hidden');
+                sdNextTopic.classList.add('sd-hidden');
+                if (sdNextPaymentRow) sdNextPaymentRow.classList.add('sd-hidden');
                 updateJoinLessonButtonVisibility();
             });
     }
