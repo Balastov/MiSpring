@@ -21,8 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdTimerMinutes = document.getElementById('sd-timer-minutes');
     const sdNextTopicValue = document.getElementById('sd-next-topic-value');
     const sdNextTopic = document.getElementById('sd-next-topic');
-    const sdNextPaymentRow = document.getElementById('sd-next-payment-row');
-    const sdNextPaymentBadge = document.getElementById('sd-next-payment-badge');
     const sdJoinLessonBtn = document.getElementById('sd-join-lesson-btn');
     const sdJoinConfirmModal = document.getElementById('sd-join-confirm-modal');
     const sdJoinConfirmYes = document.getElementById('sd-join-confirm-yes');
@@ -274,15 +272,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cardsHtml = lessons.map(lesson => {
             const durationText = lesson.duration ? `${lesson.duration} мин` : '—';
-            const paidClass = lesson.is_paid ? 'sd-paid-badge paid' : 'sd-paid-badge unpaid';
-            const paidText = lesson.is_paid ? 'Оплачено' : 'Не оплачено';
             return `
                 <div class="sd-lesson-card">
                     <div class="sd-lesson-row"><span>Дата</span><b>${lesson.date || '—'}</b></div>
                     <div class="sd-lesson-row"><span>Время</span><b>${lesson.time || '—'}</b></div>
                     <div class="sd-lesson-row"><span>Продолжительность</span><b>${durationText}</b></div>
                     <div class="sd-lesson-row"><span>Тема</span><b>${lesson.topic || '—'}</b></div>
-                    <div class="sd-lesson-row"><span>Статус оплаты</span><span class="${paidClass}">${paidText}</span></div>
                 </div>
             `;
         }).join('');
@@ -592,19 +587,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     startCountdown(nextLessonStartAt);
                     sdNextTopicValue.textContent = data.lesson.plan_step_title || '—';
                     sdNextTopic.classList.remove('sd-hidden');
-                    if (sdNextPaymentRow && sdNextPaymentBadge) {
-                        const isPaid = !!data.lesson.is_paid;
-                        sdNextPaymentBadge.textContent = isPaid ? 'Оплачен' : 'Не оплачен';
-                        sdNextPaymentBadge.classList.toggle('paid', isPaid);
-                        sdNextPaymentBadge.classList.toggle('unpaid', !isPaid);
-                        sdNextPaymentRow.classList.remove('sd-hidden');
-                    }
                     updateJoinLessonButtonVisibility();
                 } else {
                     nextLessonStartAt = null;
                     sdTimerBlock.classList.add('sd-hidden');
                     sdNextTopic.classList.add('sd-hidden');
-                    if (sdNextPaymentRow) sdNextPaymentRow.classList.add('sd-hidden');
                     updateJoinLessonButtonVisibility();
                 }
             })
@@ -612,7 +599,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 nextLessonStartAt = null;
                 sdTimerBlock.classList.add('sd-hidden');
                 sdNextTopic.classList.add('sd-hidden');
-                if (sdNextPaymentRow) sdNextPaymentRow.classList.add('sd-hidden');
                 updateJoinLessonButtonVisibility();
             });
     }

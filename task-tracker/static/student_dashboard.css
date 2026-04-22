@@ -148,18 +148,6 @@
     text-overflow: ellipsis;
 }
 
-.sd-next-payment-row {
-    margin-top: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.sd-next-payment-label {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.85);
-}
-
 .sd-btn-join {
     background: rgba(255,255,255,0.18);
     color: #fff;
