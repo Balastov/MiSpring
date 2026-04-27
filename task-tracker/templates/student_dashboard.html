@@ -102,6 +102,23 @@
                     <p class="sd-loading">Загрузка…</p>
                 </div>
             </div>
+
+            <div class="sd-card sd-card-history" id="sd-history-card">
+                <div class="sd-card-header sd-card-header-compact">
+                    <h2 class="sd-card-title">История уроков</h2>
+                    <div class="sd-history-filters" id="sd-history-filters" role="tablist" aria-label="Фильтр истории уроков">
+                        <button type="button" class="sd-filter-btn active" data-filter="all">Все</button>
+                        <button type="button" class="sd-filter-btn" data-filter="conducted">Проведённые</button>
+                        <button type="button" class="sd-filter-btn" data-filter="cancelled">Отменённые</button>
+                    </div>
+                </div>
+                <div id="sd-history-content" class="sd-history-content">
+                    <p class="sd-loading">Загрузка…</p>
+                </div>
+                <div class="sd-history-actions">
+                    <button type="button" class="sd-btn-secondary sd-history-more-btn hidden" id="sd-history-more-btn">Показать ещё</button>
+                </div>
+            </div>
         </section>
 
     </main>

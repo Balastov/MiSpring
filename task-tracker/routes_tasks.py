@@ -1286,6 +1286,73 @@ def get_my_lessons_month():
     return jsonify({'lessons': lessons})
 
 
+@tasks_bp.route('/api/my-lessons-history', methods=['GET'])
+@login_required
+def get_my_lessons_history():
+    offset = request.args.get('offset', type=int) or 0
+    limit = request.args.get('limit', type=int) or 5
+    flt = (request.args.get('filter') or 'all').strip().lower()
+    offset = max(0, offset)
+    limit = max(1, min(limit, 50))
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return jsonify({'lessons': [], 'has_more': False})
+
+    now = datetime.now()
+    q = db.session.query(Task, TaskStatus).outerjoin(TaskStatus, Task.status_id == TaskStatus.id).filter(
+        Task.student_id == current_user.id,
+        Task.task_type_id == lesson_type.id,
+        Task.start_date.isnot(None),
+        Task.start_date < now,
+    )
+
+    if flt == 'conducted':
+        q = q.filter((TaskStatus.name == 'Проведён') | (TaskStatus.group == 'done'))
+    elif flt == 'cancelled':
+        q = q.filter((TaskStatus.name == 'Отменён') | (TaskStatus.group == 'cancelled'))
+
+    rows = q.order_by(Task.start_date.desc()).offset(offset).limit(limit + 1).all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+
+    tasks = [t for (t, _s) in rows]
+    step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}
+    step_map = {}
+    if step_ids:
+        step_map = {s.id: s.title for s in PlanStep.query.filter(PlanStep.id.in_(step_ids)).all()}
+
+    lessons = []
+    # For homework names: only for conducted lessons that have homework_id.
+    homework_ids = set()
+    for (t, st) in rows:
+        status_name = (st.name if st else None) or '—'
+        status_group = st.group if st else None
+        is_conducted = bool(status_name == 'Проведён' or status_group == 'done')
+        if is_conducted and t.homework_id:
+            homework_ids.add(t.homework_id)
+
+    homework_map = {}
+    if homework_ids:
+        homework_map = {h.id: h.name for h in Homework.query.filter(Homework.id.in_(homework_ids)).all()}
+
+    for (t, st) in rows:
+        status_name = (st.name if st else None) or '—'
+        status_group = st.group if st else None
+        is_conducted = bool(status_name == 'Проведён' or status_group == 'done')
+        homework_name = homework_map.get(t.homework_id) if (is_conducted and t.homework_id) else None
+        lessons.append({
+            'id': t.id,
+            'start_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
+            'topic': step_map.get(t.plan_step_id) or '—',
+            'status_name': status_name,
+            'is_paid': bool(t.is_paid),
+            'homework_name': homework_name,
+        })
+
+    return jsonify({'lessons': lessons, 'has_more': bool(has_more)})
+
+
 @tasks_bp.route('/api/tasks/<int:task_id>/evidence', methods=['GET'])
 @login_required
 def get_task_evidence(task_id):

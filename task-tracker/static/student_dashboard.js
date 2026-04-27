@@ -51,6 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdCpError = document.getElementById('sd-cp-error');
     const sdCpSuccess = document.getElementById('sd-cp-success');
 
+    const sdHistoryContent = document.getElementById('sd-history-content');
+    const sdHistoryFilters = document.getElementById('sd-history-filters');
+    const sdHistoryMoreBtn = document.getElementById('sd-history-more-btn');
+
     const sdShowDoneCb = document.getElementById('sd-show-done-cb');
     const sdHomeworkList = document.getElementById('sd-homework-list');
 
@@ -544,6 +548,101 @@ document.addEventListener('DOMContentLoaded', () => {
         sdPlanContent.innerHTML = '<p class="sd-empty">Этот функционал на доработке</p>';
     }
 
+    // ===== Lessons History =====
+
+    let historyFilter = 'all'; // all | conducted | cancelled
+    let historyOffset = 0;
+    const HISTORY_STEP = 5;
+    let historyHasMore = false;
+    let historyLoading = false;
+    let historyItems = [];
+
+    function syncHistoryMoreButton() {
+        if (!sdHistoryMoreBtn) return;
+        sdHistoryMoreBtn.classList.toggle('hidden', !historyHasMore);
+        sdHistoryMoreBtn.disabled = !!historyLoading;
+        sdHistoryMoreBtn.textContent = historyLoading ? 'Загрузка…' : 'Показать ещё';
+    }
+
+    function renderLessonsHistory(items) {
+        if (!sdHistoryContent) return;
+        if (!Array.isArray(items) || !items.length) {
+            sdHistoryContent.innerHTML = '<p class="sd-empty">Пока нет уроков по выбранному фильтру.</p>';
+            return;
+        }
+        const html = items.map(x => {
+            const dt = [x.date, x.time].filter(Boolean).join(' ');
+            const topic = escapeHtml(x.topic || '—');
+            const status = escapeHtml(x.status_name || '—');
+            const paidText = x.is_paid ? 'Оплачен' : 'Не оплачен';
+            const hwText = (x.homework_name != null && String(x.homework_name).trim() !== '')
+                ? String(x.homework_name)
+                : '—';
+            return `
+                <div class="sd-history-item">
+                    <div class="sd-history-head">
+                        <div class="sd-history-datetime">${escapeHtml(dt || '—')}</div>
+                    </div>
+                    <div class="sd-history-topic">${topic}</div>
+                    <div class="sd-history-meta">
+                        <div class="sd-history-k">Статус</div>
+                        <div class="sd-history-v">${status}</div>
+                        <div class="sd-history-k">Оплата</div>
+                        <div class="sd-history-v sd-history-paid">${escapeHtml(paidText)}</div>
+                        <div class="sd-history-k">Домашнее задание</div>
+                        <div class="sd-history-v">${escapeHtml(hwText)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        sdHistoryContent.innerHTML = `<div class="sd-history-list">${html}</div>`;
+    }
+
+    function setHistoryFilter(next) {
+        const v = String(next || 'all');
+        historyFilter = (v === 'conducted' || v === 'cancelled') ? v : 'all';
+        historyOffset = 0;
+        historyItems = [];
+        if (sdHistoryFilters) {
+            sdHistoryFilters.querySelectorAll('.sd-filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === historyFilter);
+            });
+        }
+        loadLessonsHistory(true);
+    }
+
+    function loadLessonsHistory(reset = false) {
+        if (!sdHistoryContent) return;
+        if (historyLoading) return;
+        historyLoading = true;
+        if (reset) {
+            sdHistoryContent.innerHTML = '<p class="sd-loading">Загрузка…</p>';
+        }
+        syncHistoryMoreButton();
+        const params = new URLSearchParams({
+            limit: String(HISTORY_STEP),
+            offset: String(historyOffset),
+            filter: historyFilter,
+        });
+        fetch(`/api/my-lessons-history?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                const lessons = Array.isArray(data.lessons) ? data.lessons : [];
+                historyHasMore = !!data.has_more;
+                const enriched = lessons.map(enrichLessonTime);
+                historyItems = reset ? enriched : historyItems.concat(enriched);
+                historyOffset = historyItems.length;
+                renderLessonsHistory(historyItems);
+            })
+            .catch(() => {
+                if (reset) sdHistoryContent.innerHTML = '<p class="sd-empty">Не удалось загрузить историю уроков.</p>';
+            })
+            .finally(() => {
+                historyLoading = false;
+                syncHistoryMoreButton();
+            });
+    }
+
     // ===== Teacher =====
 
     function loadTeacher() {
@@ -777,6 +876,17 @@ document.addEventListener('DOMContentLoaded', () => {
             loadHomework();
             loadLessonsForCurrentMonth();
             loadPlan();
+            if (sdHistoryFilters) {
+                sdHistoryFilters.addEventListener('click', (e) => {
+                    const btn = e.target.closest('.sd-filter-btn');
+                    if (!btn) return;
+                    setHistoryFilter(btn.dataset.filter);
+                });
+            }
+            if (sdHistoryMoreBtn) {
+                sdHistoryMoreBtn.addEventListener('click', () => loadLessonsHistory(false));
+            }
+            setHistoryFilter('all');
         })
         .catch(() => {
             window.location.href = '/login';

@@ -323,6 +323,40 @@
     margin: 0;
 }
 
+.sd-card-header-compact {
+    margin-bottom: 10px;
+}
+
+.sd-history-filters {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.sd-filter-btn {
+    border: 1px solid var(--sd-border);
+    background: #fff;
+    color: var(--sd-text-muted);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.15s ease;
+    white-space: nowrap;
+}
+
+.sd-filter-btn:hover {
+    background: #f5f7fa;
+}
+
+.sd-filter-btn.active {
+    border-color: rgba(26, 81, 95, 0.35);
+    background: rgba(26, 81, 95, 0.10);
+    color: var(--sd-text);
+}
+
 .sd-toggle-done {
     display: flex;
     align-items: center;
@@ -589,6 +623,92 @@
     color: #991b1b;
     background: #fee2e2;
     border: 1px solid #fca5a5;
+}
+
+.sd-history-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sd-history-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+}
+
+.sd-history-more-btn.hidden {
+    display: none;
+}
+
+.sd-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sd-history-item {
+    border: 1px solid var(--sd-border);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(26, 81, 95, 0.06);
+    padding: 12px 14px;
+}
+
+.sd-history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.sd-history-datetime {
+    font-weight: 800;
+    color: var(--sd-text);
+    font-size: 14px;
+}
+
+.sd-history-topic {
+    color: var(--sd-text-muted);
+    font-size: 13px;
+    margin-top: 6px;
+    line-height: 1.35;
+}
+
+.sd-history-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 14px;
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.sd-history-k {
+    color: var(--sd-text-muted);
+}
+
+.sd-history-v {
+    color: var(--sd-text);
+    text-align: right;
+    font-weight: 700;
+}
+
+.sd-history-paid {
+    font-weight: 700;
+}
+
+.sd-history-paid.paid,
+.sd-history-paid.unpaid {
+    color: var(--sd-text);
+}
+
+@media (max-width: 767px) {
+    .sd-history-meta {
+        grid-template-columns: 1fr;
+    }
+    .sd-history-v {
+        text-align: left;
+    }
 }
 
 .sd-homework-center-card {
