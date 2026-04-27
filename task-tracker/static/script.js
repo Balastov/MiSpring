@@ -4184,6 +4184,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const collapsedRootTemplateIds = new Set();
     const collapsedChildTemplateIds = new Set();
+    let collapseAllPlanLevelsOnOpen = false;
 
     function _makeStepRow(s, i, templateId, stepsContainer) {
         const row = document.createElement('div');
@@ -4420,6 +4421,15 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch('/api/students-with-plans').then(r => r.json()),
         ]).then(([tData, sData]) => {
             const roots = tData.templates || [];
+            if (collapseAllPlanLevelsOnOpen) {
+                collapsedRootTemplateIds.clear();
+                collapsedChildTemplateIds.clear();
+                roots.forEach(root => {
+                    collapsedRootTemplateIds.add(root.id);
+                    (root.children || []).forEach(child => collapsedChildTemplateIds.add(child.id));
+                });
+                collapseAllPlanLevelsOnOpen = false;
+            }
             planRootTemplatesCache = roots.map(r => ({ id: r.id, name: r.name }));
             const secondLevel = _flattenSecondLevelTemplates(roots);
             renderTemplates(roots);
@@ -4430,6 +4440,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showPlanTemplatesPage() {
         hideAllPages();
         if (!planTemplatesPage) return;
+        collapseAllPlanLevelsOnOpen = true;
         planTemplatesPage.classList.remove('hidden');
         loadPlanTemplatesPage();
     }
