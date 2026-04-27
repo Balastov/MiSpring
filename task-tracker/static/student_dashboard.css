@@ -289,6 +289,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    min-width: 0;
 }
 
 /* ===== Cards ===== */
@@ -299,6 +300,9 @@
     border-radius: var(--sd-radius);
     padding: 16px;
     box-shadow: var(--sd-shadow);
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .sd-card-title {
@@ -1230,14 +1234,20 @@
 
     .sd-col-homework {
         order: 1;
+        width: 100%;
+        min-width: 0;
     }
 
     .sd-col-middle {
         order: 2;
+        width: 100%;
+        min-width: 0;
     }
 
     .sd-col-right {
         order: 3;
+        width: 100%;
+        min-width: 0;
     }
 
     .sd-card-center {
@@ -1285,6 +1295,17 @@
 
     .sd-card {
         padding: 14px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .sd-homework-list,
+    .sd-plan-content,
+    .sd-history-content {
+        width: 100%;
+        min-width: 0;
     }
 
     .sd-card-header {
