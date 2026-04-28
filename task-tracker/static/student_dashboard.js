@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h3>${escapeHtml(hw.homework_name || 'Домашнее задание')}</h3>
                     <div class="sd-homework-center-row"><span>Статус</span><b>${status}</b></div>
                     <div class="sd-homework-center-row"><span>Дата урока</span><b>${escapeHtml(hw.lesson_date || '—')}</b></div>
-                    <div class="sd-homework-center-row"><span>Тема</span><b>${escapeHtml(hw.topic_title || '—')}</b></div>
+                    <div class="sd-homework-center-row"><span>Тема</span><b class="sd-homework-topic-value">${escapeHtml(hw.topic_title || '—')}</b></div>
                     <div class="sd-homework-center-comment">${hw.homework_comment || '<span class="sd-empty">Комментарий не указан</span>'}</div>
                     ${teacherRemarksBlock}
                     <div class="sd-homework-center-files">
