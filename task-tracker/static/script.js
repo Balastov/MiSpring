@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
     const formExtraHomeworks = document.getElementById('form-extra-homeworks');
-    const addHomeworkBtn = document.getElementById('add-homework-btn');
+    const taskAddHomeworkBtn = document.getElementById('task-add-homework-btn');
     const formHomeworkRequired = document.getElementById('form-homework-required');
     const homeworkRequiredRow = document.getElementById('task-field-row-homework-required');
     const homeworkRow = document.getElementById('task-field-row-homework');
@@ -1143,8 +1143,8 @@ document.addEventListener('DOMContentLoaded', () => {
         autoFillNextHomework();
     });
 
-    if (addHomeworkBtn) {
-        addHomeworkBtn.addEventListener('click', () => addExtraHomeworkRow(''));
+    if (taskAddHomeworkBtn) {
+        taskAddHomeworkBtn.addEventListener('click', () => addExtraHomeworkRow(''));
     }
 
     if (formHomeworkId) {
