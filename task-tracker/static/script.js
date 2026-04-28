@@ -408,6 +408,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return roleNames.some(r => currentUserData.roles.includes(r));
     }
 
+    // #region agent log
+    function _agentDebugLog(runId, hypothesisId, location, message, data) {
+        fetch('http://127.0.0.1:7831/ingest/28f26b46-aadf-4ddb-9fc0-0d229b16104f', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'e062f9' },
+            body: JSON.stringify({
+                sessionId: 'e062f9',
+                runId: runId || 'run1',
+                hypothesisId: hypothesisId || 'H?',
+                location,
+                message,
+                data: data || {},
+                timestamp: Date.now(),
+            }),
+        }).catch(() => {});
+    }
+    // #endregion
+
     const TASK_FIELD_PREFS_STORAGE_KEY = 'task_form_visible_fields_v2';
     const TASK_FIELD_PREFS_ROLE_DEFAULTS_KEY = 'task_form_visible_fields_role_defaults_v2';
     let taskFieldVisibilityPrefs = {};
@@ -1612,6 +1630,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
         const slotMinTime = useFullDayRange ? '00:00:00' : '07:00:00';
         const slotMaxTime = useFullDayRange ? '24:00:00' : '23:00:00';
+        // #region agent log
+        _agentDebugLog('run1', 'H1', 'script.js:initCalendar:start', 'init_calendar_start', {
+            step,
+            slotMinTime,
+            slotMaxTime,
+            hasContainer: !!calendarContainer,
+        });
+        // #endregion
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
             firstDay: 1, // Start week on Monday
@@ -1639,9 +1665,31 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             events: function(info, successCallback, failureCallback) {
                 fetch(`/api/tasks/calendar?start=${info.startStr}&end=${info.endStr}`)
-                    .then(r => r.json())
-                    .then(events => successCallback(events))
-                    .catch(() => failureCallback());
+                    .then(async (r) => {
+                        const payload = await r.json().catch(() => null);
+                        // #region agent log
+                        _agentDebugLog('run1', 'H2', 'script.js:initCalendar:events', 'calendar_events_response', {
+                            ok: r.ok,
+                            status: r.status,
+                            count: Array.isArray(payload) ? payload.length : -1,
+                            firstId: Array.isArray(payload) && payload.length ? payload[0].id : null,
+                            payloadType: payload == null ? 'null' : (Array.isArray(payload) ? 'array' : typeof payload),
+                        });
+                        // #endregion
+                        if (!r.ok || !Array.isArray(payload)) {
+                            failureCallback();
+                            return;
+                        }
+                        successCallback(payload);
+                    })
+                    .catch((e) => {
+                        // #region agent log
+                        _agentDebugLog('run1', 'H2', 'script.js:initCalendar:events_error', 'calendar_events_network_error', {
+                            error: e && e.message ? e.message : String(e),
+                        });
+                        // #endregion
+                        failureCallback();
+                    });
             },
             eventClick: function(info) {
                 openEditFromCalendar(info.event);
@@ -1773,6 +1821,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     viewToggleBtn.addEventListener('click', () => {
+        // #region agent log
+        _agentDebugLog('run1', 'H5', 'script.js:viewToggle:click', 'view_toggle_click', {
+            fromView: currentView,
+            hasCalendar: !!calendar,
+        });
+        // #endregion
         if (currentView === 'table') {
             currentView = 'calendar';
             tableView.classList.add('hidden');
@@ -1820,9 +1874,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch paginated tasks
     function fetchTasks(page) {
         if (page !== undefined) currentPage = page;
+        // #region agent log
+        _agentDebugLog('run1', 'H4', 'script.js:fetchTasks:start', 'fetch_tasks_start', {
+            page: currentPage,
+            view: currentView,
+            hasCalendar: !!calendar,
+        });
+        // #endregion
         fetch(`/api/tasks?${buildFilterParams()}`)
             .then(r => r.json())
             .then(data => {
+                // #region agent log
+                _agentDebugLog('run1', 'H4', 'script.js:fetchTasks:success', 'fetch_tasks_success', {
+                    total: data && data.total,
+                    current_page: data && data.current_page,
+                    count: Array.isArray(data && data.tasks) ? data.tasks.length : -1,
+                    ids: Array.isArray(data && data.tasks) ? data.tasks.slice(0, 10).map(t => t.id) : [],
+                });
+                // #endregion
                 renderTasks(data.tasks);
                 renderPagination(data);
             });
@@ -2151,6 +2220,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update buttons when task type changes
     if (formTaskTypeId) formTaskTypeId.addEventListener('change', updateQuickStatusButtons);
 
+    // #region agent log
+    window.addEventListener('error', (evt) => {
+        _agentDebugLog('run1', 'H1', 'script.js:global_error', 'window_error', {
+            message: evt && evt.message,
+            filename: evt && evt.filename,
+            lineno: evt && evt.lineno,
+            colno: evt && evt.colno,
+        });
+    });
+    // #endregion
+
     // Edit and delete task (event delegation)
     tasksTbody.addEventListener('click', (e) => {
         const editBtn = e.target.closest('.btn-edit');
@@ -2169,6 +2249,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     allHomeworkCache = Array.isArray(homeworkData.homework) ? homeworkData.homework : [];
                     const task = data.tasks.find(t => t.id === id);
                     if (!task) {
+                        // #region agent log
+                        _agentDebugLog('run1', 'H3', 'script.js:tableEdit:not_found', 'table_edit_task_not_found', {
+                            requestedId: id,
+                            page: currentPage,
+                            tasksCount: Array.isArray(data && data.tasks) ? data.tasks.length : -1,
+                            returnedIds: Array.isArray(data && data.tasks) ? data.tasks.slice(0, 15).map(t => t.id) : [],
+                        });
+                        // #endregion
                         alert('Задача не найдена');
                         return;
                     }
