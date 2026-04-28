@@ -24,7 +24,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, ChatDialog, ChatMessage, ChatPushSubscription
+from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, LessonHomework, ChatDialog, ChatMessage, ChatPushSubscription
 
 
 # ========== Flask-Login Callbacks ==========
@@ -335,6 +335,52 @@ with app.app_context():
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_push_subscription_user_id ON chat_push_subscription(user_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_push_subscription_updated_at ON chat_push_subscription(updated_at)')
         conn.commit()
+
+    # Таблица ДЗ урока (много ДЗ на один урок)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='lesson_homework'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE lesson_homework (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            homework_id INTEGER NOT NULL,
+            order_index INTEGER NOT NULL DEFAULT 0,
+            due_date DATETIME,
+            status_id INTEGER,
+            submitted_at DATETIME,
+            teacher_remarks TEXT,
+            created_at DATETIME NOT NULL
+        )''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_task_id ON lesson_homework(task_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_homework_id ON lesson_homework(homework_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_order_index ON lesson_homework(order_index)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_status_id ON lesson_homework(status_id)')
+        conn.commit()
+    else:
+        lh_cols = [col[1] for col in cursor.execute('PRAGMA table_info(lesson_homework)').fetchall()]
+        if 'due_date' not in lh_cols:
+            cursor.execute('ALTER TABLE lesson_homework ADD COLUMN due_date DATETIME')
+        if 'status_id' not in lh_cols:
+            cursor.execute('ALTER TABLE lesson_homework ADD COLUMN status_id INTEGER')
+        if 'submitted_at' not in lh_cols:
+            cursor.execute('ALTER TABLE lesson_homework ADD COLUMN submitted_at DATETIME')
+        if 'teacher_remarks' not in lh_cols:
+            cursor.execute('ALTER TABLE lesson_homework ADD COLUMN teacher_remarks TEXT')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_task_id ON lesson_homework(task_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_homework_id ON lesson_homework(homework_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_order_index ON lesson_homework(order_index)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_lesson_homework_status_id ON lesson_homework(status_id)')
+        conn.commit()
+    # Backfill: existing single-homework lessons -> lesson_homework rows.
+    cursor.execute('''
+        INSERT INTO lesson_homework(task_id, homework_id, order_index, due_date, status_id, submitted_at, teacher_remarks, created_at)
+        SELECT t.id, t.homework_id, 0,
+               CASE WHEN t.start_date IS NOT NULL THEN datetime(t.start_date, '+14 day') ELSE NULL END,
+               t.status_id, t.homework_submitted_at, t.homework_teacher_remarks, COALESCE(t.created_at, CURRENT_TIMESTAMP)
+        FROM task t
+        WHERE t.homework_id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM lesson_homework lh WHERE lh.task_id = t.id)
+    ''')
+    conn.commit()
 
     conn.close()
 

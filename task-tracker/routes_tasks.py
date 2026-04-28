@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from extensions import db
-from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep, HomeworkEvidence, LessonSeries
+from models import Task, User, TaskStatus, TaskType, Role, UserRole, Homework, PlanStep, HomeworkEvidence, LessonSeries, LessonHomework
 from helpers import parse_datetime, user_has_role
 import os
 import asyncio
@@ -110,11 +110,12 @@ def _find_next_homework_id(student_id, from_homework_id=None):
             status_id=conducted.id,
         ).order_by(Task.start_date.desc(), Task.id.desc()).all()
         for t in q:
-            if not t.homework_id:
+            seq = _task_homework_ids(t.id) or ([t.homework_id] if t.homework_id else [])
+            seq = [int(x) for x in seq if x and int(x) in ordered_hw_ids]
+            if not seq:
                 continue
-            if int(t.homework_id) not in ordered_hw_ids:
-                continue
-            next_hw_id, next_reason = _next_after_homework_id(t.homework_id)
+            last_hw = seq[-1]
+            next_hw_id, next_reason = _next_after_homework_id(last_hw)
             if next_reason == 'next_after_from':
                 return next_hw_id, 'next_after_last_conducted'
             return None, next_reason
@@ -125,6 +126,56 @@ def _find_next_homework_id(student_id, from_homework_id=None):
             if hw and hw.plan_step_id == up.next_step_id:
                 return hw.id, 'from_userplan_next_step'
     return ordered_hw_ids[0], 'from_first_homework_in_plan'
+
+
+def _normalize_homework_ids(payload):
+    if payload is None:
+        return None
+    if not isinstance(payload, list):
+        return []
+    result = []
+    for v in payload:
+        try:
+            hv = int(v)
+        except Exception:
+            continue
+        if hv > 0 and hv not in result:
+            result.append(hv)
+    return result
+
+
+def _task_homework_rows(task_id):
+    return LessonHomework.query.filter_by(task_id=task_id).order_by(
+        LessonHomework.order_index.asc(),
+        LessonHomework.id.asc(),
+    ).all()
+
+
+def _task_homework_ids(task_id):
+    return [r.homework_id for r in _task_homework_rows(task_id)]
+
+
+def _set_task_homeworks(task, homework_ids):
+    # Keep legacy single-homework fields in sync.
+    cleaned = [int(h) for h in (homework_ids or []) if h]
+    LessonHomework.query.filter_by(task_id=task.id).delete()
+    if not cleaned:
+        task.homework_id = None
+        task.homework_required = False
+        return
+    due = (task.start_date + timedelta(days=14)) if task.start_date else (datetime.now() + timedelta(days=14))
+    for idx, hw_id in enumerate(cleaned):
+        db.session.add(LessonHomework(
+            task_id=task.id,
+            homework_id=hw_id,
+            order_index=idx,
+            due_date=due,
+            status_id=task.status_id,
+            submitted_at=task.homework_submitted_at,
+            teacher_remarks=task.homework_teacher_remarks,
+        ))
+    task.homework_id = cleaned[0]
+    task.homework_required = True
 
 
 def _task_status_terminal(st):
@@ -169,6 +220,14 @@ def _recalculate_future_homework_for_student(student_id):
     if status_ids:
         status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
 
+    lh_rows = LessonHomework.query.join(Task, Task.id == LessonHomework.task_id).filter(
+        Task.student_id == student_id,
+        Task.task_type_id == lesson_type.id,
+    ).order_by(LessonHomework.order_index.asc(), LessonHomework.id.asc()).all()
+    hw_by_task = {}
+    for r in lh_rows:
+        hw_by_task.setdefault(r.task_id, []).append(r)
+
     chain_prev = None
     updated = 0
 
@@ -179,10 +238,16 @@ def _recalculate_future_homework_for_student(student_id):
 
         if not is_future or terminal:
             if terminal and st and st.name == 'Проведён':
-                if t.homework_id and int(t.homework_id) in catalog_set:
+                chain = [r.homework_id for r in hw_by_task.get(t.id, []) if r.homework_id in catalog_set]
+                if chain:
+                    chain_prev = int(chain[-1])
+                elif t.homework_id and int(t.homework_id) in catalog_set:
                     chain_prev = int(t.homework_id)
             elif not terminal and t.start_date and t.start_date < now:
-                if t.homework_required and t.homework_id and int(t.homework_id) in catalog_set:
+                chain = [r.homework_id for r in hw_by_task.get(t.id, []) if r.homework_id in catalog_set]
+                if chain:
+                    chain_prev = int(chain[-1])
+                elif t.homework_required and t.homework_id and int(t.homework_id) in catalog_set:
                     chain_prev = int(t.homework_id)
             continue
 
@@ -196,17 +261,25 @@ def _recalculate_future_homework_for_student(student_id):
             continue
 
         if t.homework_required:
-            if chain_prev is not None:
-                nh, _reason = _find_next_homework_id(student_id, from_homework_id=chain_prev)
-            else:
-                nh, _reason = _find_next_homework_id(student_id, None)
-            if nh is None:
+            existing_count = max(1, len(hw_by_task.get(t.id, [])))
+            assigned = []
+            prev = chain_prev
+            for _i in range(existing_count):
+                if prev is not None:
+                    nh, _reason = _find_next_homework_id(student_id, from_homework_id=prev)
+                else:
+                    nh, _reason = _find_next_homework_id(student_id, None)
+                if nh is None:
+                    break
+                assigned.append(int(nh))
+                prev = int(nh)
+            if not assigned:
                 t.homework_id = None
                 t.homework_required = False
+                LessonHomework.query.filter_by(task_id=t.id).delete()
             else:
-                t.homework_id = nh
-                t.homework_required = True
-                chain_prev = int(nh)
+                _set_task_homeworks(t, assigned)
+                chain_prev = assigned[-1]
             if t.series_id:
                 t.series_exception = False
             updated += 1
@@ -214,6 +287,7 @@ def _recalculate_future_homework_for_student(student_id):
             if t.homework_id is not None or t.homework_required:
                 t.homework_id = None
                 t.homework_required = False
+                LessonHomework.query.filter_by(task_id=t.id).delete()
                 if t.series_id:
                     t.series_exception = False
                 updated += 1
@@ -449,6 +523,14 @@ def get_tasks():
     if homework_ids:
         homework_map = {hw.id: hw.name for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()}
 
+    task_ids = [t.id for t in paginator.items]
+    lesson_homeworks = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
+        LessonHomework.task_id.asc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
+    ).all() if task_ids else []
+    homework_ids_by_task = {}
+    for lh in lesson_homeworks:
+        homework_ids_by_task.setdefault(lh.task_id, []).append(lh.homework_id)
+
     tasks = []
     for t in paginator.items:
         d = t.to_dict()
@@ -456,6 +538,7 @@ def get_tasks():
         d['student_name'] = student_map.get(t.student_id)
         d['task_type_name'] = type_map.get(t.task_type_id)
         d['homework_name'] = homework_map.get(t.homework_id)
+        d['homework_ids'] = homework_ids_by_task.get(t.id, ([t.homework_id] if t.homework_id else []))
         tasks.append(d)
 
     return jsonify({
@@ -465,6 +548,19 @@ def get_tasks():
         'current_page': paginator.page,
         'next_id': next_id,
     })
+
+
+@tasks_bp.route('/api/tasks/<int:task_id>/homeworks', methods=['GET'])
+@login_required
+def get_task_homeworks(task_id):
+    task = db.get_or_404(Task, task_id)
+    if not user_has_role('admin', 'owner') and task.user_id != current_user.id and task.student_id != current_user.id:
+        return jsonify({'error': 'Недостаточно прав'}), 403
+    rows = _task_homework_rows(task.id)
+    ids = [r.homework_id for r in rows]
+    if not ids and task.homework_id:
+        ids = [task.homework_id]
+    return jsonify({'homework_ids': ids})
 
 
 @tasks_bp.route('/api/tasks', methods=['POST'])
@@ -482,18 +578,25 @@ def add_task():
     status_id = data.get('status_id')
 
     homework_required = bool(data.get('homework_required', True))
+    homework_ids = _normalize_homework_ids(data.get('homework_ids'))
+    homework_ids = _normalize_homework_ids(data.get('homework_ids'))
     homework_id = data.get('homework_id')
-    if homework_required and not homework_id and data.get('student_id'):
+    if homework_ids is None:
+        homework_ids = [int(homework_id)] if homework_id else []
+    if homework_ids is None:
+        homework_ids = [int(homework_id)] if homework_id else []
+    if homework_required and not homework_ids and data.get('student_id'):
         next_hw_id, _reason = _find_next_homework_id(data.get('student_id'))
-        homework_id = next_hw_id
+        if next_hw_id:
+            homework_ids = [int(next_hw_id)]
 
     # Если это урок и ДЗ обязательно, но подобрать/выбрать не получилось — требуем вручную
-    if homework_required and not homework_id and data.get('task_type_id'):
+    if homework_required and not homework_ids and data.get('task_type_id'):
         lesson_type = TaskType.query.filter_by(name='Урок').first()
         if lesson_type and int(data.get('task_type_id') or 0) == lesson_type.id:
             return jsonify({'error': 'Не удалось подобрать следующее ДЗ автоматически — выберите ДЗ вручную'}), 400
 
-    if homework_id:
+    if homework_ids:
         in_progress = TaskStatus.query.filter_by(name='В работе').first()
         if not in_progress:
             in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
@@ -509,7 +612,7 @@ def add_task():
         student_id=data.get('student_id'),
         is_paid=bool(data.get('is_paid', False)),
         payment_date=parse_datetime(data.get('payment_date')),
-        homework_id=homework_id,
+        homework_id=(homework_ids[0] if homework_ids else None),
         homework_required=homework_required,
         status_id=status_id,
         task_type_id=data.get('task_type_id'),
@@ -519,6 +622,9 @@ def add_task():
         plan_step_id=data.get('plan_step_id'),
     )
     db.session.add(task)
+    db.session.flush()
+    if homework_required and homework_ids:
+        _set_task_homeworks(task, homework_ids)
     db.session.commit()
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()
     if task.student_id and lesson_type_row and task.task_type_id == lesson_type_row.id:
@@ -564,9 +670,11 @@ def create_lesson_series():
         return jsonify({'error': 'Некорректная продолжительность'}), 400
     duration = int(duration)
 
-    if homework_required and not homework_id:
-        homework_id, _reason = _find_next_homework_id(student_id)
-    if homework_required and not homework_id:
+    if homework_required and not homework_ids:
+        next_hw, _reason = _find_next_homework_id(student_id)
+        if next_hw:
+            homework_ids = [int(next_hw)]
+    if homework_required and not homework_ids:
         return jsonify({'error': 'Не удалось подобрать ДЗ первого урока автоматически — выберите ДЗ вручную или снимите флаг "ДЗ обязательно"'}), 400
 
     if comment and len(comment) > 500:
@@ -582,8 +690,8 @@ def create_lesson_series():
     if not task_type:
         return jsonify({'error': 'Тип задачи не найден'}), 400
     first_homework = None
-    if homework_id:
-        first_homework = db.session.get(Homework, homework_id)
+    if homework_ids:
+        first_homework = db.session.get(Homework, homework_ids[0])
         if not first_homework:
             return jsonify({'error': 'Домашнее задание не найдено'}), 400
 
@@ -600,14 +708,14 @@ def create_lesson_series():
             end_date=starts[-1],
             recurrence_rule=recurrence_rule,
             occurrences_count=len(starts),
-            first_homework_id=homework_id if homework_required else None,
+            first_homework_id=(homework_ids[0] if homework_required and homework_ids else None),
             homework_required_default=homework_required,
         )
         db.session.add(series)
         db.session.flush()  # get series.id
 
         in_progress = None
-        if homework_required and homework_id:
+        if homework_required and homework_ids:
             in_progress = TaskStatus.query.filter_by(name='В работе').first()
             if not in_progress:
                 in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
@@ -624,7 +732,7 @@ def create_lesson_series():
                 student_id=student_id,
                 is_paid=is_paid,
                 payment_date=payment_date,
-                homework_id=(homework_id if (idx == 0 and homework_required) else None),
+                homework_id=((homework_ids[0] if homework_ids else None) if (idx == 0 and homework_required) else None),
                 homework_required=homework_required if idx == 0 else homework_required,
                 status_id=in_progress.id if (idx == 0 and in_progress) else None,
                 task_type_id=task_type_id,
@@ -636,6 +744,9 @@ def create_lesson_series():
                 series_exception=False,
             )
             db.session.add(task)
+            db.session.flush()
+            if idx == 0 and homework_required and homework_ids:
+                _set_task_homeworks(task, homework_ids)
 
         db.session.commit()
         _recalculate_future_homework_for_student(student_id)
@@ -845,6 +956,7 @@ def update_task(task_id):
 
     try:
         old_homework_id = task.homework_id
+        old_homework_ids = _task_homework_ids(task.id)
         old_homework_required = task.homework_required
         old_student_id = task.student_id
         old_task_type_id = task.task_type_id
@@ -865,8 +977,25 @@ def update_task(task_id):
             task.is_paid = bool(data['is_paid'])
         if 'payment_date' in data:
             task.payment_date = parse_datetime(data['payment_date'])
-        if 'homework_id' in data:
+        if 'homework_ids' in data:
+            incoming_ids = _normalize_homework_ids(data.get('homework_ids')) or []
+            if incoming_ids:
+                _set_task_homeworks(task, incoming_ids)
+                if 'status_id' not in data:
+                    in_progress = TaskStatus.query.filter_by(name='В работе').first()
+                    if not in_progress:
+                        in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
+                    if in_progress:
+                        task.status_id = in_progress.id
+            else:
+                LessonHomework.query.filter_by(task_id=task.id).delete()
+                task.homework_id = None
+        elif 'homework_id' in data:
             task.homework_id = data['homework_id']
+            if data['homework_id']:
+                _set_task_homeworks(task, [int(data['homework_id'])])
+            else:
+                LessonHomework.query.filter_by(task_id=task.id).delete()
             if data['homework_id'] and 'status_id' not in data:
                 in_progress = TaskStatus.query.filter_by(name='В работе').first()
                 if not in_progress:
@@ -962,10 +1091,27 @@ def update_task(task_id):
                     series_exception=False,
                 )
                 db.session.add(new_task)
+                db.session.flush()
+                src_ids = _task_homework_ids(task.id)
+                if task.homework_required and src_ids:
+                    assigned_ids = []
+                    prev = current_hw_id
+                    for _ in range(len(src_ids)):
+                        nh, _r = _find_next_homework_id(task.student_id, from_homework_id=prev) if prev else _find_next_homework_id(task.student_id, None)
+                        if not nh:
+                            break
+                        assigned_ids.append(int(nh))
+                        prev = int(nh)
+                    if assigned_ids:
+                        _set_task_homeworks(new_task, assigned_ids)
 
         # Помечаем урок серии как исключение при изменении ДЗ/флага
         if task.series_id:
-            homework_changed = ('homework_id' in data and data.get('homework_id') != old_homework_id)
+            new_homework_ids = _task_homework_ids(task.id)
+            homework_changed = (
+                ('homework_id' in data and data.get('homework_id') != old_homework_id)
+                or ('homework_ids' in data and new_homework_ids != old_homework_ids)
+            )
             required_changed = ('homework_required' in data and bool(data.get('homework_required')) != bool(old_homework_required))
             if homework_changed or required_changed:
                 task.series_exception = True
@@ -1155,6 +1301,13 @@ def get_tasks_calendar():
         status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
 
     events = []
+    task_ids = [t.id for t in tasks]
+    lh_rows = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
+        LessonHomework.task_id.asc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
+    ).all() if task_ids else []
+    hw_ids_map = {}
+    for r in lh_rows:
+        hw_ids_map.setdefault(r.task_id, []).append(r.homework_id)
     for t in tasks:
         student_name = student_map.get(t.student_id, '')
         type_name = type_map.get(t.task_type_id, '')
@@ -1163,13 +1316,15 @@ def get_tasks_calendar():
         title = ' — '.join(title_parts) or f'Задача #{t.id}'
         if status_name:
             title += f' [{status_name}]'
+        props = t.to_dict()
+        props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
         events.append({
             'id': t.id,
             'title': title,
             'start': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
             'end': t.end_date.strftime('%Y-%m-%dT%H:%M') if t.end_date else None,
             'color': '#38a169' if t.is_paid else '#1A515F',
-            'extendedProps': t.to_dict(),
+            'extendedProps': props,
         })
 
     return jsonify(events)
@@ -1635,7 +1790,7 @@ def get_homework_review_list():
 @tasks_bp.route('/api/my-homework', methods=['GET'])
 @login_required
 def get_my_homework():
-    """Returns tasks with homework assigned to the current student."""
+    """Returns lesson homeworks assigned to the current student."""
     from datetime import datetime
     from sqlalchemy import or_
     show_done = request.args.get('show_done', '0') == '1'
@@ -1650,9 +1805,18 @@ def get_my_homework():
     if not show_done and done_ids:
         q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(done_ids)))
 
-    tasks = q.order_by(Task.start_date.desc()).limit(20).all()
+    tasks = q.order_by(Task.start_date.desc()).limit(50).all()
+    task_ids = [t.id for t in tasks]
+    lesson_homeworks = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
+        LessonHomework.task_id.desc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
+    ).all() if task_ids else []
+    by_task = {}
+    for lh in lesson_homeworks:
+        by_task.setdefault(lh.task_id, []).append(lh)
 
-    homework_ids = {t.homework_id for t in tasks if t.homework_id}
+    homework_ids = {lh.homework_id for lh in lesson_homeworks if lh.homework_id}
+    if not homework_ids:
+        homework_ids = {t.homework_id for t in tasks if t.homework_id}
     status_ids = {t.status_id for t in tasks if t.status_id}
     step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}
     homework_map = {hw.id: hw for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
@@ -1662,26 +1826,34 @@ def get_my_homework():
     now = datetime.now()
     result = []
     for t in tasks:
-        hw = homework_map.get(t.homework_id)
         st = status_map.get(t.status_id)
         is_overdue = bool(
-            t.start_date and t.start_date < now and
+            t.start_date and (t.start_date + timedelta(days=14)) < now and
             (not st or (st.group or '').lower() not in ('done', 'completed', 'готово'))
         )
-        result.append({
-            'task_id': t.id,
-            'homework_name': hw.name if hw else None,
-            'homework_comment': hw.comment if hw else None,
-            'topic_title': step_map.get(t.plan_step_id) if t.plan_step_id else None,
-            'status_name': st.name if st else None,
-            'status_group': st.group if st else None,
-            'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
-            'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
-            'is_overdue': is_overdue,
-            'homework_submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
-            'homework_submitted_at_iso': t.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if t.homework_submitted_at else None,
-            'homework_teacher_remarks': t.homework_teacher_remarks,
-        })
+        rows = by_task.get(t.id) or []
+        if not rows and t.homework_id:
+            rows = [type('X', (), {'id': None, 'homework_id': t.homework_id, 'due_date': (t.start_date + timedelta(days=14)) if t.start_date else None})()]
+        for lh in rows:
+            hw = homework_map.get(lh.homework_id)
+            due = lh.due_date or ((t.start_date + timedelta(days=14)) if t.start_date else None)
+            result.append({
+                'task_id': t.id,
+                'lesson_homework_id': lh.id,
+                'homework_name': hw.name if hw else None,
+                'homework_comment': hw.comment if hw else None,
+                'topic_title': step_map.get(t.plan_step_id) if t.plan_step_id else None,
+                'status_name': st.name if st else None,
+                'status_group': st.group if st else None,
+                'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
+                'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+                'due_date': due.strftime('%d.%m.%Y') if due else None,
+                'due_date_iso': due.strftime('%Y-%m-%dT%H:%M') if due else None,
+                'is_overdue': is_overdue,
+                'homework_submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
+                'homework_submitted_at_iso': t.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if t.homework_submitted_at else None,
+                'homework_teacher_remarks': t.homework_teacher_remarks,
+            })
     _rows = []
     for t in tasks[:8]:
         st = status_map.get(t.status_id)

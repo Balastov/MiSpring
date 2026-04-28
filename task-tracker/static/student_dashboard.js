@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let meetingLinkUrl = '';
     let monthLessons = [];
     let lessonMapByDate = {};
-    let selectedHomeworkTaskId = null;
+    let selectedHomeworkItemId = null;
     let studentTimezone = 'UTC+03:00';
     let studentTzOffsetMinutes = 180;
     const MSK_OFFSET_MINUTES = 180;
@@ -326,13 +326,13 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => showToast('Ошибка загрузки файлов', true));
     }
 
-    function renderHomeworkCenter(taskId) {
-        const hw = homeworkData.find(x => x.task_id === taskId);
+    function renderHomeworkCenter(itemId) {
+        const hw = homeworkData.find(x => String(x.lesson_homework_id || x.task_id) === String(itemId));
         if (!hw || !sdCenterContent) return;
-        selectedHomeworkTaskId = taskId;
+        selectedHomeworkItemId = String(hw.lesson_homework_id || hw.task_id);
         setCenterTitleHomework();
 
-        loadHomeworkEvidence(taskId).then(({ studentFiles, teacherFiles, studentTotalSize, limit }) => {
+        loadHomeworkEvidence(hw.task_id).then(({ studentFiles, teacherFiles, studentTotalSize, limit }) => {
             const studentFilesHtml = studentFiles.length
                 ? studentFiles.map(f => `
                     <div class="sd-evidence-item">
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 monthLessons = (data.lessons || []).map(enrichLessonTime);
                 lessonMapByDate = buildLessonMap(monthLessons);
                 renderMiniCalendar();
-                if (!selectedHomeworkTaskId) {
+                if (!selectedHomeworkItemId) {
                     renderLessonInfoForDate(normalizeDateKeyFromUtcMs(Date.now(), studentTzOffsetMinutes));
                 }
             })
@@ -463,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 monthLessons = [];
                 lessonMapByDate = {};
                 renderMiniCalendar();
-                if (!selectedHomeworkTaskId) {
+                if (!selectedHomeworkItemId) {
                     renderLessonInfoForDate(normalizeDateKeyFromUtcMs(Date.now(), studentTzOffsetMinutes));
                 }
             });
@@ -503,14 +503,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const cls = hwStatusClass(hw);
             const statusLabel = hwStatusLabel(hw);
             const badgeCls = hwStatusBadgeClass(hw);
-            const selectedClass = selectedHomeworkTaskId === hw.task_id ? ' sd-hw-selected' : '';
-            const dateLabel = hw.lesson_date
+            const itemId = String(hw.lesson_homework_id || hw.task_id);
+            const selectedClass = selectedHomeworkItemId === itemId ? ' sd-hw-selected' : '';
+            const dateBase = hw.due_date || hw.lesson_date;
+            const dateLabel = dateBase
                 ? (hw.is_overdue
-                    ? `<span class="sd-hw-overdue-label">Просрочено (${hw.lesson_date})</span>`
-                    : `Выполнить до ${hw.lesson_date}`)
+                    ? `<span class="sd-hw-overdue-label">Просрочено (${dateBase})</span>`
+                    : `Выполнить до ${dateBase}`)
                 : '';
             html += `
-            <div class="sd-hw-card ${cls}${selectedClass}" data-task-id="${hw.task_id}">
+            <div class="sd-hw-card ${cls}${selectedClass}" data-hw-item-id="${itemId}">
                 <div class="sd-hw-name">${hw.homework_name || '—'}</div>
                 <div class="sd-hw-meta">
                     <span>Статус: <span class="${badgeCls}">${statusLabel}</span></span>
@@ -529,12 +531,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 homeworkData = data.homework || [];
                 renderHomework();
-                if (!selectedHomeworkTaskId && homeworkData.length) {
-                    renderHomeworkCenter(homeworkData[0].task_id);
-                } else if (selectedHomeworkTaskId) {
-                    const exists = homeworkData.some(h => h.task_id === selectedHomeworkTaskId);
-                    if (exists) renderHomeworkCenter(selectedHomeworkTaskId);
-                    else if (homeworkData.length) renderHomeworkCenter(homeworkData[0].task_id);
+                if (!selectedHomeworkItemId && homeworkData.length) {
+                    renderHomeworkCenter(homeworkData[0].lesson_homework_id || homeworkData[0].task_id);
+                } else if (selectedHomeworkItemId) {
+                    const exists = homeworkData.some(h => String(h.lesson_homework_id || h.task_id) === String(selectedHomeworkItemId));
+                    if (exists) renderHomeworkCenter(selectedHomeworkItemId);
+                    else if (homeworkData.length) renderHomeworkCenter(homeworkData[0].lesson_homework_id || homeworkData[0].task_id);
                 }
             })
             .catch(() => {
@@ -799,10 +801,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sdShowDoneCb.addEventListener('change', loadHomework);
     if (sdHomeworkList) {
         sdHomeworkList.addEventListener('click', (e) => {
-            const card = e.target.closest('.sd-hw-card[data-task-id]');
+            const card = e.target.closest('.sd-hw-card[data-hw-item-id]');
             if (!card) return;
-            const taskId = parseInt(card.dataset.taskId);
-            renderHomeworkCenter(taskId);
+            renderHomeworkCenter(card.dataset.hwItemId);
         });
     }
     if (sdMiniCalendar) {
@@ -816,27 +817,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (sdCenterContent) {
         sdCenterContent.addEventListener('change', (e) => {
-            if (e.target.id !== 'sd-evidence-input' || !selectedHomeworkTaskId) return;
+            if (e.target.id !== 'sd-evidence-input' || !selectedHomeworkItemId) return;
             const input = e.target;
             const files = input.files ? Array.from(input.files) : [];
             input.value = '';
             if (!files.length) return;
-            uploadEvidenceFiles(selectedHomeworkTaskId, files);
+            const hw = homeworkData.find(x => String(x.lesson_homework_id || x.task_id) === String(selectedHomeworkItemId));
+            if (!hw) return;
+            uploadEvidenceFiles(hw.task_id, files);
         });
         sdCenterContent.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.sd-delete-evidence-btn');
-            if (deleteBtn && selectedHomeworkTaskId) {
+            if (deleteBtn && selectedHomeworkItemId) {
                 const evidenceId = parseInt(deleteBtn.dataset.evidenceId);
-                fetch(`/api/tasks/${selectedHomeworkTaskId}/evidence/${evidenceId}`, { method: 'DELETE' })
+                const hw = homeworkData.find(x => String(x.lesson_homework_id || x.task_id) === String(selectedHomeworkItemId));
+                if (!hw) return;
+                fetch(`/api/tasks/${hw.task_id}/evidence/${evidenceId}`, { method: 'DELETE' })
                     .then(() => {
                         showToast('Файл удалён');
-                        renderHomeworkCenter(selectedHomeworkTaskId);
+                        renderHomeworkCenter(selectedHomeworkItemId);
                     })
                     .catch(() => showToast('Не удалось удалить файл', true));
                 return;
             }
-            if (e.target.id === 'sd-submit-homework-btn' && selectedHomeworkTaskId) {
-                fetch(`/api/tasks/${selectedHomeworkTaskId}/homework-submit`, { method: 'POST' })
+            if (e.target.id === 'sd-submit-homework-btn' && selectedHomeworkItemId) {
+                const hw = homeworkData.find(x => String(x.lesson_homework_id || x.task_id) === String(selectedHomeworkItemId));
+                if (!hw) return;
+                fetch(`/api/tasks/${hw.task_id}/homework-submit`, { method: 'POST' })
                     .then(r => r.json().then(data => ({ ok: r.ok, data })))
                     .then(({ ok, data }) => {
                         if (!ok) {

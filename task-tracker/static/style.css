@@ -558,6 +558,22 @@ select.filter-control {
     height: 16px;
 }
 
+#form-extra-homeworks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.extra-homework-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.extra-homework-row .form-select {
+    flex: 1;
+}
+
 .modal-header h2 {
     margin: 0;
     font-size: 20px;

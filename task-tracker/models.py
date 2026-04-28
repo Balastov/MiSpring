@@ -151,6 +151,32 @@ class Task(db.Model):
         }
 
 
+class LessonHomework(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, nullable=False, index=True)
+    homework_id = db.Column(db.Integer, nullable=False, index=True)
+    order_index = db.Column(db.Integer, nullable=False, default=0, index=True)
+    due_date = db.Column(db.DateTime, nullable=True)
+    status_id = db.Column(db.Integer, nullable=True, index=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    teacher_remarks = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'homework_id': self.homework_id,
+            'order_index': self.order_index,
+            'due_date': self.due_date.strftime('%d.%m.%Y %H:%M') if self.due_date else None,
+            'due_date_iso': self.due_date.strftime('%Y-%m-%dT%H:%M') if self.due_date else None,
+            'status_id': self.status_id,
+            'submitted_at': self.submitted_at.strftime('%d.%m.%Y %H:%M') if self.submitted_at else None,
+            'submitted_at_iso': self.submitted_at.strftime('%Y-%m-%dT%H:%M') if self.submitted_at else None,
+            'teacher_remarks': self.teacher_remarks,
+        }
+
+
 class TaskStatus(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)

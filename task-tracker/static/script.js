@@ -64,9 +64,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const formIsPaid = document.getElementById('form-is-paid');
     const formPaymentDate = document.getElementById('form-payment-date');
     const formHomeworkId = document.getElementById('form-homework-id');
+    const formExtraHomeworks = document.getElementById('form-extra-homeworks');
+    const addHomeworkBtn = document.getElementById('add-homework-btn');
     const formHomeworkRequired = document.getElementById('form-homework-required');
     const homeworkRequiredRow = document.getElementById('task-field-row-homework-required');
     const homeworkRow = document.getElementById('task-field-row-homework');
+    const addHomeworkRow = document.getElementById('task-field-row-add-homework');
     const seriesApplyRow = document.getElementById('task-field-row-series-apply');
     const formPlanStepId = document.getElementById('form-plan-step-id');
     const planStepRow = document.getElementById('task-field-row-plan-step');
@@ -437,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { key: 'payment_date', label: 'Дата оплаты', row: taskFieldRowPaymentDate },
             { key: 'homework_required', label: 'ДЗ обязательно', row: homeworkRequiredRow, logic: () => isLessonTaskSelected() },
             { key: 'homework', label: 'Домашнее задание', row: homeworkRow, logic: () => isLessonTaskSelected() },
+            { key: 'homework_add', label: 'Добавить ДЗ', row: addHomeworkRow, logic: () => isLessonTaskSelected() },
             { key: 'series_apply', label: 'Назначить ДЗ на следующие уроки', row: seriesApplyRow, logic: () => !!currentSeriesId && isLessonTaskSelected() },
             { key: 'plan_step', label: 'Этап плана', row: planStepRow, logic: () => isLessonTaskSelected() },
             { key: 'status', label: 'Статус', row: taskFieldRowStatus },
@@ -833,6 +837,51 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasSelected = homeworkItems.some(hw => String(hw.id) === String(selectedHomeworkId));
             if (hasSelected) formHomeworkId.value = String(selectedHomeworkId);
         }
+        if (formExtraHomeworks) {
+            formExtraHomeworks.querySelectorAll('select.extra-homework-select').forEach(sel => {
+                const prev = sel.value;
+                sel.innerHTML = formHomeworkId.innerHTML;
+                if (prev) sel.value = prev;
+            });
+        }
+    }
+
+    function addExtraHomeworkRow(selectedHomeworkId = '') {
+        if (!formExtraHomeworks) return;
+        const row = document.createElement('div');
+        row.className = 'extra-homework-row';
+        const sel = document.createElement('select');
+        sel.className = 'form-select extra-homework-select';
+        sel.innerHTML = formHomeworkId ? formHomeworkId.innerHTML : '<option value="">-- Выберите --</option>';
+        if (selectedHomeworkId) sel.value = String(selectedHomeworkId);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'btn-danger btn-compact';
+        del.textContent = 'Удалить';
+        del.addEventListener('click', () => row.remove());
+        row.appendChild(sel);
+        row.appendChild(del);
+        formExtraHomeworks.appendChild(row);
+    }
+
+    function setHomeworkIdsOnForm(homeworkIds) {
+        const ids = Array.isArray(homeworkIds) ? homeworkIds.filter(Boolean).map(x => String(x)) : [];
+        if (formExtraHomeworks) formExtraHomeworks.innerHTML = '';
+        formHomeworkId.value = ids[0] || '';
+        ids.slice(1).forEach(id => addExtraHomeworkRow(id));
+    }
+
+    function collectHomeworkIdsFromForm() {
+        const ids = [];
+        const first = formHomeworkId && formHomeworkId.value ? parseInt(formHomeworkId.value, 10) : null;
+        if (first) ids.push(first);
+        if (formExtraHomeworks) {
+            formExtraHomeworks.querySelectorAll('select.extra-homework-select').forEach(sel => {
+                const v = sel.value ? parseInt(sel.value, 10) : null;
+                if (v && !ids.includes(v)) ids.push(v);
+            });
+        }
+        return ids;
     }
 
     function ensureHomeworkCache() {
@@ -898,7 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Не перетираем ручной выбор
-        if (formHomeworkId.value) return;
+        if (collectHomeworkIdsFromForm().length > 0) return;
 
         const studentId = formStudentId.value;
 
@@ -1076,6 +1125,10 @@ document.addEventListener('DOMContentLoaded', () => {
         autoFillNextHomework();
     });
 
+    if (addHomeworkBtn) {
+        addHomeworkBtn.addEventListener('click', () => addExtraHomeworkRow(''));
+    }
+
     if (formHomeworkId) {
         formHomeworkId.addEventListener('change', () => {
             if (!formPlanStepId || !formHomeworkId.value || !Array.isArray(allHomeworkCache)) return;
@@ -1136,6 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formIsPaid.disabled = false;
                 formPaymentDate.value = '';
                 formHomeworkId.value = '';
+                if (formExtraHomeworks) formExtraHomeworks.innerHTML = '';
                 formHomeworkRequired.checked = true;
                 formComment.value = '';
                 formClosingDate.value = '';
@@ -1664,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formAuthor.value = task.author || '';
             formIsPaid.checked = task.is_paid || false;
             formPaymentDate.value = task.payment_date_iso || '';
-            formHomeworkId.value = task.homework_id ?? '';
+            setHomeworkIdsOnForm(task.homework_ids || (task.homework_id ? [task.homework_id] : []));
             formHomeworkRequired.checked = task.homework_required ?? true;
             formComment.value = task.comment || '';
             formClosingDate.value = task.closing_date_iso || '';
@@ -1705,7 +1759,9 @@ document.addEventListener('DOMContentLoaded', () => {
             formTaskTypeId.value = task.task_type_id || '';
             updateLessonFieldsVisibility();
 
-            loadHomeworkOptionsForStudent(task.student_id, task.homework_id || null);
+            const selectedHomeworkIds = task.homework_ids || (task.homework_id ? [task.homework_id] : []);
+            loadHomeworkOptionsForStudent(task.student_id, selectedHomeworkIds[0] || null)
+                .then(() => setHomeworkIdsOnForm(selectedHomeworkIds));
 
             loadPlanStepsForStudent(task.student_id, task.plan_step_id);
             updateQuickStatusButtons();
@@ -1897,6 +1953,7 @@ document.addEventListener('DOMContentLoaded', () => {
             is_paid: formIsPaid.checked,
             payment_date: formPaymentDate.value || null,
             homework_id: formHomeworkId.value ? parseInt(formHomeworkId.value) : null,
+            homework_ids: collectHomeworkIdsFromForm(),
             homework_required: formHomeworkRequired.checked,
             status_id: formStatusId.value ? parseInt(formStatusId.value) : null,
             task_type_id: formTaskTypeId.value ? parseInt(formTaskTypeId.value) : null,
@@ -1904,6 +1961,10 @@ document.addEventListener('DOMContentLoaded', () => {
             closing_date: formClosingDate.value || null,
             plan_step_id: formPlanStepId && formPlanStepId.value ? parseInt(formPlanStepId.value) : null,
         };
+        if (!taskData.homework_required) {
+            taskData.homework_id = null;
+            taskData.homework_ids = [];
+        }
 
         if (_pendingAdvancePlanStep !== null) {
             taskData.advance_plan_step = _pendingAdvancePlanStep;
@@ -2126,7 +2187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     formAuthor.value = task.author || '';
                     formIsPaid.checked = task.is_paid || false;
                     formPaymentDate.value = task.payment_date_iso || '';
-                    formHomeworkId.value = task.homework_id ?? '';
+                    setHomeworkIdsOnForm(task.homework_ids || (task.homework_id ? [task.homework_id] : []));
                     formHomeworkRequired.checked = task.homework_required ?? true;
                     formComment.value = task.comment || '';
                     formClosingDate.value = task.closing_date_iso || '';
@@ -2172,7 +2233,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateQuickStatusButtons();
 
                     // Populate homework dropdown
-                    loadHomeworkOptionsForStudent(task.student_id, task.homework_id || null);
+                    const selectedHomeworkIds = task.homework_ids || (task.homework_id ? [task.homework_id] : []);
+                    loadHomeworkOptionsForStudent(task.student_id, selectedHomeworkIds[0] || null)
+                        .then(() => setHomeworkIdsOnForm(selectedHomeworkIds));
 
                     loadPlanStepsForStudent(task.student_id, task.plan_step_id);
                     applyTaskFieldVisibility();
