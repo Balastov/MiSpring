@@ -464,6 +464,15 @@ def _split_evidence_by_uploader(files):
 def get_tasks():
     page = request.args.get('page', 1, type=int)
     per_page = 50
+    _agent_debug_log('DBG-TABLE-1', 'routes_tasks.get_tasks', 'request_params', {
+        'page': page,
+        'student_id': request.args.get('student_id'),
+        'task_type_id': request.args.get('task_type_id'),
+        'date_from': request.args.get('date_from'),
+        'date_to': request.args.get('date_to'),
+        'is_paid': request.args.get('is_paid'),
+        'user_id': getattr(current_user, 'id', None),
+    })
 
     query = db.select(Task).order_by(Task.created_at.desc())
     if not user_has_role('admin', 'owner'):
@@ -540,6 +549,15 @@ def get_tasks():
         d['homework_name'] = homework_map.get(t.homework_id)
         d['homework_ids'] = homework_ids_by_task.get(t.id, ([t.homework_id] if t.homework_id else []))
         tasks.append(d)
+
+    _agent_debug_log('DBG-TABLE-1', 'routes_tasks.get_tasks', 'response_meta', {
+        'page': page,
+        'returned_count': len(tasks),
+        'returned_ids': [t.get('id') for t in tasks[:15]],
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+    })
 
     return jsonify({
         'tasks': tasks,

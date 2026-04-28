@@ -2238,6 +2238,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (editBtn) {
             const id = parseInt(editBtn.dataset.id);
+            // #region agent log
+            _agentDebugLog('run2', 'H3', 'script.js:tableEdit:start', 'table_edit_click', {
+                requestedId: id,
+                currentPage,
+                filterTaskTypeId: filterTaskTypeId && filterTaskTypeId.value,
+                filterStudentId: filterStudentId && filterStudentId.value,
+            });
+            // #endregion
             Promise.all([
                 fetch(`/api/tasks?page=${currentPage}`).then(r => r.json()),
                 fetch('/api/students/all').then(r => r.json()),
@@ -2246,6 +2254,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch('/api/homework/all').then(r => r.json())
             ])
                 .then(([data, studentData, statusData, typeData, homeworkData]) => {
+                    // #region agent log
+                    _agentDebugLog('run2', 'H3', 'script.js:tableEdit:tasks_payload', 'table_edit_tasks_payload', {
+                        requestedId: id,
+                        count: Array.isArray(data && data.tasks) ? data.tasks.length : -1,
+                        ids: Array.isArray(data && data.tasks) ? data.tasks.slice(0, 15).map(t => t.id) : [],
+                    });
+                    // #endregion
                     allHomeworkCache = Array.isArray(homeworkData.homework) ? homeworkData.homework : [];
                     const task = data.tasks.find(t => t.id === id);
                     if (!task) {
