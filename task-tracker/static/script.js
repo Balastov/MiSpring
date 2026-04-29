@@ -2247,7 +2247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             // #endregion
             Promise.all([
-                fetch(`/api/tasks?page=${currentPage}`).then(r => r.json()),
+                fetch(`/api/tasks?${buildFilterParams()}`).then(r => r.json()),
                 fetch('/api/students/all').then(r => r.json()),
                 fetch('/api/task-statuses/all').then(r => r.json()),
                 fetch('/api/task-types/all').then(r => r.json()),
