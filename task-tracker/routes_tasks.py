@@ -598,7 +598,10 @@ def add_task():
     homework_required = bool(data.get('homework_required', True))
     homework_ids = _normalize_homework_ids(data.get('homework_ids'))
     homework_ids = _normalize_homework_ids(data.get('homework_ids'))
+    homework_ids = _normalize_homework_ids(data.get('homework_ids'))
     homework_id = data.get('homework_id')
+    if homework_ids is None:
+        homework_ids = [int(homework_id)] if homework_id else []
     if homework_ids is None:
         homework_ids = [int(homework_id)] if homework_id else []
     if homework_ids is None:
