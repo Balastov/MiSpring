@@ -926,6 +926,43 @@
             </div>
         </div>
         <div class="reports-section">
+            <div class="report-income-card">
+                <h3 class="report-income-title">Отчёт №1: Доход</h3>
+                <p class="report-income-desc">Уроки с отметкой «оплачен», дата начала в выбранном интервале. Сумма — по стоимости урока ученика.</p>
+                <div class="report-filters report-income-filters">
+                    <label for="report-income-date-from">С</label>
+                    <input type="date" id="report-income-date-from" class="filter-control">
+                    <label for="report-income-date-to">По</label>
+                    <input type="date" id="report-income-date-to" class="filter-control">
+                    <button type="button" id="report-income-load-btn" class="btn-primary">Показать</button>
+                </div>
+                <div id="report-income-summary" class="report-income-summary hidden">
+                    <p class="report-income-total-line">Доход за период: <strong id="report-income-sum">—</strong></p>
+                    <p class="hint" id="report-income-meta"></p>
+                    <button type="button" class="btn-secondary" id="report-income-split-btn">Разбить по ученикам</button>
+                </div>
+                <div id="report-income-breakdown" class="report-income-breakdown hidden">
+                    <table class="data-table report-table">
+                        <thead>
+                            <tr>
+                                <th>Ученик</th>
+                                <th>Уроков</th>
+                                <th>Сумма</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-income-by-student-tbody"></tbody>
+                        <tfoot>
+                            <tr class="report-income-total-row">
+                                <td><strong>Итого за период</strong></td>
+                                <td id="report-income-total-lessons"></td>
+                                <td id="report-income-total-amount"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <h3 class="report-section-title">Платежи по годам</h3>
             <div class="report-filters">
                 <label>Год:</label>
                 <select id="report-year-select" class="filter-control"></select>

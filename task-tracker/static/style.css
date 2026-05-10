@@ -1366,6 +1366,57 @@ select.filter-control {
     padding: 0 20px;
 }
 
+.report-income-card {
+    margin-bottom: 32px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.report-income-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    color: var(--color-primary);
+}
+
+.report-income-desc {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+.report-income-filters {
+    flex-wrap: wrap;
+}
+
+.report-income-summary {
+    margin-top: 20px;
+}
+
+.report-income-total-line {
+    font-size: 17px;
+    margin: 0 0 8px;
+}
+
+.report-income-split-btn {
+    margin-top: 12px;
+}
+
+.report-income-breakdown {
+    margin-top: 20px;
+}
+
+.report-section-title {
+    margin: 8px 0 16px;
+    font-size: 16px;
+    color: var(--color-text-primary);
+}
+
+.report-income-total-row td {
+    background: var(--color-bg-subtle);
+    font-size: 14px;
+}
+
 .report-filters {
     display: flex;
     align-items: center;

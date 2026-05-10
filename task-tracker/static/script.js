@@ -323,6 +323,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportYearSelect = document.getElementById('report-year-select');
     const reportLoadBtn = document.getElementById('report-load-btn');
     const reportContent = document.getElementById('report-content');
+    const reportIncomeDateFrom = document.getElementById('report-income-date-from');
+    const reportIncomeDateTo = document.getElementById('report-income-date-to');
+    const reportIncomeLoadBtn = document.getElementById('report-income-load-btn');
+    const reportIncomeSummary = document.getElementById('report-income-summary');
+    const reportIncomeSum = document.getElementById('report-income-sum');
+    const reportIncomeMeta = document.getElementById('report-income-meta');
+    const reportIncomeSplitBtn = document.getElementById('report-income-split-btn');
+    const reportIncomeBreakdown = document.getElementById('report-income-breakdown');
+    const reportIncomeByStudentTbody = document.getElementById('report-income-by-student-tbody');
+    const reportIncomeTotalLessons = document.getElementById('report-income-total-lessons');
+    const reportIncomeTotalAmount = document.getElementById('report-income-total-amount');
+    let incomeReportSplitOpen = false;
+    let lastIncomeReportData = null;
     const homeworkReviewPage = document.getElementById('homework-review-page');
     const backToMainFromHomeworkReviewBtn = document.getElementById('back-to-main-from-homework-review-btn');
     const homeworkReviewRefreshBtn = document.getElementById('homework-review-refresh-btn');
@@ -4936,9 +4949,103 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== Reports Page Logic ==========
 
+    function formatReportIsoDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function defaultIncomeReportRange() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return { from: formatReportIsoDate(start), to: formatReportIsoDate(end) };
+    }
+
+    function setIncomeSplitVisible(show) {
+        incomeReportSplitOpen = show;
+        if (reportIncomeBreakdown) {
+            if (show) reportIncomeBreakdown.classList.remove('hidden');
+            else reportIncomeBreakdown.classList.add('hidden');
+        }
+        if (reportIncomeSplitBtn) {
+            reportIncomeSplitBtn.textContent = show ? 'Скрыть разбивку' : 'Разбить по ученикам';
+        }
+    }
+
+    function renderIncomeByStudents(data) {
+        if (!reportIncomeByStudentTbody || !reportIncomeTotalLessons || !reportIncomeTotalAmount) return;
+        reportIncomeByStudentTbody.innerHTML = '';
+        const students = (data && data.students) ? data.students : [];
+        if (students.length === 0) {
+            reportIncomeByStudentTbody.innerHTML = '<tr><td colspan="3" class="empty-msg">Нет данных</td></tr>';
+        } else {
+            students.forEach((row) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(row.student_name || '—')}</td>
+                    <td>${row.lessons_count}</td>
+                    <td>${row.amount != null ? row.amount.toFixed(0) + ' ₽' : '—'}</td>
+                `;
+                reportIncomeByStudentTbody.appendChild(tr);
+            });
+        }
+        reportIncomeTotalLessons.textContent = data && data.lessons_count != null ? String(data.lessons_count) : '0';
+        const total = data && data.total_amount != null ? data.total_amount : 0;
+        reportIncomeTotalAmount.innerHTML = `<strong>${Number(total).toFixed(0)} ₽</strong>`;
+    }
+
+    function loadIncomeReport() {
+        if (!reportIncomeDateFrom || !reportIncomeDateTo) return;
+        const dateFrom = reportIncomeDateFrom.value;
+        const dateTo = reportIncomeDateTo.value;
+        if (!dateFrom || !dateTo) {
+            showAppToast('Укажите даты интервала', true);
+            return;
+        }
+        if (reportIncomeSummary) reportIncomeSummary.classList.remove('hidden');
+        setIncomeSplitVisible(false);
+        lastIncomeReportData = null;
+        if (reportIncomeSum) reportIncomeSum.textContent = 'Загрузка…';
+        if (reportIncomeMeta) reportIncomeMeta.textContent = '';
+        fetch(`/api/reports/income?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`)
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showAppToast(data.error || 'Не удалось загрузить отчёт', true);
+                    if (reportIncomeSummary) reportIncomeSummary.classList.remove('hidden');
+                    if (reportIncomeSum) reportIncomeSum.textContent = '—';
+                    return;
+                }
+                lastIncomeReportData = data;
+                if (reportIncomeSum) {
+                    reportIncomeSum.textContent = `${Number(data.total_amount).toFixed(0)} ₽`;
+                }
+                let meta = `${data.lessons_count} уроков`;
+                if (data.lessons_without_price > 0) {
+                    meta += ` · у ${data.lessons_without_price} уроков не задана стоимость (считается как 0 ₽)`;
+                }
+                if (reportIncomeMeta) reportIncomeMeta.textContent = meta;
+                if (reportIncomeSummary) reportIncomeSummary.classList.remove('hidden');
+                renderIncomeByStudents(data);
+            })
+            .catch(() => {
+                showAppToast('Ошибка загрузки отчёта', true);
+                if (reportIncomeSum) reportIncomeSum.textContent = '—';
+                if (reportIncomeSummary) reportIncomeSummary.classList.remove('hidden');
+            });
+    }
+
     function showReportsPage() {
         hideAllPages();
         reportsPage.classList.remove('hidden');
+
+        const range = defaultIncomeReportRange();
+        if (reportIncomeDateFrom) reportIncomeDateFrom.value = range.from;
+        if (reportIncomeDateTo) reportIncomeDateTo.value = range.to;
+        setIncomeSplitVisible(false);
+        loadIncomeReport();
 
         const currentYear = new Date().getFullYear();
         reportYearSelect.innerHTML = '';
@@ -4953,6 +5060,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (backToMainFromReportsBtn) backToMainFromReportsBtn.addEventListener('click', showMainPage);
+
+    if (reportIncomeLoadBtn) reportIncomeLoadBtn.addEventListener('click', loadIncomeReport);
+
+    if (reportIncomeSplitBtn) {
+        reportIncomeSplitBtn.addEventListener('click', () => {
+            if (!lastIncomeReportData) return;
+            setIncomeSplitVisible(!incomeReportSplitOpen);
+        });
+    }
 
     if (reportLoadBtn) reportLoadBtn.addEventListener('click', () => {
         const year = parseInt(reportYearSelect.value);

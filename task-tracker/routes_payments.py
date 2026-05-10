@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from extensions import db
 from models import User, StudentPayment, Task, TaskStatus, TaskType
 from helpers import user_has_role
@@ -227,6 +227,93 @@ def earnings_report():
 
     result = [months[m] for m in sorted(months.keys())]
     return jsonify({'year': year, 'months': result})
+
+
+def _parse_report_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value).strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+@payments_bp.route('/api/reports/income', methods=['GET'])
+@login_required
+def income_by_lessons_report():
+    """Доход: уроки с отметкой «оплачен» (is_paid), дата начала в интервале; сумма = стоимость урока ученика."""
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    d_from = _parse_report_date(request.args.get('date_from'))
+    d_to = _parse_report_date(request.args.get('date_to'))
+    if not d_from or not d_to:
+        return jsonify({'error': 'Укажите даты интервала (date_from, date_to)'}), 400
+    if d_to < d_from:
+        return jsonify({'error': 'Конец периода не может быть раньше начала'}), 400
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return jsonify({
+            'date_from': d_from.isoformat(),
+            'date_to': d_to.isoformat(),
+            'total_amount': 0.0,
+            'lessons_count': 0,
+            'students': [],
+        })
+
+    dt_from = datetime.combine(d_from, datetime.min.time())
+    dt_to_exclusive = datetime.combine(d_to + timedelta(days=1), datetime.min.time())
+
+    query = Task.query.filter(
+        Task.task_type_id == lesson_type.id,
+        Task.is_paid == True,
+        Task.student_id.isnot(None),
+        Task.start_date.isnot(None),
+        Task.start_date >= dt_from,
+        Task.start_date < dt_to_exclusive,
+    )
+    if user_has_role('teacher') and not user_has_role('admin', 'owner'):
+        query = query.filter(Task.user_id == current_user.id)
+
+    tasks = query.all()
+    student_ids = {t.student_id for t in tasks if t.student_id}
+    users_by_id = {u.id: u for u in User.query.filter(User.id.in_(student_ids)).all()} if student_ids else {}
+
+    by_student = {}
+    total_amount = 0.0
+    lessons_without_price = 0
+
+    for t in tasks:
+        sid = t.student_id
+        user = users_by_id.get(sid)
+        price = float(user.lesson_price) if user and user.lesson_price is not None else 0.0
+        if user and user.lesson_price is None:
+            lessons_without_price += 1
+
+        if sid not in by_student:
+            by_student[sid] = {
+                'student_id': sid,
+                'student_name': user.display_name if user else '—',
+                'lessons_count': 0,
+                'amount': 0.0,
+            }
+        by_student[sid]['lessons_count'] += 1
+        by_student[sid]['amount'] += price
+        total_amount += price
+
+    students = sorted(by_student.values(), key=lambda x: (-x['amount'], x['student_name'] or ''))
+    for row in students:
+        row['amount'] = round(row['amount'], 2)
+
+    return jsonify({
+        'date_from': d_from.isoformat(),
+        'date_to': d_to.isoformat(),
+        'total_amount': round(total_amount, 2),
+        'lessons_count': len(tasks),
+        'lessons_without_price': lessons_without_price,
+        'students': students,
+    })
 
 
 def _month_name(n):
