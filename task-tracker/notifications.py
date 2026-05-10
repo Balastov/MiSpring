@@ -32,15 +32,12 @@ def send_lesson_reminders(app):
     Запускается планировщиком каждые 5 минут.
     Ищет уроки с началом через ~24 часа или ~1 час
     и отправляет ученику напоминание в Telegram.
+    Дополнительно: сообщения в чат от «Администратор» за ~24 ч и ~30 мин до урока.
     """
     with app.app_context():
         from extensions import db
         from models import Task, TaskType, User, Setting
-
-        token = os.environ.get('TELEGRAM_BOT_TOKEN')
-        if not token:
-            logger.warning('TELEGRAM_BOT_TOKEN не задан — уведомления не отправляются')
-            return
+        from routes_chat import get_chat_administrator_user, send_system_chat_message
 
         meeting_link = Setting.get('meeting_link', '')
 
@@ -49,6 +46,36 @@ def send_lesson_reminders(app):
             return
 
         now = datetime.now()
+        token = os.environ.get('TELEGRAM_BOT_TOKEN')
+
+        def _lesson_start_label(task):
+            if not task.start_date:
+                return '—'
+            return task.start_date.strftime('%d.%m.%Y %H:%M')
+
+        def _claim_chat_and_send(task_ids, flag_column, build_text):
+            admin = get_chat_administrator_user()
+            if not admin:
+                logger.warning('Не найден или неактивен пользователь id=1 для системных сообщений чата')
+                return
+            for task_id in task_ids:
+                result = db.session.execute(
+                    db.update(Task)
+                    .where(Task.id == task_id, flag_column == False)  # noqa: E712
+                    .values({flag_column.key: True})
+                )
+                db.session.commit()
+                if result.rowcount == 0:
+                    continue
+                task = db.session.get(Task, task_id)
+                if not task or not task.student_id:
+                    continue
+                student = db.session.get(User, task.student_id)
+                if not student or not student.is_active:
+                    continue
+                text = build_text(task)
+                if send_system_chat_message(admin, student.id, text):
+                    logger.info(f'Chat lesson reminder sent: task={task_id}, student={student.id}')
 
         def _claim_and_notify(task_ids, flag_column, build_text):
             """
@@ -78,6 +105,40 @@ def send_lesson_reminders(app):
                     text += f'\nСсылка на подключение — {meeting_link}'
                 _send_tg_message(token, student.telegram_id, text)
                 logger.info(f'Reminder sent: task={task_id}, student={student.id}')
+
+        # ── Чат: за 24 часа ───────────────────────────────────────────────────
+        ids_chat_24h = [row.id for row in Task.query.filter(
+            Task.task_type_id == lesson_type.id,
+            Task.start_date >= now + timedelta(hours=23, minutes=45),
+            Task.start_date <= now + timedelta(hours=24, minutes=15),
+            Task.notified_chat_24h == False,  # noqa: E712
+            Task.student_id.isnot(None),
+        ).with_entities(Task.id).all()]
+
+        _claim_chat_and_send(
+            ids_chat_24h,
+            Task.notified_chat_24h,
+            lambda t: f'Приветствую! Завтра у вас урок в {_lesson_start_label(t)}',
+        )
+
+        # ── Чат: за 30 минут ─────────────────────────────────────────────────
+        ids_chat_30m = [row.id for row in Task.query.filter(
+            Task.task_type_id == lesson_type.id,
+            Task.start_date >= now + timedelta(minutes=25),
+            Task.start_date <= now + timedelta(minutes=35),
+            Task.notified_chat_30m == False,  # noqa: E712
+            Task.student_id.isnot(None),
+        ).with_entities(Task.id).all()]
+
+        _claim_chat_and_send(
+            ids_chat_30m,
+            Task.notified_chat_30m,
+            lambda t: 'Приветствую! Через 30 минут у вас урок',
+        )
+
+        if not token:
+            logger.warning('TELEGRAM_BOT_TOKEN не задан — Telegram-напоминания пропущены')
+            return
 
         # ── 24-часовое напоминание ──────────────────────────────────────────
         ids_24h = [row.id for row in Task.query.filter(

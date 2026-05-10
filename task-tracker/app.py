@@ -174,6 +174,11 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN series_index INTEGER')
     if 'series_exception' not in existing_columns:
         cursor.execute('ALTER TABLE task ADD COLUMN series_exception BOOLEAN DEFAULT 0')
+    task_columns_final = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
+    if 'notified_chat_24h' not in task_columns_final:
+        cursor.execute('ALTER TABLE task ADD COLUMN notified_chat_24h BOOLEAN DEFAULT 0')
+    if 'notified_chat_30m' not in task_columns_final:
+        cursor.execute('ALTER TABLE task ADD COLUMN notified_chat_30m BOOLEAN DEFAULT 0')
     conn.commit()
 
     # Таблица файлов подтверждения ДЗ

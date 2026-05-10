@@ -109,6 +109,8 @@ class Task(db.Model):
     student_confirmed = db.Column(db.Boolean, default=False)
     notified_24h = db.Column(db.Boolean, default=False)
     notified_1h = db.Column(db.Boolean, default=False)
+    notified_chat_24h = db.Column(db.Boolean, default=False)
+    notified_chat_30m = db.Column(db.Boolean, default=False)
     plan_step_id = db.Column(db.Integer, nullable=True)
     homework_submitted_at = db.Column(db.DateTime, nullable=True)
     homework_teacher_remarks = db.Column(db.Text, nullable=True)

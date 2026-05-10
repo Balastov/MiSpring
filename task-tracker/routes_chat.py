@@ -190,6 +190,68 @@ def _send_push_to_user(user_id, payload):
     return sent
 
 
+def get_chat_administrator_user():
+    """Учётная запись, от имени которой уходят системные сообщения в чат (фиксированно user id=1)."""
+    u = db.session.get(User, 1)
+    if u and u.is_active:
+        return u
+    return None
+
+
+def send_system_chat_message(sender, recipient_id, text):
+    """
+    Создаёт диалог при необходимости, сохраняет сообщение от sender, уведомляет получателя (web push).
+    Не требует HTTP-контекста (для фоновых задач).
+    """
+    if not sender:
+        return False
+    text = (text or '').strip()
+    if not text or len(text) > 1000:
+        return False
+    try:
+        recipient_id = int(recipient_id)
+    except (TypeError, ValueError):
+        return False
+    if recipient_id == sender.id:
+        return False
+    recipient = db.session.get(User, recipient_id)
+    if not recipient or not recipient.is_active:
+        return False
+
+    user_a_id, user_b_id = _normalize_pair(sender.id, recipient_id)
+    dialog = ChatDialog.query.filter_by(user_a_id=user_a_id, user_b_id=user_b_id).first()
+    if not dialog:
+        now = datetime.now()
+        dialog = ChatDialog(
+            user_a_id=user_a_id,
+            user_b_id=user_b_id,
+            created_at=now,
+            updated_at=now,
+        )
+        db.session.add(dialog)
+        db.session.flush()
+
+    msg = ChatMessage(
+        dialog_id=dialog.id,
+        sender_id=sender.id,
+        text=text,
+        created_at=datetime.now(),
+        is_read=False,
+    )
+    dialog.updated_at = datetime.now()
+    db.session.add(msg)
+    db.session.commit()
+
+    snippet = text if len(text) <= 120 else (text[:117] + '...')
+    _send_push_to_user(recipient_id, {
+        'title': f'{sender.display_name}: новое сообщение',
+        'body': snippet,
+        'url': '/',
+        'dialog_id': dialog.id,
+    })
+    return True
+
+
 @chat_bp.route('/api/chat/dialogs', methods=['GET'])
 @login_required
 def get_chat_dialogs():
