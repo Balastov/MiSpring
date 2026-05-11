@@ -350,8 +350,13 @@
                 <button type="button" class="modal-close" id="task-delete-confirm-close" aria-label="Закрыть">&times;</button>
             </div>
             <div style="padding:20px 24px 24px;">
-                <p style="margin:0;font-size:15px;line-height:1.5;">Удалить безвозвратно?</p>
-                <div class="form-actions" style="margin-top:20px;padding-top:0;border-top:none;justify-content:flex-end;">
+                <p id="task-delete-confirm-text" style="margin:0;font-size:15px;line-height:1.5;">Удалить безвозвратно?</p>
+                <div id="task-delete-series-options" class="hidden" style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
+                    <button type="button" class="btn-danger" id="task-delete-only-this">Удалить этот урок</button>
+                    <button type="button" class="btn-danger" id="task-delete-this-and-future">Удалить этот и все следующие уроки</button>
+                    <button type="button" class="btn-secondary" id="task-delete-series-cancel">Отмена</button>
+                </div>
+                <div id="task-delete-simple-options" class="form-actions" style="margin-top:20px;padding-top:0;border-top:none;justify-content:flex-end;">
                     <button type="button" class="btn-danger" id="task-delete-confirm-yes">Да</button>
                     <button type="button" class="btn-secondary" id="task-delete-confirm-no">Нет</button>
                 </div>

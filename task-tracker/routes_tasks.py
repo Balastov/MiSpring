@@ -1237,8 +1237,46 @@ def delete_task(task_id):
     if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
 
+    data = request.get_json(force=True, silent=True) or {}
+    mode = data.get('mode')  # None | 'only_this' | 'this_and_future'
+
     sid = task.student_id
     tt_id = task.task_type_id
+    series_id = task.series_id
+
+    if mode == 'this_and_future' and series_id:
+        cancelled_names = {'Проведён', 'Отменён'}
+        cancelled_groups = {'done', 'cancelled'}
+        tasks_in_series = Task.query.filter_by(series_id=series_id).all()
+        status_ids = {t.status_id for t in tasks_in_series if t.status_id}
+        status_map = {}
+        if status_ids:
+            status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+
+        removed = 0
+        for t in tasks_in_series:
+            if t.start_date and task.start_date and t.start_date < task.start_date:
+                continue
+            st = status_map.get(t.status_id) if t.status_id else None
+            name = st.name if st else None
+            group = (st.group or '').lower() if st and st.group else ''
+            if name in cancelled_names or group in cancelled_groups:
+                continue
+            db.session.delete(t)
+            removed += 1
+
+        remaining = Task.query.filter_by(series_id=series_id).count()
+        if remaining == 0:
+            series_obj = db.session.get(LessonSeries, series_id)
+            if series_obj:
+                db.session.delete(series_obj)
+
+        db.session.commit()
+        lesson_type_row = TaskType.query.filter_by(name='Урок').first()
+        if sid and lesson_type_row and tt_id == lesson_type_row.id:
+            _recalculate_future_homework_for_student(sid)
+        return jsonify({'deleted_tasks': removed})
+
     db.session.delete(task)
     db.session.commit()
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()

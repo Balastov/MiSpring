@@ -41,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskDeleteConfirmYes = document.getElementById('task-delete-confirm-yes');
     const taskDeleteConfirmNo = document.getElementById('task-delete-confirm-no');
     const taskDeleteConfirmClose = document.getElementById('task-delete-confirm-close');
+    const taskDeleteConfirmText = document.getElementById('task-delete-confirm-text');
+    const taskDeleteSeriesOptions = document.getElementById('task-delete-series-options');
+    const taskDeleteSimpleOptions = document.getElementById('task-delete-simple-options');
+    const taskDeleteOnlyThis = document.getElementById('task-delete-only-this');
+    const taskDeleteThisAndFuture = document.getElementById('task-delete-this-and-future');
+    const taskDeleteSeriesCancel = document.getElementById('task-delete-series-cancel');
 
     function closeTaskDeleteConfirm() {
         if (taskDeleteConfirmModal) taskDeleteConfirmModal.classList.add('hidden');
@@ -1310,41 +1316,77 @@ document.addEventListener('DOMContentLoaded', () => {
     if (taskDeleteBtn) {
         taskDeleteBtn.addEventListener('click', () => {
             if (!editingTaskId) return;
+            const isSeries = !!currentSeriesId;
+            if (taskDeleteConfirmText) {
+                taskDeleteConfirmText.textContent = isSeries
+                    ? 'Этот урок входит в серию. Что вы хотите удалить?'
+                    : 'Удалить безвозвратно?';
+            }
+            if (taskDeleteSeriesOptions) {
+                if (isSeries) taskDeleteSeriesOptions.classList.remove('hidden');
+                else taskDeleteSeriesOptions.classList.add('hidden');
+            }
+            if (taskDeleteSimpleOptions) {
+                if (isSeries) taskDeleteSimpleOptions.classList.add('hidden');
+                else taskDeleteSimpleOptions.classList.remove('hidden');
+            }
             if (taskDeleteConfirmModal) taskDeleteConfirmModal.classList.remove('hidden');
         });
     }
     if (taskDeleteConfirmNo) taskDeleteConfirmNo.addEventListener('click', closeTaskDeleteConfirm);
+    if (taskDeleteSeriesCancel) taskDeleteSeriesCancel.addEventListener('click', closeTaskDeleteConfirm);
     if (taskDeleteConfirmClose) taskDeleteConfirmClose.addEventListener('click', closeTaskDeleteConfirm);
     if (taskDeleteConfirmModal) {
         taskDeleteConfirmModal.addEventListener('click', (e) => {
             if (e.target === taskDeleteConfirmModal) closeTaskDeleteConfirm();
         });
     }
-    if (taskDeleteConfirmYes) {
-        taskDeleteConfirmYes.addEventListener('click', () => {
-            if (!editingTaskId) return;
-            const id = editingTaskId;
-            fetch(`/api/tasks/${id}`, { method: 'DELETE' })
-                .then(async (r) => {
-                    if (!r.ok) {
-                        let msg = 'Не удалось удалить задачу';
-                        try {
-                            const j = await r.json();
-                            if (j && j.error) msg = j.error;
-                        } catch (_) { /* 204 или пустое тело */ }
-                        throw new Error(msg);
+
+    function executeTaskDelete(mode) {
+        if (!editingTaskId) return;
+        const id = editingTaskId;
+        const opts = { method: 'DELETE' };
+        if (mode) {
+            opts.headers = { 'Content-Type': 'application/json' };
+            opts.body = JSON.stringify({ mode });
+        }
+        fetch(`/api/tasks/${id}`, opts)
+            .then(async (r) => {
+                if (!r.ok) {
+                    let msg = 'Не удалось удалить задачу';
+                    try {
+                        const j = await r.json();
+                        if (j && j.error) msg = j.error;
+                    } catch (_) { /* 204 или пустое тело */ }
+                    throw new Error(msg);
+                }
+                let toastMsg = 'Задача удалена';
+                try {
+                    const j = await r.json();
+                    if (j && j.deleted_tasks != null) {
+                        toastMsg = `Удалено уроков: ${j.deleted_tasks}`;
                     }
-                    closeTaskDeleteConfirm();
-                    closeModal();
-                    if (currentView === 'calendar' && calendar) calendar.refetchEvents();
-                    fetchTasks(currentPage);
-                    showAppToast('Задача удалена');
-                })
-                .catch((err) => {
-                    showAppToast(err.message || 'Ошибка удаления', true);
-                    closeTaskDeleteConfirm();
-                });
-        });
+                } catch (_) { /* 204 */ }
+                closeTaskDeleteConfirm();
+                closeModal();
+                if (currentView === 'calendar' && calendar) calendar.refetchEvents();
+                fetchTasks(currentPage);
+                showAppToast(toastMsg);
+            })
+            .catch((err) => {
+                showAppToast(err.message || 'Ошибка удаления', true);
+                closeTaskDeleteConfirm();
+            });
+    }
+
+    if (taskDeleteConfirmYes) {
+        taskDeleteConfirmYes.addEventListener('click', () => executeTaskDelete(null));
+    }
+    if (taskDeleteOnlyThis) {
+        taskDeleteOnlyThis.addEventListener('click', () => executeTaskDelete('only_this'));
+    }
+    if (taskDeleteThisAndFuture) {
+        taskDeleteThisAndFuture.addEventListener('click', () => executeTaskDelete('this_and_future'));
     }
 
     function openLessonSeriesModal() {
