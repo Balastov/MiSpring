@@ -1757,8 +1757,10 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             eventClassNames: function(arg) {
                 const props = arg.event.extendedProps || {};
-                if (props.series_id) return ['fc-event-series'];
-                return [];
+                const classes = [];
+                if (props.series_id) classes.push('fc-event-series');
+                if (props.is_paid) classes.push('fc-event-paid');
+                return classes;
             },
             height: '100%',
             eventDisplay: 'block',

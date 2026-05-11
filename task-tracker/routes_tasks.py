@@ -1154,29 +1154,22 @@ def update_task(task_id):
                     and new_status_id in cancelled_status_ids and task.student_id):
                 _recalculate_future_homework_for_student(task.student_id)
 
-                # Если отменяем ранее проведённый урок — восстановить предоплату
-                if (conducted_status and old_status_id == conducted_status.id):
-                    student = db.session.get(User, task.student_id)
-                    if (student and student.prepaid_since
-                            and task.start_date and task.start_date >= student.prepaid_since):
-                        student.prepaid_lessons = (student.prepaid_lessons or 0) + 1
-                        task.is_paid = False
-                        db.session.commit()
+                # Пересчитать разметку предоплаты (баланс восстановится автоматически)
+                from routes_payments import sync_prepaid_marks
+                student = db.session.get(User, task.student_id)
+                if student:
+                    sync_prepaid_marks(student)
 
             if (conducted_status and conducted_status.id == new_status_id
                     and lesson_type and task.task_type_id == lesson_type.id
                     and task.student_id):
                 student = db.session.get(User, task.student_id)
                 if student:
-                    # Уменьшаем баланс предоплаты и автоматически отмечаем урок оплаченным
-                    if ((student.prepaid_lessons or 0) > 0
-                            and student.prepaid_since
-                            and task.start_date and task.start_date >= student.prepaid_since):
-                        student.prepaid_lessons -= 1
-                        task.is_paid = True
-                        db.session.commit()
-                        if student.prepaid_lessons == 1:
-                            _send_prepay_warning(student)
+                    # Пересчитать разметку предоплаты (баланс, is_paid на будущих)
+                    from routes_payments import sync_prepaid_marks
+                    sync_prepaid_marks(student)
+                    if (student.prepaid_lessons or 0) == 1:
+                        _send_prepay_warning(student)
 
                     # Отправляем домашнее задание ученику
                     if task.homework_id:
