@@ -650,6 +650,10 @@ def add_task():
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()
     if task.student_id and lesson_type_row and task.task_type_id == lesson_type_row.id:
         _recalculate_future_homework_for_student(task.student_id)
+        student_obj = db.session.get(User, task.student_id)
+        if student_obj:
+            from routes_payments import sync_prepaid_marks
+            sync_prepaid_marks(student_obj)
     return jsonify(task.to_dict()), 201
 
 
@@ -771,6 +775,10 @@ def create_lesson_series():
 
         db.session.commit()
         _recalculate_future_homework_for_student(student_id)
+
+        from routes_payments import sync_prepaid_marks
+        sync_prepaid_marks(student)
+
         return jsonify({'series': series.to_dict()}), 201
     except Exception as e:
         db.session.rollback()
@@ -905,6 +913,12 @@ def update_lesson_series(series_id):
 
         db.session.commit()
         _recalculate_future_homework_for_student(series.student_id)
+
+        student_obj = db.session.get(User, series.student_id)
+        if student_obj:
+            from routes_payments import sync_prepaid_marks
+            sync_prepaid_marks(student_obj)
+
         return jsonify({'series': series.to_dict()}), 200
     except Exception as e:
         db.session.rollback()
@@ -1278,6 +1292,10 @@ def delete_task(task_id):
         lesson_type_row = TaskType.query.filter_by(name='Урок').first()
         if sid and lesson_type_row and tt_id == lesson_type_row.id:
             _recalculate_future_homework_for_student(sid)
+            student_obj = db.session.get(User, sid)
+            if student_obj:
+                from routes_payments import sync_prepaid_marks
+                sync_prepaid_marks(student_obj)
         return jsonify({'deleted_tasks': removed})
 
     db.session.delete(task)
@@ -1285,6 +1303,10 @@ def delete_task(task_id):
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()
     if sid and lesson_type_row and tt_id == lesson_type_row.id:
         _recalculate_future_homework_for_student(sid)
+        student_obj = db.session.get(User, sid)
+        if student_obj:
+            from routes_payments import sync_prepaid_marks
+            sync_prepaid_marks(student_obj)
     return '', 204
 
 
