@@ -41,17 +41,27 @@ def unauthorized():
     return redirect(url_for('auth.login_page'))
 
 
+# ========== App Version ==========
+
+_version_path = os.path.join(os.path.dirname(basedir), 'VERSION')
+try:
+    with open(_version_path) as _f:
+        APP_VERSION = _f.read().strip()
+except FileNotFoundError:
+    APP_VERSION = 'dev'
+
+
 # ========== Context Processor ==========
 
 @app.context_processor
-def inject_cache_bust():
+def inject_globals():
     def cache_bust(filename):
         static_path = os.path.join(app.static_folder, filename)
         if os.path.exists(static_path):
             mtime = os.path.getmtime(static_path)
             return int(mtime)
         return None
-    return dict(cache_bust=cache_bust)
+    return dict(cache_bust=cache_bust, app_version=APP_VERSION)
 
 
 # ========== Main Routes ==========
