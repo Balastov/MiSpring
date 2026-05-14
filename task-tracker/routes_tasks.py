@@ -597,15 +597,14 @@ def add_task():
 
     homework_required = bool(data.get('homework_required', True))
     homework_ids = _normalize_homework_ids(data.get('homework_ids'))
-    homework_ids = _normalize_homework_ids(data.get('homework_ids'))
-    homework_ids = _normalize_homework_ids(data.get('homework_ids'))
+    if homework_ids is None:
+        homework_ids = []
     homework_id = data.get('homework_id')
-    if homework_ids is None:
-        homework_ids = [int(homework_id)] if homework_id else []
-    if homework_ids is None:
-        homework_ids = [int(homework_id)] if homework_id else []
-    if homework_ids is None:
-        homework_ids = [int(homework_id)] if homework_id else []
+    if not homework_ids and homework_id:
+        try:
+            homework_ids = [int(homework_id)]
+        except (TypeError, ValueError):
+            homework_ids = []
     if homework_required and not homework_ids and data.get('student_id'):
         next_hw_id, _reason = _find_next_homework_id(data.get('student_id'))
         if next_hw_id:
@@ -672,6 +671,14 @@ def create_lesson_series():
     payment_date_raw = data.get('payment_date')
     homework_id = data.get('homework_id')
     homework_required = bool(data.get('homework_required', True))
+    homework_ids = _normalize_homework_ids(data.get('homework_ids'))
+    if homework_ids is None:
+        homework_ids = []
+    if not homework_ids and homework_id:
+        try:
+            homework_ids = [int(homework_id)]
+        except (TypeError, ValueError):
+            homework_ids = []
     comment = (data.get('comment') or '').strip() or None
     recurrence_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or 'WEEKLY'
     repeat_until_raw = data.get('repeat_until') or data.get('end_date')
@@ -745,6 +752,18 @@ def create_lesson_series():
             if not in_progress:
                 in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
 
+        status_id_first = data.get('status_id')
+        if homework_ids and in_progress:
+            status_id_first = in_progress.id
+
+        plan_step_id_first = None
+        ps_raw = data.get('plan_step_id')
+        if ps_raw not in (None, ''):
+            try:
+                plan_step_id_first = int(ps_raw)
+            except (TypeError, ValueError):
+                plan_step_id_first = None
+
         for idx, dt_start in enumerate(starts):
             dt_end = dt_start + timedelta(minutes=duration)
             task = Task(
@@ -759,11 +778,11 @@ def create_lesson_series():
                 payment_date=payment_date,
                 homework_id=((homework_ids[0] if homework_ids else None) if (idx == 0 and homework_required) else None),
                 homework_required=homework_required if idx == 0 else homework_required,
-                status_id=in_progress.id if (idx == 0 and in_progress) else None,
+                status_id=status_id_first if idx == 0 else None,
                 task_type_id=task_type_id,
                 duration=duration,
                 comment=comment if idx == 0 else None,
-                plan_step_id=None,
+                plan_step_id=plan_step_id_first if idx == 0 else None,
                 series_id=series.id,
                 series_index=idx,
                 series_exception=False,

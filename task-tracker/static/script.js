@@ -1410,11 +1410,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const s = data.series;
                 seriesStudentNameInput.value = s.student_name || '';
                 seriesTaskTypeNameInput.value = s.task_type_name || '';
-                seriesStartDateInput.value = s.start_date_iso || '';
+                seriesStartDateInput.value = toDatetimeLocalInputValue(s.start_date_iso);
                 if (seriesRecurrenceRuleInput) {
                     seriesRecurrenceRuleInput.value = s.recurrence_rule || 'WEEKLY';
                 }
-                if (seriesUntilDateInput) seriesUntilDateInput.value = s.end_date_iso || '';
+                if (seriesUntilDateInput) seriesUntilDateInput.value = toDatetimeLocalInputValue(s.end_date_iso);
                 lessonSeriesModal.classList.remove('hidden');
             })
             .catch(() => alert('Не удалось загрузить серию'));
@@ -1656,6 +1656,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${y}-${m}-${d}T${h}:${min}`;
     }
 
+    /** Значение для input[type=datetime-local]: только yyyy-MM-ddTHH:mm (iOS/Safari ломаются на секундах). */
+    function toDatetimeLocalInputValue(iso) {
+        if (!iso || typeof iso !== 'string') return '';
+        const s = iso.trim();
+        if (s.length >= 16) return s.slice(0, 16);
+        return s;
+    }
+
     async function handleEventMove(info) {
         const taskId = info.event.id;
         const data = { start_date: dateToLocalIso(info.event.start) };
@@ -1824,18 +1832,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             formId.value = task.id;
             if (formDescription) formDescription.value = task.description || '';
-            formCreatedAt.value = task.created_at_iso || '';
-            formStartDate.value = task.start_date_iso || '';
+            formCreatedAt.value = toDatetimeLocalInputValue(task.created_at_iso);
+            formStartDate.value = toDatetimeLocalInputValue(task.start_date_iso);
             formDuration.value = task.duration || '';
             updateDurationState();
-            formEndDate.value = task.end_date_iso || '';
+            formEndDate.value = toDatetimeLocalInputValue(task.end_date_iso);
             formAuthor.value = task.author || '';
             formIsPaid.checked = task.is_paid || false;
-            formPaymentDate.value = task.payment_date_iso || '';
+            formPaymentDate.value = toDatetimeLocalInputValue(task.payment_date_iso);
             setHomeworkIdsOnForm(task.homework_ids || (task.homework_id ? [task.homework_id] : []));
             formHomeworkRequired.checked = task.homework_required ?? true;
             formComment.value = task.comment || '';
-            formClosingDate.value = task.closing_date_iso || '';
+            formClosingDate.value = toDatetimeLocalInputValue(task.closing_date_iso);
 
             formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
             studentData.students.forEach(student => {
@@ -2029,13 +2037,11 @@ document.addEventListener('DOMContentLoaded', () => {
         paginationControls.appendChild(btn);
     }
 
-    // Submit task form — button is type="button" to bypass Safari datetime-local validation
-    taskSubmitBtn.addEventListener('click', () => {
-        taskForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-
-    taskForm.addEventListener('submit', (e) => {
-        e.preventDefault();
+    // Submit task form — без нативного submit (Safari/iOS и datetime-local / step).
+    function handleTaskFormSubmit(e) {
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+        }
 
         // Validate required fields
         if (!formTaskTypeId.value) {
@@ -2142,10 +2148,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 is_paid: taskData.is_paid,
                 payment_date: taskData.payment_date,
                 homework_id: taskData.homework_id,
+                homework_ids: taskData.homework_ids,
                 homework_required: taskData.homework_required,
                 comment: taskData.comment,
                 recurrence_rule: formRecurrenceRule.value,
                 end_date: untilVal,
+                status_id: taskData.status_id,
+                plan_step_id: taskData.plan_step_id,
             };
         } else if (isEditing && !currentSeriesId && recurrenceSelected) {
             payload = {
@@ -2186,7 +2195,11 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => {
             alert(err.message || 'Ошибка при сохранении задачи');
         });
-    });
+    }
+
+    taskSubmitBtn.addEventListener('click', () => handleTaskFormSubmit());
+
+    taskForm.addEventListener('submit', handleTaskFormSubmit);
 
     // Quick status buttons handlers
     function updateTaskStatus(statusName) {
@@ -2208,7 +2221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formStatusId.value = statusOption.value;
 
         // Trigger form submit
-        taskForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        handleTaskFormSubmit();
     }
 
     if (btnStatusCompleted) {
@@ -2348,18 +2361,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     formId.value = task.id;
                     if (formDescription) formDescription.value = task.description || '';
-                    formCreatedAt.value = task.created_at_iso || '';
-                    formStartDate.value = task.start_date_iso || '';
+                    formCreatedAt.value = toDatetimeLocalInputValue(task.created_at_iso);
+                    formStartDate.value = toDatetimeLocalInputValue(task.start_date_iso);
                     formDuration.value = task.duration || '';
                     updateDurationState();
-                    formEndDate.value = task.end_date_iso || '';
+                    formEndDate.value = toDatetimeLocalInputValue(task.end_date_iso);
                     formAuthor.value = task.author || '';
                     formIsPaid.checked = task.is_paid || false;
-                    formPaymentDate.value = task.payment_date_iso || '';
+                    formPaymentDate.value = toDatetimeLocalInputValue(task.payment_date_iso);
                     setHomeworkIdsOnForm(task.homework_ids || (task.homework_id ? [task.homework_id] : []));
                     formHomeworkRequired.checked = task.homework_required ?? true;
                     formComment.value = task.comment || '';
-                    formClosingDate.value = task.closing_date_iso || '';
+                    formClosingDate.value = toDatetimeLocalInputValue(task.closing_date_iso);
 
                     // Populate student dropdown
                     formStudentId.innerHTML = '<option value="">-- Выберите ученика --</option>';
