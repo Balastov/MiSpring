@@ -17,6 +17,7 @@
 </head>
 <body>
     <div class="top-bar" id="top-bar">
+        <span class="app-version-topbar" title="Версия приложения">v{{ app_version }}</span>
         <span id="user-display-name"></span>
         <div id="my-teacher-card" class="my-teacher-card hidden">
             <div class="my-teacher-photo-wrap">
@@ -1153,6 +1154,5 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <div class="app-version-badge">v{{ app_version }}</div>
 </body>
 </html>

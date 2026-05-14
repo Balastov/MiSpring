@@ -163,12 +163,19 @@
             background: #f9f9f9;
             border-radius: 4px;
         }
+        .login-version {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            margin: 0 0 18px 0;
+        }
     </style>
 </head>
 <body>
     <div class="login-container">
         <h1>engspring</h1>
         <p class="login-subtitle">Войдите в систему</p>
+        <p class="login-version">v{{ app_version }}</p>
 
         <form class="login-form" id="login-form">
             <div class="form-group">
@@ -240,6 +247,5 @@
             });
         });
     </script>
-    <div style="position:fixed;bottom:6px;left:8px;font-size:11px;color:#999;opacity:.55;pointer-events:none;user-select:none">v{{ app_version }}</div>
 </body>
 </html>
