@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
     const settingsModalClose = document.getElementById('settings-modal-close');
+    const settingsAppVersion = document.getElementById('settings-app-version');
 
     // Placeholder modal
     const placeholderModal = document.getElementById('placeholder-modal');
@@ -663,6 +664,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Settings button: visible to all authenticated users
         settingsBtn.style.display = '';
+
+        if (settingsAppVersion) {
+            if (hasRole('admin', 'owner', 'teacher')) {
+                settingsAppVersion.removeAttribute('hidden');
+            } else {
+                settingsAppVersion.setAttribute('hidden', '');
+            }
+        }
 
         // Task list visibility: hide for guests
         if (!hasRole('admin', 'owner', 'teacher', 'student')) {

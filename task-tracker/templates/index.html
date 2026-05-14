@@ -35,10 +35,7 @@
 
     <div class="container">
         <div class="logo-banner">
-            <div class="logo-banner-brand-row">
-                <span class="app-brand">engspring</span>
-                <span class="app-version-banner" title="Версия приложения">v{{ app_version }}</span>
-            </div>
+            <span class="app-brand">engspring</span>
         </div>
         <div id="next-lesson-timer" class="next-lesson-timer hidden">
             <span class="timer-label">До следующего урока</span>
@@ -375,6 +372,7 @@
                 <button class="modal-close" id="settings-modal-close">&times;</button>
             </div>
             <div class="settings-options">
+                <div id="settings-app-version" class="settings-app-version" hidden>Версия: v{{ app_version }}</div>
                 <button class="settings-option-btn" data-option="statuses">Статусы</button>
                 <button class="settings-option-btn" data-option="task-types">Типы задач</button>
                 <button class="settings-option-btn" data-option="roles">Роли</button>
