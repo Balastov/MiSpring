@@ -17,7 +17,6 @@
 </head>
 <body>
     <div class="top-bar" id="top-bar">
-        <span class="app-version-topbar" title="Версия приложения">v{{ app_version }}</span>
         <span id="user-display-name"></span>
         <div id="my-teacher-card" class="my-teacher-card hidden">
             <div class="my-teacher-photo-wrap">
@@ -36,7 +35,10 @@
 
     <div class="container">
         <div class="logo-banner">
-            <span class="app-brand">engspring</span>
+            <div class="logo-banner-brand-row">
+                <span class="app-brand">engspring</span>
+                <span class="app-version-banner" title="Версия приложения">v{{ app_version }}</span>
+            </div>
         </div>
         <div id="next-lesson-timer" class="next-lesson-timer hidden">
             <span class="timer-label">До следующего урока</span>

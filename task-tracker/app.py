@@ -43,12 +43,25 @@ def unauthorized():
 
 # ========== App Version ==========
 
-_version_path = os.path.join(os.path.dirname(basedir), 'VERSION')
-try:
-    with open(_version_path) as _f:
-        APP_VERSION = _f.read().strip()
-except FileNotFoundError:
-    APP_VERSION = 'dev'
+def _read_app_version():
+    for _p in (
+        os.path.join(os.path.dirname(basedir), 'VERSION'),
+        os.path.join(basedir, 'VERSION'),
+        os.environ.get('APP_VERSION_FILE', ''),
+    ):
+        if not _p:
+            continue
+        try:
+            with open(_p) as _f:
+                v = _f.read().strip()
+                if v:
+                    return v
+        except OSError:
+            continue
+    return os.environ.get('APP_VERSION', 'dev').strip() or 'dev'
+
+
+APP_VERSION = _read_app_version()
 
 
 # ========== Context Processor ==========
