@@ -179,7 +179,7 @@
                 </div>
                 <div class="form-row" id="task-field-row-task-type">
                     <label>Тип задачи*</label>
-                    <select id="form-task-type-id" class="form-select" required>
+                    <select id="form-task-type-id" class="form-select">
                         <option value="">-- Выберите тип --</option>
                     </select>
                 </div>
@@ -285,7 +285,7 @@
                     <button type="button" class="btn-danger hidden" id="task-delete-btn" style="margin-right:auto">Удалить</button>
                     <div style="display:flex;gap:10px;align-items:center;">
                         <button type="button" class="btn-secondary" id="modal-cancel">Отмена</button>
-                        <button type="button" class="btn-primary" id="task-submit-btn">Подтвердить и создать</button>
+                        <button type="submit" formnovalidate class="btn-primary" id="task-submit-btn">Подтвердить и создать</button>
                     </div>
                 </div>
                 <div class="form-actions form-actions-secondary">

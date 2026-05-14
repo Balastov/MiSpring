@@ -1,13 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ========== Safari Workaround: bypass browser form validation ==========
-    // Safari validates ALL forms on the page (including hidden ones with datetime-local).
-    // Intercept submit-button clicks, prevent native validation, dispatch submit event directly.
+    // ========== Safari / iOS: submit через requestSubmit ==========
+    // Раньше вызывали dispatchEvent('submit') — теряется submitter, WebKit снова включает
+    // проверку datetime-local/date и показывает "The string did not match the expected pattern".
+    // requestSubmit(button) сохраняет кнопку (в т.ч. formnovalidate) и корректно пропускает валидацию.
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('button[type="submit"]');
         if (btn) {
             e.preventDefault();
             const form = btn.closest('form');
-            if (form) {
+            if (!form) return;
+            if (typeof form.requestSubmit === 'function') {
+                try {
+                    form.requestSubmit(btn);
+                } catch (err) {
+                    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+            } else {
                 form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
             }
         }
@@ -828,9 +836,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function recalcEndDate() {
         if (formStartDate.value && formDuration.value) {
             const start = new Date(formStartDate.value);
-            start.setMinutes(start.getMinutes() + parseInt(formDuration.value));
+            if (Number.isNaN(start.getTime())) {
+                formEndDate.value = '';
+                return;
+            }
+            start.setMinutes(start.getMinutes() + parseInt(formDuration.value, 10));
             const iso = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
-                .toISOString().slice(0, 16);
+                .toISOString()
+                .slice(0, 16);
             formEndDate.value = iso;
         } else {
             formEndDate.value = '';
@@ -861,7 +874,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!formRecurrenceRule || !formSeriesUntilDate) return;
         const enabled = !!formRecurrenceRule.value;
         formSeriesUntilDate.disabled = !enabled;
-        formSeriesUntilDate.required = enabled;
         const maxAllowed = new Date();
         maxAllowed.setFullYear(maxAllowed.getFullYear() + 1);
         formSeriesUntilDate.max = new Date(maxAllowed.getTime() - maxAllowed.getTimezoneOffset() * 60000)
@@ -2196,8 +2208,6 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(err.message || 'Ошибка при сохранении задачи');
         });
     }
-
-    taskSubmitBtn.addEventListener('click', () => handleTaskFormSubmit());
 
     taskForm.addEventListener('submit', handleTaskFormSubmit);
 
