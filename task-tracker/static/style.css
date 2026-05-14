@@ -22,7 +22,7 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-brand: 'Comfortaa', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-brand: 'Comfortaa', system-ui, -apple-system, sans-serif;
     --transition: 0.2s ease;
 }
 
@@ -101,7 +101,6 @@ body {
     text-transform: lowercase;
     letter-spacing: 0.03em;
     color: #ffffff;
-    -webkit-font-smoothing: antialiased;
 }
 
 .container {
@@ -1706,7 +1705,6 @@ select.filter-control {
         font-family: var(--font-brand);
         font-style: italic;
         font-weight: 700;
-        -webkit-font-smoothing: antialiased;
     }
 
     .top-bar {
