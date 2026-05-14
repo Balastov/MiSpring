@@ -1504,6 +1504,16 @@ def get_tasks_calendar():
     hw_ids_map = {}
     for r in lh_rows:
         hw_ids_map.setdefault(r.task_id, []).append(r.homework_id)
+    def _calendar_event_end(task):
+        """FullCalendar needs a real end time; missing end defaults to ~1h and stretches blocks wrong."""
+        if task.end_date:
+            return task.end_date
+        if task.start_date and task.duration and int(task.duration) > 0:
+            return task.start_date + timedelta(minutes=int(task.duration))
+        if task.start_date:
+            return task.start_date + timedelta(hours=1)
+        return None
+
     for t in tasks:
         student_name = student_map.get(t.student_id, '')
         type_name = type_map.get(t.task_type_id, '')
@@ -1514,11 +1524,12 @@ def get_tasks_calendar():
             title += f' [{status_name}]'
         props = t.to_dict()
         props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
+        end_dt = _calendar_event_end(t)
         events.append({
             'id': t.id,
             'title': title,
             'start': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
-            'end': t.end_date.strftime('%Y-%m-%dT%H:%M') if t.end_date else None,
+            'end': end_dt.strftime('%Y-%m-%dT%H:%M') if end_dt else None,
             'color': '#38a169' if t.is_paid else '#1A515F',
             'extendedProps': props,
         })

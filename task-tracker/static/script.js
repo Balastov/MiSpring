@@ -1802,10 +1802,16 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             height: '100%',
             eventDisplay: 'block',
-            // Keep short lessons visually proportional in timeGrid.
-            eventMinHeight: 26,
-            eventShortHeight: 26,
             dayMaxEvents: 4,
+            eventDidMount: function(info) {
+                const s = info.event.start;
+                const e = info.event.end;
+                if (!s || !e) return;
+                const mins = (e - s) / 60000;
+                if (mins > 0 && mins <= 40) {
+                    info.el.classList.add('fc-cal-event-short');
+                }
+            },
         });
         calendar.render();
 
