@@ -17,7 +17,7 @@
     --sd-radius: 10px;
     --sd-shadow: 0 2px 8px rgba(0,0,0,0.08);
     --sd-transition: 0.18s ease;
-    --font-brand: 'Comfortaa', system-ui, -apple-system, sans-serif;
+    --font-brand: 'Comfortaa', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
     /* homework status colours */
     --sd-hw-queue-bg: #f9f9f9;
