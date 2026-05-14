@@ -1743,6 +1743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             slotDuration: step,
             slotMinTime: slotMinTime,
             slotMaxTime: slotMaxTime,
+            allDaySlot: false,
             scrollTime: '08:00:00',
             headerToolbar: {
                 left: 'prev,next today',
