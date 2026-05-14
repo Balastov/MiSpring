@@ -17,7 +17,7 @@
     --sd-radius: 10px;
     --sd-shadow: 0 2px 8px rgba(0,0,0,0.08);
     --sd-transition: 0.18s ease;
-    --font-brand: 'Comfortaa', system-ui, -apple-system, sans-serif;
+    --font-brand: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Trebuchet MS', cursive;
 
     /* homework status colours */
     --sd-hw-queue-bg: #f9f9f9;
@@ -171,7 +171,7 @@
 .sd-topbar .app-brand,
 .sd-logo-wrap .app-brand {
     font-family: var(--font-brand);
-    font-style: italic;
+    font-style: normal;
     font-weight: 700;
     font-size: 36px;
     line-height: 1;

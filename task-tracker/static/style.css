@@ -22,7 +22,7 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-brand: 'Comfortaa', system-ui, -apple-system, sans-serif;
+    --font-brand: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Trebuchet MS', cursive;
     --transition: 0.2s ease;
 }
 
@@ -95,7 +95,7 @@ body {
 .app-brand {
     font-family: var(--font-brand);
     font-size: 36px;
-    font-style: italic;
+    font-style: normal;
     font-weight: 700;
     line-height: 1;
     text-transform: lowercase;
@@ -1703,7 +1703,7 @@ select.filter-control {
     .app-brand {
         font-size: 32px;
         font-family: var(--font-brand);
-        font-style: italic;
+        font-style: normal;
         font-weight: 700;
     }
 
@@ -1793,7 +1793,7 @@ select.filter-control {
         font-size: 22px;
         line-height: 1.05;
         font-family: var(--font-brand);
-        font-style: italic;
+        font-style: normal;
         font-weight: 700;
     }
 
