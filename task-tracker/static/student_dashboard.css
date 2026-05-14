@@ -17,6 +17,7 @@
     --sd-radius: 10px;
     --sd-shadow: 0 2px 8px rgba(0,0,0,0.08);
     --sd-transition: 0.18s ease;
+    --font-brand: 'Comfortaa', system-ui, -apple-system, sans-serif;
 
     /* homework status colours */
     --sd-hw-queue-bg: #f9f9f9;
@@ -166,12 +167,13 @@
     transform: translateY(-1px);
 }
 
-/* Logo — тот же шрифт, что у баннера на главной (глобальный .app-brand может теряться в каскаде на мобильных) */
+/* Logo — тот же шрифт, что у баннера на главной */
 .sd-topbar .app-brand,
 .sd-logo-wrap .app-brand {
-    font-family: "Comic Sans MS", "Comic Sans", cursive;
-    font-size: 36px;
+    font-family: var(--font-brand);
+    font-style: italic;
     font-weight: 700;
+    font-size: 36px;
     line-height: 1;
     text-transform: lowercase;
     letter-spacing: 0.03em;

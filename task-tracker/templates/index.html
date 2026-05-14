@@ -11,6 +11,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="MiSpring">
     <meta name="theme-color" content="#1A515F">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:ital,wght@1,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=cache_bust('style.css')) }}">
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
@@ -36,30 +39,6 @@
     <div class="container">
         <div class="logo-banner">
             <span class="app-brand">engspring</span>
-        </div>
-        <div id="next-lesson-timer" class="next-lesson-timer hidden">
-            <span class="timer-label">До следующего урока</span>
-            <div class="timer-units">
-                <div class="timer-unit">
-                    <span id="timer-days" class="timer-num">00</span>
-                    <span class="timer-uname">дн</span>
-                </div>
-                <div class="timer-sep">:</div>
-                <div class="timer-unit">
-                    <span id="timer-hours" class="timer-num">00</span>
-                    <span class="timer-uname">ч</span>
-                </div>
-                <div class="timer-sep">:</div>
-                <div class="timer-unit">
-                    <span id="timer-minutes" class="timer-num">00</span>
-                    <span class="timer-uname">мин</span>
-                </div>
-                <div class="timer-sep">:</div>
-                <div class="timer-unit">
-                    <span id="timer-seconds" class="timer-num">00</span>
-                    <span class="timer-uname">сек</span>
-                </div>
-            </div>
         </div>
         <button id="add-task-btn">Добавить задачу</button>
         <button id="flashcards-btn">Карточки</button>
