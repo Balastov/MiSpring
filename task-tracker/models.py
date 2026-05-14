@@ -370,6 +370,8 @@ class ChatMessage(db.Model):
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
     is_read = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    # Подпись в UI (например «ИмяGPT» для напоминаний об уроках); если NULL — показывается display_name отправителя.
+    sender_label = db.Column(db.String(120), nullable=True)
 
     def to_dict(self):
         return {
@@ -379,6 +381,7 @@ class ChatMessage(db.Model):
             'text': self.text,
             'created_at_iso': self.created_at.strftime('%Y-%m-%dT%H:%M:%S') if self.created_at else None,
             'is_read': self.is_read,
+            'sender_label': self.sender_label,
         }
 
 

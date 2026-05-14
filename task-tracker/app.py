@@ -349,6 +349,13 @@ with app.app_context():
         cursor.execute('CREATE INDEX IF NOT EXISTS ix_chat_message_dialog_id_id ON chat_message(dialog_id, id)')
         conn.commit()
 
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_message'")
+    if cursor.fetchone():
+        cm_cols = [row[1] for row in cursor.execute('PRAGMA table_info(chat_message)').fetchall()]
+        if 'sender_label' not in cm_cols:
+            cursor.execute('ALTER TABLE chat_message ADD COLUMN sender_label VARCHAR(120)')
+        conn.commit()
+
     # Таблица push-подписок для веб-уведомлений чата
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_push_subscription'")
     if not cursor.fetchone():

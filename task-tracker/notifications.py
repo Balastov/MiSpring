@@ -32,12 +32,16 @@ def send_lesson_reminders(app):
     Запускается планировщиком каждые 5 минут.
     Ищет уроки с началом через ~24 часа или ~1 час
     и отправляет ученику напоминание в Telegram.
-    Дополнительно: сообщения в чат от «Администратор» за ~24 ч и ~30 мин до урока.
+    Дополнительно: сообщения в чат от назначенного учителя за ~24 ч и ~30 мин до урока (подпись «ИмяGPT»).
     """
     with app.app_context():
         from extensions import db
         from models import Task, TaskType, User, Setting
-        from routes_chat import get_chat_administrator_user, send_system_chat_message
+        from routes_chat import (
+            get_chat_administrator_user,
+            lesson_reminder_sender_label,
+            send_system_chat_message,
+        )
 
         meeting_link = Setting.get('meeting_link', '')
 
@@ -53,11 +57,40 @@ def send_lesson_reminders(app):
                 return '—'
             return task.start_date.strftime('%d.%m.%Y %H:%M')
 
-        def _claim_chat_and_send(task_ids, flag_column, build_text):
+        def _alert_admin_missing_teacher(student, task, reason_key):
+            """Сообщение администратору в чат: у ученика нельзя отправить напоминание (нет учителя)."""
             admin = get_chat_administrator_user()
             if not admin:
-                logger.warning('Не найден или неактивен пользователь id=1 для системных сообщений чата')
+                logger.warning('Администратор (user id=1) не найден — не удалось отправить оповещение о missing teacher')
                 return
+            if student.id == admin.id:
+                return
+            if reason_key == 'no_teacher_id':
+                reason = 'у ученика не заполнено поле назначенного учителя (teacher_id).'
+            else:
+                tid = student.teacher_id
+                reason = (
+                    f'назначенный учитель id={tid} не найден или учётная запись неактивна.'
+                )
+            name = (student.display_name or '—').strip()
+            core = (
+                f'Не удалось отправить ученику напоминание об уроке в чат.\n'
+                f'Ученик: id={student.id}, наименование: «{name}».\n'
+                f'Задача урока: #{task.id}, начало: {_lesson_start_label(task)}.\n'
+                f'Причина: {reason}'
+            )
+            label = 'СистемаGPT'
+            footer = f'\n\n— {label}'
+            if len(core) + len(footer) > 1000:
+                core = (core[: max(0, 1000 - len(footer))]).rstrip() + footer
+            else:
+                core = core + footer
+            if send_system_chat_message(student, admin.id, core, sender_label=label):
+                logger.info(
+                    f'Admin chat alert (missing teacher): student={student.id}, task={task.id}, reason={reason_key}'
+                )
+
+        def _claim_chat_and_send(task_ids, flag_column, build_text):
             for task_id in task_ids:
                 result = db.session.execute(
                     db.update(Task)
@@ -73,9 +106,29 @@ def send_lesson_reminders(app):
                 student = db.session.get(User, task.student_id)
                 if not student or not student.is_active:
                     continue
-                text = build_text(task)
-                if send_system_chat_message(admin, student.id, text):
-                    logger.info(f'Chat lesson reminder sent: task={task_id}, student={student.id}')
+                tid = student.teacher_id
+                if not tid:
+                    logger.warning(
+                        f'Chat lesson reminder skipped: student {student.id} has no teacher_id, task={task_id}'
+                    )
+                    _alert_admin_missing_teacher(student, task, 'no_teacher_id')
+                    continue
+                teacher = db.session.get(User, tid)
+                if not teacher or not teacher.is_active:
+                    logger.warning(
+                        f'Chat lesson reminder skipped: teacher {tid} missing or inactive, task={task_id}'
+                    )
+                    _alert_admin_missing_teacher(student, task, 'teacher_inactive')
+                    continue
+                label = lesson_reminder_sender_label(teacher)
+                body = build_text(task)
+                footer = f'\n\n— {label}'
+                if len(body) + len(footer) > 1000:
+                    body = (body[: max(0, 1000 - len(footer))]).rstrip() + footer
+                else:
+                    body = body + footer
+                if send_system_chat_message(teacher, student.id, body, sender_label=label):
+                    logger.info(f'Chat lesson reminder sent: task={task_id}, student={student.id}, teacher={teacher.id}')
 
         def _claim_and_notify(task_ids, flag_column, build_text):
             """

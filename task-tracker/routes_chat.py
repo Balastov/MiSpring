@@ -198,10 +198,19 @@ def get_chat_administrator_user():
     return None
 
 
-def send_system_chat_message(sender, recipient_id, text):
+def lesson_reminder_sender_label(teacher_user):
+    """Имя для подписи в чате: display_name + «GPT» без пробела между (например «МиладаGPT»)."""
+    base = (teacher_user.display_name or 'Учитель').strip()
+    if not base:
+        base = 'Учитель'
+    return f'{base}GPT'
+
+
+def send_system_chat_message(sender, recipient_id, text, sender_label=None):
     """
     Создаёт диалог при необходимости, сохраняет сообщение от sender, уведомляет получателя (web push).
     Не требует HTTP-контекста (для фоновых задач).
+    sender_label — необязательная подпись в интерфейсе (иначе показывается display_name отправителя).
     """
     if not sender:
         return False
@@ -231,20 +240,26 @@ def send_system_chat_message(sender, recipient_id, text):
         db.session.add(dialog)
         db.session.flush()
 
+    label = (sender_label or '').strip() or None
+    if label and len(label) > 120:
+        label = label[:120]
+
     msg = ChatMessage(
         dialog_id=dialog.id,
         sender_id=sender.id,
         text=text,
         created_at=datetime.now(),
         is_read=False,
+        sender_label=label,
     )
     dialog.updated_at = datetime.now()
     db.session.add(msg)
     db.session.commit()
 
+    push_name = label or sender.display_name or 'Сообщение'
     snippet = text if len(text) <= 120 else (text[:117] + '...')
     _send_push_to_user(recipient_id, {
-        'title': f'{sender.display_name}: новое сообщение',
+        'title': f'{push_name}: новое сообщение',
         'body': snippet,
         'url': '/',
         'dialog_id': dialog.id,
@@ -381,7 +396,7 @@ def get_dialog_messages(dialog_id):
         'messages': [
             {
                 **m.to_dict(),
-                'sender_name': senders.get(m.sender_id),
+                'sender_name': (m.sender_label or '').strip() or senders.get(m.sender_id),
             }
             for m in msgs
         ]
