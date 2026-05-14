@@ -1600,18 +1600,39 @@ select.filter-control {
 
 /* ========== Responsive: Portrait mobile ========== */
 @media (max-width: 600px) {
+    /* Фиксированная .top-bar при переносе кнопок может занимать всю ширину и перекрывать
+       .logo-banner (раньше тот тянулся вверх отрицательным margin). Оставляем место под топбар
+       и рисуем полосу бренда ниже него. */
     body {
-        padding: 48px 12px 12px 12px;
+        padding: 88px 12px 12px 12px;
     }
 
     .logo-banner {
-        margin: -48px -12px 14px -12px;
+        margin: 0 -12px 14px -12px;
+        position: relative;
+        z-index: 1;
+        min-height: 52px;
+    }
+
+    .app-brand {
+        font-size: 30px;
     }
 
     .top-bar {
         padding: 6px 12px;
         font-size: 12px;
         gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    #user-display-name {
+        max-width: min(160px, 42vw);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .btn-topbar {
@@ -1646,23 +1667,41 @@ select.filter-control {
     .fc-toolbar-title {
         font-size: 1rem !important;
     }
+
+    #task-list-section.view-calendar {
+        height: calc(100vh - 280px);
+        min-height: 220px;
+    }
 }
 
 /* ========== Responsive: Landscape on small screens (phones) ========== */
 @media (orientation: landscape) and (max-height: 600px) {
     body {
-        padding: 40px 16px 8px 16px;
+        padding: 80px 16px 8px 16px;
     }
 
-    /* Hide logo to reclaim vertical space */
     .logo-banner {
-        display: none;
+        display: flex;
+        min-height: 36px;
+        margin: 0 -16px 8px -16px;
+        padding: 4px 12px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .app-brand {
+        font-size: 22px;
+        line-height: 1.05;
     }
 
     .top-bar {
         padding: 5px 14px;
         font-size: 12px;
         gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     .btn-topbar {
@@ -1681,9 +1720,9 @@ select.filter-control {
         margin-top: 8px;
     }
 
-    /* 40px body-top + ~30px buttons + 8px margin-top = 78px → 90px с запасом */
+    /* топбар + компактный баннер бренда + кнопки + отступы */
     #task-list-section.view-calendar {
-        height: calc(100vh - 90px);
+        height: calc(100vh - 124px);
     }
 
     /* Compact filter bar: hide labels, reduce padding */
