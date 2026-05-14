@@ -239,6 +239,14 @@
                     <label>ДЗ обязательно</label>
                     <input type="checkbox" id="form-homework-required">
                 </div>
+                <div class="form-row" id="task-field-row-homework-unique">
+                    <label>Уникальное ДЗ</label>
+                    <input type="checkbox" id="form-homework-unique" title="Вне плановой цепочки: текст задаётся вручную, следующие уроки с плановым ДЗ пересчитываются от предыдущего планового задания">
+                </div>
+                <div class="form-row hidden" id="task-field-row-homework-custom-text">
+                    <label>Текст уникального ДЗ</label>
+                    <textarea id="form-homework-custom-text" rows="6" maxlength="20000" placeholder="Опишите задание для ученика (поддерживается простой текст; для Telegram можно использовать HTML-теги как в справочнике ДЗ)"></textarea>
+                </div>
                 <div class="form-row" id="task-field-row-homework">
                     <label>Домашнее задание</label>
                     <div style="flex:1;display:flex;flex-direction:column;gap:8px;">

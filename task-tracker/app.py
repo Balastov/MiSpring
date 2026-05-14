@@ -202,6 +202,11 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN notified_chat_24h BOOLEAN DEFAULT 0')
     if 'notified_chat_30m' not in task_columns_final:
         cursor.execute('ALTER TABLE task ADD COLUMN notified_chat_30m BOOLEAN DEFAULT 0')
+    task_columns_final2 = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
+    if 'homework_unique' not in task_columns_final2:
+        cursor.execute('ALTER TABLE task ADD COLUMN homework_unique BOOLEAN DEFAULT 0')
+    if 'homework_custom_text' not in task_columns_final2:
+        cursor.execute('ALTER TABLE task ADD COLUMN homework_custom_text TEXT')
     conn.commit()
 
     # Таблица файлов подтверждения ДЗ

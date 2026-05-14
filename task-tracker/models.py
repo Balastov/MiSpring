@@ -117,6 +117,8 @@ class Task(db.Model):
     series_id = db.Column(db.Integer, nullable=True, index=True)
     series_index = db.Column(db.Integer, nullable=True)
     series_exception = db.Column(db.Boolean, default=False, nullable=False)
+    homework_unique = db.Column(db.Boolean, default=False, nullable=False)
+    homework_custom_text = db.Column(db.Text, nullable=True)
 
     def to_dict(self):
         return {
@@ -150,6 +152,8 @@ class Task(db.Model):
             'series_id': self.series_id,
             'series_index': self.series_index,
             'series_exception': self.series_exception,
+            'homework_unique': bool(self.homework_unique),
+            'homework_custom_text': self.homework_custom_text,
         }
 
 

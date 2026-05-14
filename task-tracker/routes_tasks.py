@@ -9,6 +9,7 @@ import re
 import json
 import time
 from datetime import datetime, timedelta
+from sqlalchemy import or_
 import calendar
 from uuid import uuid4
 
@@ -110,6 +111,8 @@ def _find_next_homework_id(student_id, from_homework_id=None):
             status_id=conducted.id,
         ).order_by(Task.start_date.desc(), Task.id.desc()).all()
         for t in q:
+            if getattr(t, 'homework_unique', False):
+                continue
             seq = _task_homework_ids(t.id) or ([t.homework_id] if t.homework_id else [])
             seq = [int(x) for x in seq if x and int(x) in ordered_hw_ids]
             if not seq:
@@ -237,18 +240,32 @@ def _recalculate_future_homework_for_student(student_id):
         is_future = t.start_date >= now
 
         if not is_future or terminal:
-            if terminal and st and st.name == 'Проведён':
-                chain = [r.homework_id for r in hw_by_task.get(t.id, []) if r.homework_id in catalog_set]
-                if chain:
-                    chain_prev = int(chain[-1])
-                elif t.homework_id and int(t.homework_id) in catalog_set:
-                    chain_prev = int(t.homework_id)
-            elif not terminal and t.start_date and t.start_date < now:
-                chain = [r.homework_id for r in hw_by_task.get(t.id, []) if r.homework_id in catalog_set]
-                if chain:
-                    chain_prev = int(chain[-1])
-                elif t.homework_required and t.homework_id and int(t.homework_id) in catalog_set:
-                    chain_prev = int(t.homework_id)
+            if not getattr(t, 'homework_unique', False):
+                if terminal and st and st.name == 'Проведён':
+                    chain = [r.homework_id for r in hw_by_task.get(t.id, []) if r.homework_id in catalog_set]
+                    if chain:
+                        chain_prev = int(chain[-1])
+                    elif t.homework_id and int(t.homework_id) in catalog_set:
+                        chain_prev = int(t.homework_id)
+                elif not terminal and t.start_date and t.start_date < now:
+                    chain = [r.homework_id for r in hw_by_task.get(t.id, []) if r.homework_id in catalog_set]
+                    if chain:
+                        chain_prev = int(chain[-1])
+                    elif t.homework_required and t.homework_id and int(t.homework_id) in catalog_set:
+                        chain_prev = int(t.homework_id)
+            continue
+
+        if getattr(t, 'homework_unique', False):
+            t.homework_required = True
+            changed = False
+            if t.homework_id is not None:
+                t.homework_id = None
+                changed = True
+            if hw_by_task.get(t.id):
+                LessonHomework.query.filter_by(task_id=t.id).delete()
+                changed = True
+            if changed:
+                updated += 1
             continue
 
         if not catalog_set:
@@ -365,17 +382,29 @@ def _clean_html_for_telegram(html):
     return html
 
 
-def _send_homework_notification(student, task, homework):
-    """Отправляет ученику домашнее задание после проведённого урока."""
-    if not homework.comment or not student.telegram_id or not student.telegram_notifications:
+def _send_homework_notification_for_task(student, task):
+    """Отправляет ученику ДЗ после проведённого урока: из справочника или уникальный текст."""
+    if not student.telegram_id or not student.telegram_notifications:
+        return
+    date_str = task.start_date.strftime('%d.%m') if task.start_date else ''
+    body = None
+    if getattr(task, 'homework_unique', False) and (task.homework_custom_text or '').strip():
+        body = _clean_html_for_telegram(task.homework_custom_text)
+    else:
+        if not task.homework_id:
+            return
+        homework = db.session.get(Homework, task.homework_id)
+        if not homework or not homework.comment:
+            return
+        body = _clean_html_for_telegram(homework.comment)
+    if not body:
         return
     try:
         token = os.environ.get('TELEGRAM_BOT_TOKEN')
         if not token:
             return
 
-        date_str = task.start_date.strftime('%d.%m') if task.start_date else ''
-        text = f'📚 Домашнее задание к уроку {date_str}:\n\n{_clean_html_for_telegram(homework.comment)}'
+        text = f'📚 Домашнее задание к уроку {date_str}:\n\n{body}'
 
         import telegram
 
@@ -546,7 +575,10 @@ def get_tasks():
         d['status_name'] = status_map.get(t.status_id)
         d['student_name'] = student_map.get(t.student_id)
         d['task_type_name'] = type_map.get(t.task_type_id)
-        d['homework_name'] = homework_map.get(t.homework_id)
+        if getattr(t, 'homework_unique', False):
+            d['homework_name'] = 'Уникальное ДЗ'
+        else:
+            d['homework_name'] = homework_map.get(t.homework_id)
         d['homework_ids'] = homework_ids_by_task.get(t.id, ([t.homework_id] if t.homework_id else []))
         tasks.append(d)
 
@@ -574,6 +606,8 @@ def get_task_homeworks(task_id):
     task = db.get_or_404(Task, task_id)
     if not user_has_role('admin', 'owner') and task.user_id != current_user.id and task.student_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
+    if getattr(task, 'homework_unique', False):
+        return jsonify({'homework_ids': []})
     rows = _task_homework_rows(task.id)
     ids = [r.homework_id for r in rows]
     if not ids and task.homework_id:
@@ -595,6 +629,11 @@ def add_task():
 
     status_id = data.get('status_id')
 
+    homework_unique = bool(data.get('homework_unique', False))
+    homework_custom_text = (data.get('homework_custom_text') or '').strip() or None
+    if homework_custom_text and len(homework_custom_text) > 20000:
+        return jsonify({'error': 'Текст уникального ДЗ: не более 20000 символов'}), 400
+
     homework_required = bool(data.get('homework_required', True))
     homework_ids = _normalize_homework_ids(data.get('homework_ids'))
     if homework_ids is None:
@@ -605,16 +644,27 @@ def add_task():
             homework_ids = [int(homework_id)]
         except (TypeError, ValueError):
             homework_ids = []
-    if homework_required and not homework_ids and data.get('student_id'):
-        next_hw_id, _reason = _find_next_homework_id(data.get('student_id'))
-        if next_hw_id:
-            homework_ids = [int(next_hw_id)]
 
-    # Если это урок и ДЗ обязательно, но подобрать/выбрать не получилось — требуем вручную
-    if homework_required and not homework_ids and data.get('task_type_id'):
-        lesson_type = TaskType.query.filter_by(name='Урок').first()
-        if lesson_type and int(data.get('task_type_id') or 0) == lesson_type.id:
-            return jsonify({'error': 'Не удалось подобрать следующее ДЗ автоматически — выберите ДЗ вручную'}), 400
+    lesson_type_chk = TaskType.query.filter_by(name='Урок').first()
+    is_lesson_create = lesson_type_chk and int(data.get('task_type_id') or 0) == lesson_type_chk.id
+
+    if homework_unique:
+        homework_required = True
+        homework_ids = []
+        if is_lesson_create and not homework_custom_text:
+            return jsonify({'error': 'Для уникального ДЗ укажите текст задания'}), 400
+    else:
+        homework_custom_text = None
+        if homework_required and not homework_ids and data.get('student_id'):
+            next_hw_id, _reason = _find_next_homework_id(data.get('student_id'))
+            if next_hw_id:
+                homework_ids = [int(next_hw_id)]
+
+        # Если это урок и ДЗ обязательно, но подобрать/выбрать не получилось — требуем вручную
+        if homework_required and not homework_ids and data.get('task_type_id'):
+            lesson_type = TaskType.query.filter_by(name='Урок').first()
+            if lesson_type and int(data.get('task_type_id') or 0) == lesson_type.id:
+                return jsonify({'error': 'Не удалось подобрать следующее ДЗ автоматически — выберите ДЗ вручную'}), 400
 
     if homework_ids:
         in_progress = TaskStatus.query.filter_by(name='В работе').first()
@@ -640,10 +690,16 @@ def add_task():
         comment=comment,
         closing_date=parse_datetime(data.get('closing_date')),
         plan_step_id=data.get('plan_step_id'),
+        homework_unique=homework_unique,
+        homework_custom_text=homework_custom_text if homework_unique else None,
     )
     db.session.add(task)
     db.session.flush()
-    if homework_required and homework_ids:
+    if homework_unique:
+        LessonHomework.query.filter_by(task_id=task.id).delete()
+        task.homework_id = None
+        task.homework_required = True
+    elif homework_required and homework_ids:
         _set_task_homeworks(task, homework_ids)
     db.session.commit()
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()
@@ -1012,6 +1068,8 @@ def update_task(task_id):
         old_homework_id = task.homework_id
         old_homework_ids = _task_homework_ids(task.id)
         old_homework_required = task.homework_required
+        old_homework_unique = bool(getattr(task, 'homework_unique', False))
+        old_homework_custom_text = (getattr(task, 'homework_custom_text', None) or '').strip() or None
         old_student_id = task.student_id
         old_task_type_id = task.task_type_id
         old_status_id = task.status_id
@@ -1031,32 +1089,43 @@ def update_task(task_id):
             task.is_paid = bool(data['is_paid'])
         if 'payment_date' in data:
             task.payment_date = parse_datetime(data['payment_date'])
-        if 'homework_ids' in data:
-            incoming_ids = _normalize_homework_ids(data.get('homework_ids')) or []
-            if incoming_ids:
-                _set_task_homeworks(task, incoming_ids)
-                if 'status_id' not in data:
+        if 'homework_unique' in data:
+            task.homework_unique = bool(data['homework_unique'])
+            if not task.homework_unique:
+                task.homework_custom_text = None
+        if 'homework_custom_text' in data:
+            if getattr(task, 'homework_unique', False):
+                ct = (data.get('homework_custom_text') or '').strip() or None
+                if ct and len(ct) > 20000:
+                    return jsonify({'error': 'Текст уникального ДЗ: не более 20000 символов'}), 400
+                task.homework_custom_text = ct
+        if not getattr(task, 'homework_unique', False):
+            if 'homework_ids' in data:
+                incoming_ids = _normalize_homework_ids(data.get('homework_ids')) or []
+                if incoming_ids:
+                    _set_task_homeworks(task, incoming_ids)
+                    if 'status_id' not in data:
+                        in_progress = TaskStatus.query.filter_by(name='В работе').first()
+                        if not in_progress:
+                            in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
+                        if in_progress:
+                            task.status_id = in_progress.id
+                else:
+                    LessonHomework.query.filter_by(task_id=task.id).delete()
+                    task.homework_id = None
+            elif 'homework_id' in data:
+                task.homework_id = data['homework_id']
+                if data['homework_id']:
+                    _set_task_homeworks(task, [int(data['homework_id'])])
+                else:
+                    LessonHomework.query.filter_by(task_id=task.id).delete()
+                if data['homework_id'] and 'status_id' not in data:
                     in_progress = TaskStatus.query.filter_by(name='В работе').first()
                     if not in_progress:
                         in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
                     if in_progress:
                         task.status_id = in_progress.id
-            else:
-                LessonHomework.query.filter_by(task_id=task.id).delete()
-                task.homework_id = None
-        elif 'homework_id' in data:
-            task.homework_id = data['homework_id']
-            if data['homework_id']:
-                _set_task_homeworks(task, [int(data['homework_id'])])
-            else:
-                LessonHomework.query.filter_by(task_id=task.id).delete()
-            if data['homework_id'] and 'status_id' not in data:
-                in_progress = TaskStatus.query.filter_by(name='В работе').first()
-                if not in_progress:
-                    in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
-                if in_progress:
-                    task.status_id = in_progress.id
-        if 'homework_required' in data:
+        if 'homework_required' in data and not getattr(task, 'homework_unique', False):
             task.homework_required = bool(data['homework_required'])
         if 'status_id' in data:
             task.status_id = data['status_id']
@@ -1102,7 +1171,9 @@ def update_task(task_id):
                 end_date=starts[-1],
                 recurrence_rule=recurrence_rule,
                 occurrences_count=len(starts),
-                first_homework_id=task.homework_id if task.homework_required else None,
+                first_homework_id=(
+                    task.homework_id if (task.homework_required and not getattr(task, 'homework_unique', False)) else None
+                ),
                 homework_required_default=bool(task.homework_required),
             )
             db.session.add(new_series)
@@ -1162,13 +1233,30 @@ def update_task(task_id):
         # Помечаем урок серии как исключение при изменении ДЗ/флага
         if task.series_id:
             new_homework_ids = _task_homework_ids(task.id)
+            new_ct = (getattr(task, 'homework_custom_text', None) or '').strip() or None
             homework_changed = (
                 ('homework_id' in data and data.get('homework_id') != old_homework_id)
                 or ('homework_ids' in data and new_homework_ids != old_homework_ids)
+                or ('homework_unique' in data and bool(data.get('homework_unique')) != old_homework_unique)
+                or ('homework_custom_text' in data and new_ct != old_homework_custom_text)
             )
             required_changed = ('homework_required' in data and bool(data.get('homework_required')) != bool(old_homework_required))
             if homework_changed or required_changed:
                 task.series_exception = True
+
+        if getattr(task, 'homework_unique', False):
+            task.homework_required = True
+            LessonHomework.query.filter_by(task_id=task.id).delete()
+            task.homework_id = None
+
+        lesson_row_validate = TaskType.query.filter_by(name='Урок').first()
+        if (
+            getattr(task, 'homework_unique', False)
+            and lesson_row_validate
+            and task.task_type_id == lesson_row_validate.id
+            and not (task.homework_custom_text or '').strip()
+        ):
+            return jsonify({'error': 'Укажите текст уникального ДЗ'}), 400
 
         db.session.commit()
 
@@ -1205,10 +1293,7 @@ def update_task(task_id):
                         _send_prepay_warning(student)
 
                     # Отправляем домашнее задание ученику
-                    if task.homework_id:
-                        homework = db.session.get(Homework, task.homework_id)
-                        if homework:
-                            _send_homework_notification(student, task, homework)
+                    _send_homework_notification_for_task(student, task)
 
                     # Обновляем следующий шаг плана (ответ из диалога)
                     if 'advance_plan_step' in data and task.plan_step_id:
@@ -1257,6 +1342,14 @@ def update_task(task_id):
                     _recalculate_future_homework_for_student(task.student_id)
 
             if recurrence_rule and task.task_type_id == lesson_type_row.id and task.student_id:
+                _recalculate_future_homework_for_student(task.student_id)
+
+            if (
+                task.task_type_id == lesson_type_row.id
+                and task.student_id
+                and 'homework_unique' in data
+                and bool(data.get('homework_unique')) != old_homework_unique
+            ):
                 _recalculate_future_homework_for_student(task.student_id)
 
         return jsonify(task.to_dict())
@@ -1598,7 +1691,10 @@ def get_my_lessons_history():
         status_name = (st.name if st else None) or '—'
         status_group = st.group if st else None
         is_conducted = bool(status_name == 'Проведён' or status_group == 'done')
-        homework_name = homework_map.get(t.homework_id) if (is_conducted and t.homework_id) else None
+        if is_conducted and getattr(t, 'homework_unique', False):
+            homework_name = 'Уникальное ДЗ'
+        else:
+            homework_name = homework_map.get(t.homework_id) if (is_conducted and t.homework_id) else None
         lessons.append({
             'id': t.id,
             'start_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
@@ -1802,7 +1898,12 @@ def get_homework_review_list():
     if not user_has_role('admin', 'owner', 'teacher'):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
-    q = Task.query.filter(Task.homework_id.isnot(None))
+    q = Task.query.filter(
+        or_(
+            Task.homework_id.isnot(None),
+            Task.homework_unique.is_(True),
+        ),
+    )
     if user_has_role('teacher') and not user_has_role('admin', 'owner'):
         q = q.filter(Task.user_id == current_user.id)
 
@@ -1852,16 +1953,18 @@ def get_homework_review_list():
         count = files_count.get(t.id, 0)
         if only_with_files and count == 0:
             continue
-        hw = homework_map.get(t.homework_id)
+        hw = homework_map.get(t.homework_id) if t.homework_id else None
         st = status_map.get(t.status_id)
         student = student_map.get(t.student_id)
+        is_uq = bool(getattr(t, 'homework_unique', False))
         items.append({
             'task_id': t.id,
             'student_id': t.student_id,
             'student_name': student.display_name if student else '—',
-            'homework_name': hw.name if hw else '—',
-            'homework_topic': step_map.get(hw.plan_step_id) if hw and hw.plan_step_id else None,
-            'homework_comment': hw.comment if hw else None,
+            'homework_name': 'Уникальное ДЗ' if is_uq else (hw.name if hw else '—'),
+            'homework_topic': None if is_uq else (step_map.get(hw.plan_step_id) if hw and hw.plan_step_id else None),
+            'homework_comment': (t.homework_custom_text if is_uq else (hw.comment if hw else None)),
+            'homework_unique': is_uq,
             'status_id': t.status_id,
             'status_name': st.name if st else None,
             'status_group': st.group if st else None,
@@ -1895,7 +1998,6 @@ def get_homework_review_list():
 def get_my_homework():
     """Returns lesson homeworks assigned to the current student."""
     from datetime import datetime
-    from sqlalchemy import or_
     show_done = request.args.get('show_done', '0') == '1'
 
     done_status = TaskStatus.query.filter(TaskStatus.group == 'done').all()
@@ -1903,7 +2005,10 @@ def get_my_homework():
 
     q = Task.query.filter(
         Task.student_id == current_user.id,
-        Task.homework_id.isnot(None),
+        or_(
+            Task.homework_id.isnot(None),
+            Task.homework_unique.is_(True),
+        ),
     )
     if not show_done and done_ids:
         q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(done_ids)))
@@ -1937,14 +2042,18 @@ def get_my_homework():
         rows = by_task.get(t.id) or []
         if not rows and t.homework_id:
             rows = [type('X', (), {'id': None, 'homework_id': t.homework_id, 'due_date': (t.start_date + timedelta(days=14)) if t.start_date else None})()]
+        elif not rows and getattr(t, 'homework_unique', False):
+            rows = [type('X', (), {'id': None, 'homework_id': None, 'due_date': (t.start_date + timedelta(days=14)) if t.start_date else None})()]
         for lh in rows:
-            hw = homework_map.get(lh.homework_id)
+            hw = homework_map.get(lh.homework_id) if lh.homework_id else None
             due = lh.due_date or ((t.start_date + timedelta(days=14)) if t.start_date else None)
+            is_uq = bool(getattr(t, 'homework_unique', False))
             result.append({
                 'task_id': t.id,
                 'lesson_homework_id': lh.id,
-                'homework_name': hw.name if hw else None,
-                'homework_comment': hw.comment if hw else None,
+                'homework_name': 'Уникальное ДЗ' if is_uq else (hw.name if hw else None),
+                'homework_comment': (t.homework_custom_text if is_uq else (hw.comment if hw else None)),
+                'homework_unique': is_uq,
                 'topic_title': step_map.get(t.plan_step_id) if t.plan_step_id else None,
                 'status_name': st.name if st else None,
                 'status_group': st.group if st else None,

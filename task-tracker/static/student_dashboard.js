@@ -364,13 +364,19 @@ document.addEventListener('DOMContentLoaded', () => {
                    </div>`
                 : '';
 
+            const commentBlock = hw.homework_unique
+                ? `<div class="sd-homework-center-comment sd-homework-center-comment--plain">${(hw.homework_comment || '').trim()
+                    ? escapeHtml(hw.homework_comment).replace(/\n/g, '<br>')
+                    : '<span class="sd-empty">Текст задания не указан</span>'}</div>`
+                : `<div class="sd-homework-center-comment">${hw.homework_comment || '<span class="sd-empty">Комментарий не указан</span>'}</div>`;
+
             sdCenterContent.innerHTML = `
                 <div class="sd-homework-center-card">
                     <h3>${escapeHtml(hw.homework_name || 'Домашнее задание')}</h3>
                     <div class="sd-homework-center-row"><span>Статус</span><b>${status}</b></div>
                     <div class="sd-homework-center-row"><span>Дата урока</span><b>${escapeHtml(hw.lesson_date || '—')}</b></div>
                     <div class="sd-homework-center-row"><span>Тема</span><b class="sd-homework-topic-value">${escapeHtml(hw.topic_title || '—')}</b></div>
-                    <div class="sd-homework-center-comment">${hw.homework_comment || '<span class="sd-empty">Комментарий не указан</span>'}</div>
+                    ${commentBlock}
                     ${teacherRemarksBlock}
                     <div class="sd-homework-center-files">
                         <div class="sd-homework-center-files-head">
