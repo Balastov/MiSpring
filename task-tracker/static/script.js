@@ -1686,9 +1686,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleEventMove(info) {
         const taskId = info.event.id;
-        const data = { start_date: dateToLocalIso(info.event.start) };
-        if (info.event.end) {
-            data.end_date = dateToLocalIso(info.event.end);
+        const start = info.event.start;
+        const end = info.event.end;
+        const data = { start_date: dateToLocalIso(start) };
+        if (end) {
+            data.end_date = dateToLocalIso(end);
+            const mins = Math.max(1, Math.round((end - start) / 60000));
+            data.duration = mins;
         }
 
         try {
@@ -4976,7 +4980,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? `<div class="homework-review-desc" style="margin-top:6px;font-size:13px;color:var(--color-text-secondary);white-space:pre-wrap;max-width:360px;">${descPreview}${rawComment.length > 900 ? '…' : ''}</div>`
                         : '';
                     return `
-                        <tr>
+                        <tr data-task-id="${item.task_id}" data-lesson-homework-id="${item.lesson_homework_id != null ? item.lesson_homework_id : ''}">
                             <td>${escapeHtml(item.student_name || '—')}</td>
                             <td>${escapeHtml(item.homework_name || '—')}${descBlock}</td>
                             <td>${escapeHtml(item.homework_topic || '—')}</td>
@@ -4990,18 +4994,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="homework-review-files-block">
                                     <div class="homework-review-files-title">Файлы учителя</div>
                                     <div>${teacherFilesHtml}</div>
-                                    <input type="file" class="homework-review-teacher-files-input" data-task-id="${item.task_id}" multiple>
+                                    <input type="file" class="homework-review-teacher-files-input" data-task-id="${item.task_id}" data-lesson-homework-id="${item.lesson_homework_id != null ? item.lesson_homework_id : ''}" multiple>
                                     <div class="homework-review-files-hint">Можно выбрать несколько файлов (до 5 МБ суммарно)</div>
                                 </div>
                             </td>
                             <td>${escapeHtml(item.submitted_at || '—')}</td>
                             <td>
-                                <textarea class="homework-review-remarks filter-control" rows="3" placeholder="Замечания учителя…" data-task-id="${item.task_id}">${remarksVal}</textarea>
+                                <textarea class="homework-review-remarks filter-control" rows="3" placeholder="Замечания учителя…" data-task-id="${item.task_id}" data-lesson-homework-id="${item.lesson_homework_id != null ? item.lesson_homework_id : ''}">${remarksVal}</textarea>
                             </td>
                             <td>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                    <button type="button" class="btn-secondary btn-hw-review-action" data-task-id="${item.task_id}" data-action="rework">На доработку</button>
-                                    <button type="button" class="btn-primary btn-hw-review-action" data-task-id="${item.task_id}" data-action="approve">Подтвердить</button>
+                                    <button type="button" class="btn-secondary btn-hw-review-action" data-task-id="${item.task_id}" data-lesson-homework-id="${item.lesson_homework_id != null ? item.lesson_homework_id : ''}" data-action="rework">На доработку</button>
+                                    <button type="button" class="btn-primary btn-hw-review-action" data-task-id="${item.task_id}" data-lesson-homework-id="${item.lesson_homework_id != null ? item.lesson_homework_id : ''}" data-action="approve">Подтвердить</button>
                                 </div>
                             </td>
                         </tr>
@@ -5045,11 +5049,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const input = e.target.closest('.homework-review-teacher-files-input');
             if (!input) return;
             const taskId = input.dataset.taskId;
+            const lhId = input.dataset.lessonHomeworkId;
             const files = input.files ? Array.from(input.files) : [];
             input.value = '';
             if (!taskId || !files.length) return;
             const formData = new FormData();
             files.forEach(file => formData.append('files', file));
+            if (lhId) {
+                formData.append('lesson_homework_id', String(lhId));
+            }
             fetch(`/api/tasks/${taskId}/evidence`, {
                 method: 'POST',
                 body: formData,
@@ -5069,6 +5077,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.target.closest('.btn-hw-review-action');
             if (!btn) return;
             const taskId = btn.dataset.taskId;
+            const lhId = btn.dataset.lessonHomeworkId;
             const action = btn.dataset.action;
             const row = btn.closest('tr');
             const ta = row && row.querySelector('.homework-review-remarks');
@@ -5077,10 +5086,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 showAppToast('Укажите замечания при возврате на доработку', true);
                 return;
             }
+            const payload = { action, remarks };
+            if (lhId) {
+                payload.lesson_homework_id = parseInt(lhId, 10);
+            }
             fetch(`/api/tasks/${taskId}/homework-review`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, remarks }),
+                body: JSON.stringify(payload),
             })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {

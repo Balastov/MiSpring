@@ -289,8 +289,12 @@ document.addEventListener('DOMContentLoaded', () => {
         sdCenterContent.innerHTML = cardsHtml;
     }
 
-    function loadHomeworkEvidence(taskId) {
-        return fetch(`/api/tasks/${taskId}/evidence`)
+    function loadHomeworkEvidence(taskId, lessonHomeworkId) {
+        let url = `/api/tasks/${taskId}/evidence`;
+        if (lessonHomeworkId) {
+            url += `?lesson_homework_id=${encodeURIComponent(String(lessonHomeworkId))}`;
+        }
+        return fetch(url)
             .then(r => r.json())
             .then(data => ({
                 studentFiles: data.student_files || data.files || [],
@@ -306,10 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
     }
 
-    function uploadEvidenceFiles(taskId, files) {
+    function uploadEvidenceFiles(taskId, lessonHomeworkId, files) {
         if (!files.length) return;
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
+        if (lessonHomeworkId) {
+            formData.append('lesson_homework_id', String(lessonHomeworkId));
+        }
         fetch(`/api/tasks/${taskId}/evidence`, {
             method: 'POST',
             body: formData,
@@ -332,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedHomeworkItemId = String(hw.lesson_homework_id || hw.task_id);
         setCenterTitleHomework();
 
-        loadHomeworkEvidence(hw.task_id).then(({ studentFiles, teacherFiles, studentTotalSize, limit }) => {
+        loadHomeworkEvidence(hw.task_id, hw.lesson_homework_id).then(({ studentFiles, teacherFiles, studentTotalSize, limit }) => {
             const studentFilesHtml = studentFiles.length
                 ? studentFiles.map(f => `
                     <div class="sd-evidence-item">
@@ -830,7 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!files.length) return;
             const hw = homeworkData.find(x => String(x.lesson_homework_id || x.task_id) === String(selectedHomeworkItemId));
             if (!hw) return;
-            uploadEvidenceFiles(hw.task_id, files);
+            uploadEvidenceFiles(hw.task_id, hw.lesson_homework_id, files);
         });
         sdCenterContent.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.sd-delete-evidence-btn');
@@ -849,7 +856,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.id === 'sd-submit-homework-btn' && selectedHomeworkItemId) {
                 const hw = homeworkData.find(x => String(x.lesson_homework_id || x.task_id) === String(selectedHomeworkItemId));
                 if (!hw) return;
-                fetch(`/api/tasks/${hw.task_id}/homework-submit`, { method: 'POST' })
+                fetch(`/api/tasks/${hw.task_id}/homework-submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(hw.lesson_homework_id ? { lesson_homework_id: hw.lesson_homework_id } : {}),
+                })
                     .then(r => r.json().then(data => ({ ok: r.ok, data })))
                     .then(({ ok, data }) => {
                         if (!ok) {

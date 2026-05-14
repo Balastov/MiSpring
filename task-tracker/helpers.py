@@ -9,8 +9,15 @@ def parse_datetime(value):
     if not value:
         return None
     try:
-        return datetime.strptime(value, '%Y-%m-%dT%H:%M')
-    except (ValueError, TypeError):
+        s = str(value).strip()
+        for fmt, n in (('%Y-%m-%dT%H:%M:%S', 19), ('%Y-%m-%dT%H:%M', 16)):
+            if len(s) >= n:
+                try:
+                    return datetime.strptime(s[:n], fmt)
+                except ValueError:
+                    continue
+        return None
+    except (TypeError, ValueError):
         return None
 
 

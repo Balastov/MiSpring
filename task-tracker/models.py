@@ -411,6 +411,7 @@ class ChatPushSubscription(db.Model):
 class HomeworkEvidence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.Integer, nullable=False, index=True)
+    lesson_homework_id = db.Column(db.Integer, db.ForeignKey('lesson_homework.id'), nullable=True, index=True)
     student_id = db.Column(db.Integer, nullable=False, index=True)
     uploader_user_id = db.Column(db.Integer, nullable=True, index=True)
     uploader_role = db.Column(db.String(20), nullable=False, default='student', index=True)
@@ -425,6 +426,7 @@ class HomeworkEvidence(db.Model):
         return {
             'id': self.id,
             'task_id': self.task_id,
+            'lesson_homework_id': self.lesson_homework_id,
             'student_id': self.student_id,
             'uploader_user_id': self.uploader_user_id,
             'uploader_role': self.uploader_role,

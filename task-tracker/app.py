@@ -249,6 +249,20 @@ with app.app_context():
             'WHERE uploader_user_id IS NULL'
         )
         conn.commit()
+    he_cols2 = [col[1] for col in cursor.execute('PRAGMA table_info(homework_evidence)').fetchall()]
+    if 'lesson_homework_id' not in he_cols2:
+        cursor.execute('ALTER TABLE homework_evidence ADD COLUMN lesson_homework_id INTEGER')
+        cursor.execute('CREATE INDEX IF NOT EXISTS ix_homework_evidence_lesson_homework_id ON homework_evidence(lesson_homework_id)')
+        cursor.execute(
+            '''UPDATE homework_evidence SET lesson_homework_id = (
+                SELECT lh.id FROM lesson_homework lh
+                WHERE lh.task_id = homework_evidence.task_id
+                ORDER BY lh.order_index ASC, lh.id ASC LIMIT 1
+            )
+            WHERE lesson_homework_id IS NULL
+            AND EXISTS (SELECT 1 FROM lesson_homework lh2 WHERE lh2.task_id = homework_evidence.task_id)'''
+        )
+        conn.commit()
 
     up_cols = [col[1] for col in cursor.execute('PRAGMA table_info(user_plan)').fetchall()]
     if 'next_step_id' not in up_cols:

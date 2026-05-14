@@ -10,6 +10,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from sqlalchemy import or_
+from sqlalchemy.sql.expression import false as sa_false
 import calendar
 from uuid import uuid4
 
@@ -488,6 +489,21 @@ def _split_evidence_by_uploader(files):
     return student_files, teacher_files
 
 
+def _homework_evidence_query(task_id, lesson_homework_id_param=None):
+    """Файлы ДЗ для одного слота: урок + конкретная строка lesson_homework (если в уроке несколько ДЗ)."""
+    q = HomeworkEvidence.query.filter(HomeworkEvidence.task_id == task_id)
+    rows = _task_homework_rows(task_id)
+    n = len(rows)
+    if n == 0:
+        return q.filter(HomeworkEvidence.lesson_homework_id.is_(None))
+    if n == 1:
+        lid = rows[0].id
+        return q.filter(or_(HomeworkEvidence.lesson_homework_id == lid, HomeworkEvidence.lesson_homework_id.is_(None)))
+    if lesson_homework_id_param is None:
+        return q.filter(sa_false())
+    return q.filter(HomeworkEvidence.lesson_homework_id == int(lesson_homework_id_param))
+
+
 @tasks_bp.route('/api/tasks', methods=['GET'])
 @login_required
 def get_tasks():
@@ -701,6 +717,10 @@ def add_task():
         task.homework_required = True
     elif homework_required and homework_ids:
         _set_task_homeworks(task, homework_ids)
+    if task.start_date and task.end_date and task.end_date > task.start_date:
+        span_min = int((task.end_date - task.start_date).total_seconds() // 60)
+        if 1 <= span_min <= 24 * 60:
+            task.duration = span_min
     db.session.commit()
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()
     if task.student_id and lesson_type_row and task.task_type_id == lesson_type_row.id:
@@ -1258,6 +1278,12 @@ def update_task(task_id):
         ):
             return jsonify({'error': 'Укажите текст уникального ДЗ'}), 400
 
+        # Длительность = разница start/end (календарь, форма), чтобы duration не расходился с полосой на сетке
+        if task.start_date and task.end_date and task.end_date > task.start_date:
+            span_min = int((task.end_date - task.start_date).total_seconds() // 60)
+            if 1 <= span_min <= 24 * 60:
+                task.duration = span_min
+
         db.session.commit()
 
         # Проверяем, стал ли статус "Проведён"
@@ -1505,14 +1531,23 @@ def get_tasks_calendar():
     for r in lh_rows:
         hw_ids_map.setdefault(r.task_id, []).append(r.homework_id)
     def _calendar_event_end(task):
-        """FullCalendar needs a real end time; missing end defaults to ~1h and stretches blocks wrong."""
-        if task.end_date:
+        """FullCalendar end is exclusive; need a real end instant. Reconcile duration vs stored end_date."""
+        if not task.start_date:
+            return None
+        dur_end = None
+        if task.duration and int(task.duration) > 0:
+            dur_end = task.start_date + timedelta(minutes=int(task.duration))
+        if task.end_date and task.end_date > task.start_date:
+            if dur_end is not None:
+                diff = abs((task.end_date - dur_end).total_seconds())
+                # Частый кейс: в БД end на +1 ч по умолчанию, а duration = 30 мин — тянем по duration.
+                # После drag PUT выравнивает duration с end; тогда diff < 3 мин — берём end_date.
+                if diff > 180:
+                    return dur_end
             return task.end_date
-        if task.start_date and task.duration and int(task.duration) > 0:
-            return task.start_date + timedelta(minutes=int(task.duration))
-        if task.start_date:
-            return task.start_date + timedelta(hours=1)
-        return None
+        if dur_end is not None:
+            return dur_end
+        return task.start_date + timedelta(hours=1)
 
     for t in tasks:
         student_name = student_map.get(t.student_id, '')
@@ -1528,8 +1563,8 @@ def get_tasks_calendar():
         events.append({
             'id': t.id,
             'title': title,
-            'start': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
-            'end': end_dt.strftime('%Y-%m-%dT%H:%M') if end_dt else None,
+            'start': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
+            'end': end_dt.strftime('%Y-%m-%dT%H:%M:%S') if end_dt else None,
             'color': '#38a169' if t.is_paid else '#1A515F',
             'extendedProps': props,
         })
@@ -1725,7 +1760,12 @@ def get_task_evidence(task_id):
     if not (task.student_id == current_user.id or _can_teacher_access_task(task)):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
-    files = HomeworkEvidence.query.filter_by(task_id=task.id).order_by(HomeworkEvidence.created_at.desc()).all()
+    lh_rows = _task_homework_rows(task.id)
+    lh_param = request.args.get('lesson_homework_id', type=int)
+    if len(lh_rows) > 1 and lh_param is None:
+        return jsonify({'error': 'Укажите lesson_homework_id (несколько ДЗ на один урок)'}), 400
+
+    files = _homework_evidence_query(task.id, lh_param).order_by(HomeworkEvidence.created_at.desc()).all()
     student_files, teacher_files = _split_evidence_by_uploader(files)
     total_size = sum(f.size_bytes or 0 for f in files)
     student_total = sum(f.get('size_bytes') or 0 for f in student_files)
@@ -1759,7 +1799,19 @@ def upload_task_evidence(task_id):
     if not incoming:
         return jsonify({'error': 'Файлы не найдены'}), 400
 
-    existing = HomeworkEvidence.query.filter_by(task_id=task.id, uploader_role=uploader_role).all()
+    lh_rows = _task_homework_rows(task.id)
+    form_lh = request.form.get('lesson_homework_id', type=int)
+    if len(lh_rows) > 1:
+        if not form_lh or not any(r.id == form_lh for r in lh_rows):
+            return jsonify({'error': 'Укажите lesson_homework_id — к какому заданию относятся файлы'}), 400
+        store_lh = form_lh
+    elif len(lh_rows) == 1:
+        store_lh = lh_rows[0].id
+    else:
+        store_lh = None
+
+    scope_lh = form_lh if len(lh_rows) > 1 else None
+    existing = _homework_evidence_query(task.id, scope_lh).filter_by(uploader_role=uploader_role).all()
     existing_total = sum(f.size_bytes or 0 for f in existing)
 
     upload_dir = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'homework_evidence')
@@ -1787,6 +1839,7 @@ def upload_task_evidence(task_id):
 
         file_row = HomeworkEvidence(
             task_id=task.id,
+            lesson_homework_id=store_lh,
             student_id=task.student_id or current_user.id,
             uploader_user_id=current_user.id,
             uploader_role=uploader_role,
@@ -1841,7 +1894,23 @@ def submit_homework_for_review(task_id):
     if task.student_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
 
-    files_count = HomeworkEvidence.query.filter_by(task_id=task.id, uploader_role='student').count()
+    data = request.get_json(force=True, silent=True) or {}
+    lh_rows = _task_homework_rows(task.id)
+    lh_submit = data.get('lesson_homework_id')
+    if len(lh_rows) > 1:
+        if lh_submit is None:
+            return jsonify({'error': 'Укажите lesson_homework_id — какое задание отправляете'}), 400
+        lh = LessonHomework.query.filter_by(id=int(lh_submit), task_id=task.id).first()
+        if not lh:
+            return jsonify({'error': 'Некорректное lesson_homework_id'}), 400
+        files_count = _homework_evidence_query(task.id, int(lh_submit)).filter_by(uploader_role='student').count()
+    elif len(lh_rows) == 1:
+        lh = lh_rows[0]
+        files_count = _homework_evidence_query(task.id, None).filter_by(uploader_role='student').count()
+    else:
+        lh = None
+        files_count = HomeworkEvidence.query.filter_by(task_id=task.id, uploader_role='student', lesson_homework_id=None).count()
+
     if files_count == 0:
         return jsonify({'error': 'Сначала загрузите хотя бы один файл'}), 400
 
@@ -1849,8 +1918,18 @@ def submit_homework_for_review(task_id):
     if not in_review:
         return jsonify({'error': 'Статус "На проверке" не найден'}), 500
 
-    task.status_id = in_review.id
-    task.homework_submitted_at = datetime.now()
+    now = datetime.now()
+    if len(lh_rows) > 1:
+        lh.status_id = in_review.id
+        lh.submitted_at = now
+    elif len(lh_rows) == 1:
+        lh.status_id = in_review.id
+        lh.submitted_at = now
+        task.status_id = in_review.id
+        task.homework_submitted_at = now
+    else:
+        task.status_id = in_review.id
+        task.homework_submitted_at = now
     db.session.commit()
     return jsonify(task.to_dict())
 
@@ -1869,12 +1948,10 @@ def review_homework(task_id):
 
     old_status_id = task.status_id
     remarks = (data.get('remarks') or '').strip()
+    remarks_stored = remarks[:2000] if remarks else None
     if action == 'rework':
         if not remarks:
             return jsonify({'error': 'Укажите замечания при возврате на доработку'}), 400
-        task.homework_teacher_remarks = remarks[:2000]
-    else:
-        task.homework_teacher_remarks = remarks[:2000] if remarks else None
 
     target_name = 'В работе' if action == 'rework' else 'Выполнено'
     target_status = TaskStatus.query.filter_by(name=target_name).first()
@@ -1884,15 +1961,43 @@ def review_homework(task_id):
     if not target_status:
         return jsonify({'error': f'Статус "{target_name}" не найден'}), 400
 
+    lh_rows = _task_homework_rows(task.id)
+    lh_id = data.get('lesson_homework_id')
+    lh = None
+    if len(lh_rows) > 1:
+        if lh_id is None:
+            return jsonify({'error': 'Укажите lesson_homework_id'}), 400
+        lh = LessonHomework.query.filter_by(id=int(lh_id), task_id=task.id).first()
+        if not lh:
+            return jsonify({'error': 'Некорректное lesson_homework_id'}), 400
+    elif len(lh_rows) == 1:
+        lh = lh_rows[0]
+
+    if lh:
+        if action == 'rework':
+            lh.teacher_remarks = remarks_stored
+        else:
+            lh.teacher_remarks = remarks_stored if remarks else None
+        lh.status_id = target_status.id
+        if len(lh_rows) <= 1:
+            task.homework_teacher_remarks = lh.teacher_remarks
+            task.status_id = target_status.id
+    else:
+        if action == 'rework':
+            task.homework_teacher_remarks = remarks_stored
+        else:
+            task.homework_teacher_remarks = remarks_stored if remarks else None
+        task.status_id = target_status.id
+
     _agent_debug_log('H1', 'routes_tasks.review_homework', 'before_commit', {
         'task_id': task.id,
+        'lesson_homework_id': getattr(lh, 'id', None),
         'action': action,
         'old_status_id': old_status_id,
         'target_status_id': target_status.id,
         'target_status_name': target_status.name,
         'target_status_group': target_status.group,
     })
-    task.status_id = target_status.id
     db.session.commit()
     db.session.refresh(task)
     _agent_debug_log('H1', 'routes_tasks.review_homework', 'after_commit', {
@@ -1922,15 +2027,26 @@ def get_homework_review_list():
     if student_id:
         q = q.filter(Task.student_id == student_id)
     status_id = request.args.get('status_id', type=int)
-    if status_id:
-        q = q.filter(Task.status_id == status_id)
     only_with_files = request.args.get('with_files', '0') == '1'
 
     tasks = q.order_by(Task.start_date.desc()).limit(200).all()
     task_ids = [t.id for t in tasks]
+
+    lh_all = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
+        LessonHomework.task_id.asc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
+    ).all() if task_ids else []
+    lh_by_task = {}
+    for lh in lh_all:
+        lh_by_task.setdefault(lh.task_id, []).append(lh)
+
     homework_ids = {t.homework_id for t in tasks if t.homework_id}
+    for lh in lh_all:
+        homework_ids.add(lh.homework_id)
     student_ids = {t.student_id for t in tasks if t.student_id}
     status_ids = {t.status_id for t in tasks if t.status_id}
+    for lh in lh_all:
+        if lh.status_id:
+            status_ids.add(lh.status_id)
 
     homework_map = {h.id: h for h in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
     step_ids = {h.plan_step_id for h in homework_map.values() if h and h.plan_step_id}
@@ -1939,58 +2055,149 @@ def get_homework_review_list():
     status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
 
     files = HomeworkEvidence.query.filter(HomeworkEvidence.task_id.in_(task_ids)).all() if task_ids else []
-    files_count = {}
-    files_last_at = {}
-    student_files_by_task = {}
-    teacher_files_by_task = {}
-    for f in files:
-        files_count[f.task_id] = files_count.get(f.task_id, 0) + 1
-        file_item = {
-            'id': f.id,
-            'name': f.original_name,
-            'url': f'/static/{f.relative_path}',
-            'size_bytes': f.size_bytes,
-            'uploader_role': f.uploader_role or 'student',
-        }
-        if (f.uploader_role or 'student') == 'teacher':
-            teacher_files_by_task.setdefault(f.task_id, []).append(file_item)
-        else:
-            student_files_by_task.setdefault(f.task_id, []).append(file_item)
-        if f.task_id not in files_last_at or ((f.created_at or datetime.min) > (files_last_at[f.task_id] or datetime.min)):
-            files_last_at[f.task_id] = f.created_at
+
+    def _files_for_slot(t, lh_row, n_lh):
+        stu, tea = [], []
+        last_at = None
+        for f in files:
+            if f.task_id != t.id:
+                continue
+            if lh_row is None:
+                match = f.lesson_homework_id is None
+            elif n_lh <= 1:
+                match = f.lesson_homework_id is None or f.lesson_homework_id == lh_row.id
+            else:
+                match = f.lesson_homework_id == lh_row.id
+            if not match:
+                continue
+            fi = {
+                'id': f.id,
+                'name': f.original_name,
+                'url': f'/static/{f.relative_path}',
+                'size_bytes': f.size_bytes,
+                'uploader_role': f.uploader_role or 'student',
+            }
+            if (f.uploader_role or 'student') == 'teacher':
+                tea.append(fi)
+            else:
+                stu.append(fi)
+            if f.created_at and (last_at is None or f.created_at > last_at):
+                last_at = f.created_at
+        return stu, tea, last_at
 
     items = []
     for t in tasks:
-        count = files_count.get(t.id, 0)
-        if only_with_files and count == 0:
-            continue
-        hw = homework_map.get(t.homework_id) if t.homework_id else None
-        st = status_map.get(t.status_id)
         student = student_map.get(t.student_id)
         is_uq = bool(getattr(t, 'homework_unique', False))
-        items.append({
-            'task_id': t.id,
-            'student_id': t.student_id,
-            'student_name': student.display_name if student else '—',
-            'homework_name': 'Уникальное ДЗ' if is_uq else (hw.name if hw else '—'),
-            'homework_topic': None if is_uq else (step_map.get(hw.plan_step_id) if hw and hw.plan_step_id else None),
-            'homework_comment': (t.homework_custom_text if is_uq else (hw.comment if hw else None)),
-            'homework_unique': is_uq,
-            'status_id': t.status_id,
-            'status_name': st.name if st else None,
-            'status_group': st.group if st else None,
-            'lesson_date': t.start_date.strftime('%d.%m.%Y %H:%M') if t.start_date else None,
-            'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
-            'files_count': count,
-            'files': student_files_by_task.get(t.id, []),
-            'student_files': student_files_by_task.get(t.id, []),
-            'teacher_files': teacher_files_by_task.get(t.id, []),
-            'last_upload_at': files_last_at[t.id].strftime('%d.%m.%Y %H:%M') if files_last_at.get(t.id) else None,
-            'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
-            'homework_teacher_remarks': t.homework_teacher_remarks,
-        })
+        if is_uq:
+            st_files, te_files, last_at = _files_for_slot(t, None, 0)
+            count = len(st_files) + len(te_files)
+            if only_with_files and count == 0:
+                continue
+            st = status_map.get(t.status_id)
+            eff_sid = t.status_id
+            if status_id and eff_sid != status_id:
+                continue
+            items.append({
+                'task_id': t.id,
+                'lesson_homework_id': None,
+                'student_id': t.student_id,
+                'student_name': student.display_name if student else '—',
+                'homework_name': 'Уникальное ДЗ',
+                'homework_topic': None,
+                'homework_comment': t.homework_custom_text,
+                'homework_unique': True,
+                'status_id': eff_sid,
+                'status_name': st.name if st else None,
+                'status_group': st.group if st else None,
+                'lesson_date': t.start_date.strftime('%d.%m.%Y %H:%M') if t.start_date else None,
+                'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+                'files_count': len(st_files),
+                'files': st_files,
+                'student_files': st_files,
+                'teacher_files': te_files,
+                'last_upload_at': last_at.strftime('%d.%m.%Y %H:%M') if last_at else None,
+                'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
+                'homework_teacher_remarks': t.homework_teacher_remarks,
+            })
+            continue
+
+        lh_rows = lh_by_task.get(t.id) or []
+        if not lh_rows:
+            hw = homework_map.get(t.homework_id) if t.homework_id else None
+            st_files, te_files, last_at = _files_for_slot(t, None, 0)
+            count = len(st_files) + len(te_files)
+            if only_with_files and count == 0:
+                continue
+            st = status_map.get(t.status_id)
+            eff_sid = t.status_id
+            if status_id and eff_sid != status_id:
+                continue
+            items.append({
+                'task_id': t.id,
+                'lesson_homework_id': None,
+                'student_id': t.student_id,
+                'student_name': student.display_name if student else '—',
+                'homework_name': hw.name if hw else '—',
+                'homework_topic': step_map.get(hw.plan_step_id) if hw and hw.plan_step_id else None,
+                'homework_comment': hw.comment if hw else None,
+                'homework_unique': False,
+                'status_id': eff_sid,
+                'status_name': st.name if st else None,
+                'status_group': st.group if st else None,
+                'lesson_date': t.start_date.strftime('%d.%m.%Y %H:%M') if t.start_date else None,
+                'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+                'files_count': len(st_files),
+                'files': st_files,
+                'student_files': st_files,
+                'teacher_files': te_files,
+                'last_upload_at': last_at.strftime('%d.%m.%Y %H:%M') if last_at else None,
+                'submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
+                'homework_teacher_remarks': t.homework_teacher_remarks,
+            })
+            continue
+
+        n_lh = len(lh_rows)
+        for lh in lh_rows:
+            hw = homework_map.get(lh.homework_id)
+            st_files, te_files, last_at = _files_for_slot(t, lh, n_lh)
+            count = len(st_files) + len(te_files)
+            if only_with_files and count == 0:
+                continue
+            eff_sid = lh.status_id if lh.status_id is not None else t.status_id
+            st = status_map.get(eff_sid)
+            if status_id and eff_sid != status_id:
+                continue
+            sub_at = lh.submitted_at or (t.homework_submitted_at if lh.status_id is None else None)
+            if n_lh > 1:
+                remarks = lh.teacher_remarks
+            else:
+                remarks = lh.teacher_remarks if lh.teacher_remarks is not None else t.homework_teacher_remarks
+            items.append({
+                'task_id': t.id,
+                'lesson_homework_id': lh.id,
+                'student_id': t.student_id,
+                'student_name': student.display_name if student else '—',
+                'homework_name': hw.name if hw else '—',
+                'homework_topic': step_map.get(hw.plan_step_id) if hw and hw.plan_step_id else None,
+                'homework_comment': hw.comment if hw else None,
+                'homework_unique': False,
+                'status_id': eff_sid,
+                'status_name': st.name if st else None,
+                'status_group': st.group if st else None,
+                'lesson_date': t.start_date.strftime('%d.%m.%Y %H:%M') if t.start_date else None,
+                'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
+                'files_count': len(st_files),
+                'files': st_files,
+                'student_files': st_files,
+                'teacher_files': te_files,
+                'last_upload_at': last_at.strftime('%d.%m.%Y %H:%M') if last_at else None,
+                'submitted_at': sub_at.strftime('%d.%m.%Y %H:%M') if sub_at else None,
+                'homework_teacher_remarks': remarks,
+            })
     _sample = [{
         'task_id': x['task_id'],
+        'lesson_homework_id': x.get('lesson_homework_id'),
         'status_id': x['status_id'],
         'status_name': x['status_name'],
         'status_group': x['status_group'],
@@ -2037,6 +2244,9 @@ def get_my_homework():
     if not homework_ids:
         homework_ids = {t.homework_id for t in tasks if t.homework_id}
     status_ids = {t.status_id for t in tasks if t.status_id}
+    for lh in lesson_homeworks:
+        if lh.status_id:
+            status_ids.add(lh.status_id)
     step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}
     homework_map = {hw.id: hw for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
     status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
@@ -2045,11 +2255,6 @@ def get_my_homework():
     now = datetime.now()
     result = []
     for t in tasks:
-        st = status_map.get(t.status_id)
-        is_overdue = bool(
-            t.start_date and (t.start_date + timedelta(days=14)) < now and
-            (not st or (st.group or '').lower() not in ('done', 'completed', 'готово'))
-        )
         rows = by_task.get(t.id) or []
         if not rows and t.homework_id:
             rows = [type('X', (), {'id': None, 'homework_id': t.homework_id, 'due_date': (t.start_date + timedelta(days=14)) if t.start_date else None})()]
@@ -2059,6 +2264,24 @@ def get_my_homework():
             hw = homework_map.get(lh.homework_id) if lh.homework_id else None
             due = lh.due_date or ((t.start_date + timedelta(days=14)) if t.start_date else None)
             is_uq = bool(getattr(t, 'homework_unique', False))
+            if lh.id:
+                eff_sid = lh.status_id if lh.status_id is not None else t.status_id
+                sub_at = lh.submitted_at
+                if len(rows) <= 1 and not sub_at:
+                    sub_at = t.homework_submitted_at
+                if len(rows) > 1:
+                    remarks = lh.teacher_remarks
+                else:
+                    remarks = lh.teacher_remarks if lh.teacher_remarks is not None else t.homework_teacher_remarks
+            else:
+                eff_sid = t.status_id
+                sub_at = t.homework_submitted_at
+                remarks = t.homework_teacher_remarks
+            st_row = status_map.get(eff_sid)
+            is_overdue_row = bool(
+                t.start_date and (t.start_date + timedelta(days=14)) < now and
+                (not st_row or (st_row.group or '').lower() not in ('done', 'completed', 'готово'))
+            )
             result.append({
                 'task_id': t.id,
                 'lesson_homework_id': lh.id,
@@ -2066,16 +2289,16 @@ def get_my_homework():
                 'homework_comment': (t.homework_custom_text if is_uq else (hw.comment if hw else None)),
                 'homework_unique': is_uq,
                 'topic_title': step_map.get(t.plan_step_id) if t.plan_step_id else None,
-                'status_name': st.name if st else None,
-                'status_group': st.group if st else None,
+                'status_name': st_row.name if st_row else None,
+                'status_group': st_row.group if st_row else None,
                 'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
                 'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
                 'due_date': due.strftime('%d.%m.%Y') if due else None,
                 'due_date_iso': due.strftime('%Y-%m-%dT%H:%M') if due else None,
-                'is_overdue': is_overdue,
-                'homework_submitted_at': t.homework_submitted_at.strftime('%d.%m.%Y %H:%M') if t.homework_submitted_at else None,
-                'homework_submitted_at_iso': t.homework_submitted_at.strftime('%Y-%m-%dT%H:%M') if t.homework_submitted_at else None,
-                'homework_teacher_remarks': t.homework_teacher_remarks,
+                'is_overdue': is_overdue_row,
+                'homework_submitted_at': sub_at.strftime('%d.%m.%Y %H:%M') if sub_at else None,
+                'homework_submitted_at_iso': sub_at.strftime('%Y-%m-%dT%H:%M') if sub_at else None,
+                'homework_teacher_remarks': remarks,
             })
     _rows = []
     for t in tasks[:8]:
