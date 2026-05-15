@@ -468,6 +468,14 @@ with app.app_context():
         in_progress_status.group = 'in_progress'
         db.session.commit()
 
+    no_show_status = TaskStatus.query.filter_by(name='Неявка').first()
+    if not no_show_status:
+        db.session.add(TaskStatus(name='Неявка', group='no_show'))
+        db.session.commit()
+    elif (no_show_status.group or '') != 'no_show':
+        no_show_status.group = 'no_show'
+        db.session.commit()
+
     new_status = TaskStatus.query.filter_by(name='Новый').first()
     if new_status:
         Task.query.filter_by(status_id=new_status.id).update(

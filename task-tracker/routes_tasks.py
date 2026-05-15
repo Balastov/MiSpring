@@ -182,13 +182,93 @@ def _set_task_homeworks(task, homework_ids):
     task.homework_required = True
 
 
-def _task_status_terminal(st):
-    """Проведён / Отменён (или группы done/cancelled)."""
+def _is_no_show_status(st):
     if not st:
         return False
     name = st.name or ''
     group = (st.group or '').lower() if st.group else ''
-    return name in ('Проведён', 'Отменён') or group in ('done', 'cancelled')
+    return name == 'Неявка' or group == 'no_show'
+
+
+def _is_skipped_lesson_status(st):
+    """Отменён / Неявка — урок не состоялся, цепочка ДЗ сдвигается."""
+    if not st:
+        return False
+    name = st.name or ''
+    group = (st.group or '').lower() if st.group else ''
+    return name in ('Отменён', 'Неявка') or group in ('cancelled', 'no_show')
+
+
+def _skipped_lesson_status_ids():
+    rows = TaskStatus.query.filter(
+        (TaskStatus.name.in_(['Отменён', 'Неявка']))
+        | (TaskStatus.group.in_(['cancelled', 'no_show']))
+    ).all()
+    return {s.id for s in rows}
+
+
+def _task_status_terminal(st):
+    """Проведён / Отменён / Неявка (или группы done/cancelled/no_show)."""
+    if not st:
+        return False
+    name = st.name or ''
+    group = (st.group or '').lower() if st.group else ''
+    return name in ('Проведён', 'Отменён', 'Неявка') or group in ('done', 'cancelled', 'no_show')
+
+
+def _next_active_lesson_after(skipped_task):
+    """Следующий урок ученика после skipped_task, не в терминальном статусе."""
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type or not skipped_task.student_id or not skipped_task.start_date:
+        return None
+    candidates = Task.query.filter_by(
+        student_id=skipped_task.student_id,
+        task_type_id=lesson_type.id,
+    ).filter(
+        Task.start_date.isnot(None),
+        Task.id != skipped_task.id,
+        Task.start_date > skipped_task.start_date,
+    ).order_by(Task.start_date.asc(), Task.id.asc()).all()
+    if not candidates:
+        return None
+    status_ids = {t.status_id for t in candidates if t.status_id}
+    status_map = {}
+    if status_ids:
+        status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+    for t in candidates:
+        st = status_map.get(t.status_id) if t.status_id else None
+        if _task_status_terminal(st):
+            continue
+        return t
+    return None
+
+
+def _shift_homework_from_skipped_lesson(skipped_task, *, transfer_unique=False):
+    """
+    Снимает справочное ДЗ с пропущенного урока перед пересчётом цепочки.
+    Уникальное ДЗ переносится на следующий активный урок только при transfer_unique (неявка).
+    """
+    if getattr(skipped_task, 'homework_unique', False):
+        if not transfer_unique:
+            return
+        text = (skipped_task.homework_custom_text or '').strip()
+        next_task = _next_active_lesson_after(skipped_task)
+        if next_task and text:
+            next_task.homework_unique = True
+            next_task.homework_custom_text = text
+            next_task.homework_required = True
+            next_task.homework_id = None
+            LessonHomework.query.filter_by(task_id=next_task.id).delete()
+        skipped_task.homework_unique = False
+        skipped_task.homework_custom_text = None
+        skipped_task.homework_required = False
+        skipped_task.homework_id = None
+        LessonHomework.query.filter_by(task_id=skipped_task.id).delete()
+        return
+
+    skipped_task.homework_id = None
+    skipped_task.homework_required = False
+    LessonHomework.query.filter_by(task_id=skipped_task.id).delete()
 
 
 def _recalculate_future_homework_for_student(student_id):
@@ -989,7 +1069,7 @@ def update_lesson_series(series_id):
             st = status_map.get(t.status_id) if t.status_id else None
             st_name = st.name if st else None
             st_group = (st.group or '').lower() if st and st.group else ''
-            if st_name in ('Проведён', 'Отменён') or st_group in ('done', 'cancelled'):
+            if st_name in ('Проведён', 'Отменён', 'Неявка') or st_group in ('done', 'cancelled', 'no_show'):
                 continue
             removable.append(t)
         for t in removable:
@@ -1057,7 +1137,7 @@ def delete_lesson_series(series_id):
         st = status_map.get(t.status_id) if t.status_id else None
         name = st.name if st else None
         group = (st.group or '').lower() if st and st.group else ''
-        if name in ('Проведён', 'Отменён') or group in ('done', 'cancelled'):
+        if name in ('Проведён', 'Отменён', 'Неявка') or group in ('done', 'cancelled', 'no_show'):
             continue
         db.session.delete(t)
         removed += 1
@@ -1289,16 +1369,16 @@ def update_task(task_id):
         # Проверяем, стал ли статус "Проведён"
         new_status_id = task.status_id
         if new_status_id and new_status_id != old_status_id:
-            cancelled_statuses = TaskStatus.query.filter(
-                (TaskStatus.name == 'Отменён') | (TaskStatus.group == 'cancelled')
-            ).all()
-            cancelled_status_ids = {s.id for s in cancelled_statuses}
+            skipped_status_ids = _skipped_lesson_status_ids()
+            new_status = db.session.get(TaskStatus, new_status_id) if new_status_id else None
+            is_no_show = _is_no_show_status(new_status)
             conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
             lesson_type = TaskType.query.filter_by(name='Урок').first()
 
-            # Отмена урока (одиночного или в серии): пересчёт ДЗ на все будущие уроки ученика
+            # Отмена / неявка: снять ДЗ с урока, пересчитать цепочку на будущие уроки
             if (lesson_type and task.task_type_id == lesson_type.id
-                    and new_status_id in cancelled_status_ids and task.student_id):
+                    and new_status_id in skipped_status_ids and task.student_id):
+                _shift_homework_from_skipped_lesson(task, transfer_unique=is_no_show)
                 _recalculate_future_homework_for_student(task.student_id)
 
                 # Пересчитать разметку предоплаты (баланс восстановится автоматически)
@@ -1400,8 +1480,8 @@ def delete_task(task_id):
     series_id = task.series_id
 
     if mode == 'this_and_future' and series_id:
-        cancelled_names = {'Проведён', 'Отменён'}
-        cancelled_groups = {'done', 'cancelled'}
+        cancelled_names = {'Проведён', 'Отменён', 'Неявка'}
+        cancelled_groups = {'done', 'cancelled', 'no_show'}
         tasks_in_series = Task.query.filter_by(series_id=series_id).all()
         status_ids = {t.status_id for t in tasks_in_series if t.status_id}
         status_map = {}
@@ -1514,13 +1594,13 @@ def get_tasks_calendar():
     status_ids = {t.status_id for t in tasks if t.status_id}
     student_map = {}
     type_map = {}
-    status_map = {}
+    status_obj_map = {}
     if student_ids:
         student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
     if type_ids:
         type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
     if status_ids:
-        status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+        status_obj_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
 
     events = []
     task_ids = [t.id for t in tasks]
@@ -1552,20 +1632,29 @@ def get_tasks_calendar():
     for t in tasks:
         student_name = student_map.get(t.student_id, '')
         type_name = type_map.get(t.task_type_id, '')
-        status_name = status_map.get(t.status_id, '')
+        st_row = status_obj_map.get(t.status_id)
+        status_name = st_row.name if st_row else ''
+        status_group = (st_row.group or '').lower() if st_row and st_row.group else ''
         title_parts = [p for p in [student_name, type_name] if p]
         title = ' — '.join(title_parts) or f'Задача #{t.id}'
         if status_name:
             title += f' [{status_name}]'
         props = t.to_dict()
+        props['status_name'] = status_name or None
+        props['status_group'] = status_group or None
         props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
         end_dt = _calendar_event_end(t)
+        is_no_show = status_name == 'Неявка' or status_group == 'no_show'
+        if is_no_show:
+            event_color = '#9ca3af'
+        else:
+            event_color = '#38a169' if t.is_paid else '#1A515F'
         events.append({
             'id': t.id,
             'title': title,
             'start': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
             'end': end_dt.strftime('%Y-%m-%dT%H:%M:%S') if end_dt else None,
-            'color': '#38a169' if t.is_paid else '#1A515F',
+            'color': event_color,
             'extendedProps': props,
         })
 
@@ -1600,7 +1689,12 @@ def get_my_next_lesson():
     lesson_type = TaskType.query.filter_by(name='Урок').first()
     if not lesson_type:
         return jsonify({'lesson': None})
-    excluded = TaskStatus.query.filter(TaskStatus.name.in_(['Отменён', 'Проведён'])).all()
+    excluded = TaskStatus.query.filter(
+        or_(
+            TaskStatus.name.in_(['Отменён', 'Проведён', 'Неявка']),
+            TaskStatus.group.in_(['cancelled', 'no_show', 'done']),
+        )
+    ).all()
     excluded_ids = [s.id for s in excluded]
     now = datetime.now()
     q = Task.query.filter(
@@ -1646,8 +1740,11 @@ def get_my_lessons_month():
     if not lesson_type:
         return jsonify({'lessons': []})
 
-    cancelled = TaskStatus.query.filter(TaskStatus.name == 'Отменён').all()
-    cancelled_ids = [s.id for s in cancelled]
+    skipped = TaskStatus.query.filter(
+        (TaskStatus.name.in_(['Отменён', 'Неявка']))
+        | (TaskStatus.group.in_(['cancelled', 'no_show']))
+    ).all()
+    skipped_ids = [s.id for s in skipped]
 
     q = Task.query.filter(
         Task.student_id == current_user.id,
@@ -1656,8 +1753,8 @@ def get_my_lessons_month():
         Task.start_date >= month_start,
         Task.start_date < month_end,
     )
-    if cancelled_ids:
-        q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(cancelled_ids)))
+    if skipped_ids:
+        q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(skipped_ids)))
 
     tasks = q.order_by(Task.start_date.asc()).all()
     step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}

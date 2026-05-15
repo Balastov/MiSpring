@@ -1256,6 +1256,7 @@ select.filter-control {
 }
 
 .btn-status-completed,
+.btn-status-no-show,
 .btn-status-cancelled {
     padding: 10px 22px;
     border: none;
@@ -1276,6 +1277,16 @@ select.filter-control {
     box-shadow: var(--shadow-sm);
 }
 
+.btn-status-no-show {
+    background: #9ca3af;
+    color: white;
+}
+
+.btn-status-no-show:hover {
+    background: #6b7280;
+    box-shadow: var(--shadow-sm);
+}
+
 .btn-status-cancelled {
     background: var(--color-danger);
     color: white;
@@ -1284,6 +1295,11 @@ select.filter-control {
 .btn-status-cancelled:hover {
     background: var(--color-danger-hover);
     box-shadow: var(--shadow-sm);
+}
+
+#calendar-container .fc-event.fc-event-no-show,
+#calendar-container .fc-event.fc-event-no-show .fc-event-main {
+    opacity: 0.92;
 }
 
 .form-actions {

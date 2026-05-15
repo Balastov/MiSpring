@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickStatusButtons = document.getElementById('quick-status-buttons');
     const btnStatusCompleted = document.getElementById('btn-status-completed');
     const btnStatusCancelled = document.getElementById('btn-status-cancelled');
+    const btnStatusNoShow = document.getElementById('btn-status-no-show');
 
     // Task types page elements
     const taskTypesPage = document.getElementById('task-types-page');
@@ -1802,6 +1803,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const classes = [];
                 if (props.series_id) classes.push('fc-event-series');
                 if (props.is_paid) classes.push('fc-event-paid');
+                const sg = (props.status_group || '').toLowerCase();
+                if (props.status_name === 'Неявка' || sg === 'no_show') {
+                    classes.push('fc-event-no-show');
+                }
                 return classes;
             },
             height: '100%',
@@ -2339,6 +2344,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cancelBtn) {
             cancelBtn.onclick = () => dlg.classList.add('hidden');
         }
+    }
+
+    if (btnStatusNoShow) {
+        btnStatusNoShow.addEventListener('click', () => {
+            if (!confirm('Отметить неявку? ДЗ этого урока перенесётся на следующие уроки (как при отмене).')) {
+                return;
+            }
+            updateTaskStatus('Неявка');
+        });
     }
 
     if (btnStatusCancelled) {
