@@ -159,6 +159,99 @@ def _task_homework_ids(task_id):
     return [r.homework_id for r in _task_homework_rows(task_id)]
 
 
+HOMEWORK_DUE_FALLBACK_DAYS = 14
+
+
+def _is_cancelled_lesson_status(st):
+    """Только «Отменён» — такие уроки не считаются при расчёте дедлайна ДЗ."""
+    if not st:
+        return False
+    name = st.name or ''
+    group = (st.group or '').lower() if st.group else ''
+    return name == 'Отменён' or group == 'cancelled'
+
+
+def _default_homework_due_datetime(task):
+    """Запасной дедлайн, если нет следующего неотменённого урока."""
+    if task.start_date:
+        return task.start_date + timedelta(days=HOMEWORK_DUE_FALLBACK_DAYS)
+    return datetime.now() + timedelta(days=HOMEWORK_DUE_FALLBACK_DAYS)
+
+
+def _homework_due_datetime_for_task(task, ordered_lessons=None, status_map=None):
+    """
+    Дедлайн ДЗ = дата начала следующего урока ученика, не в статусе «Отменён».
+    Иначе — start_date урока + 14 дней (как раньше).
+    """
+    if not task.start_date:
+        return _default_homework_due_datetime(task)
+    if ordered_lessons is None or status_map is None:
+        lesson_type = TaskType.query.filter_by(name='Урок').first()
+        if not lesson_type or not task.student_id:
+            return _default_homework_due_datetime(task)
+        ordered_lessons = Task.query.filter_by(
+            student_id=task.student_id,
+            task_type_id=lesson_type.id,
+        ).filter(Task.start_date.isnot(None)).order_by(
+            Task.start_date.asc(), Task.id.asc()
+        ).all()
+        status_ids = {t.status_id for t in ordered_lessons if t.status_id}
+        status_map = {}
+        if status_ids:
+            status_map = {
+                s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()
+            }
+    for other in ordered_lessons:
+        if other.id == task.id:
+            continue
+        if other.start_date <= task.start_date:
+            continue
+        st = status_map.get(other.status_id) if other.status_id else None
+        if _is_cancelled_lesson_status(st):
+            continue
+        return other.start_date
+    return _default_homework_due_datetime(task)
+
+
+def _refresh_lesson_homework_due_dates_for_student(student_id, *, commit=True):
+    """Обновляет due_date у всех lesson_homework ученика по цепочке уроков."""
+    if not student_id:
+        return 0
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return 0
+    tasks = Task.query.filter_by(
+        student_id=student_id,
+        task_type_id=lesson_type.id,
+    ).filter(Task.start_date.isnot(None)).order_by(
+        Task.start_date.asc(), Task.id.asc()
+    ).all()
+    if not tasks:
+        return 0
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    status_map = {}
+    if status_ids:
+        status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+    task_ids = [t.id for t in tasks]
+    lh_rows = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).all() if task_ids else []
+    lh_by_task = {}
+    for lh in lh_rows:
+        lh_by_task.setdefault(lh.task_id, []).append(lh)
+    updated = 0
+    for t in tasks:
+        rows = lh_by_task.get(t.id)
+        if not rows:
+            continue
+        due = _homework_due_datetime_for_task(t, ordered_lessons=tasks, status_map=status_map)
+        for lh in rows:
+            if lh.due_date != due:
+                lh.due_date = due
+                updated += 1
+    if updated and commit:
+        db.session.commit()
+    return updated
+
+
 def _set_task_homeworks(task, homework_ids):
     # Keep legacy single-homework fields in sync.
     cleaned = [int(h) for h in (homework_ids or []) if h]
@@ -167,7 +260,7 @@ def _set_task_homeworks(task, homework_ids):
         task.homework_id = None
         task.homework_required = False
         return
-    due = (task.start_date + timedelta(days=14)) if task.start_date else (datetime.now() + timedelta(days=14))
+    due = _homework_due_datetime_for_task(task)
     for idx, hw_id in enumerate(cleaned):
         db.session.add(LessonHomework(
             task_id=task.id,
@@ -392,6 +485,7 @@ def _recalculate_future_homework_for_student(student_id):
 
     if updated:
         db.session.commit()
+    _refresh_lesson_homework_due_dates_for_student(student_id, commit=True)
     return updated
 
 
@@ -1458,6 +1552,13 @@ def update_task(task_id):
             ):
                 _recalculate_future_homework_for_student(task.student_id)
 
+            if (
+                task.task_type_id == lesson_type_row.id
+                and task.student_id
+                and ('start_date' in data or new_status_id != old_status_id)
+            ):
+                _refresh_lesson_homework_due_dates_for_student(task.student_id)
+
         return jsonify(task.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -2349,17 +2450,35 @@ def get_my_homework():
     status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
     step_map = {s.id: s.title for s in PlanStep.query.filter(PlanStep.id.in_(step_ids)).all()} if step_ids else {}
 
+    lesson_type_row = TaskType.query.filter_by(name='Урок').first()
+    due_lessons = []
+    due_status_map = {}
+    if lesson_type_row:
+        due_lessons = Task.query.filter_by(
+            student_id=current_user.id,
+            task_type_id=lesson_type_row.id,
+        ).filter(Task.start_date.isnot(None)).order_by(
+            Task.start_date.asc(), Task.id.asc()
+        ).all()
+        due_status_ids = {lt.status_id for lt in due_lessons if lt.status_id}
+        if due_status_ids:
+            due_status_map = {
+                s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(due_status_ids)).all()
+            }
+
     now = datetime.now()
     result = []
     for t in tasks:
         rows = by_task.get(t.id) or []
         if not rows and t.homework_id:
-            rows = [type('X', (), {'id': None, 'homework_id': t.homework_id, 'due_date': (t.start_date + timedelta(days=14)) if t.start_date else None})()]
+            rows = [type('X', (), {'id': None, 'homework_id': t.homework_id})()]
         elif not rows and getattr(t, 'homework_unique', False):
-            rows = [type('X', (), {'id': None, 'homework_id': None, 'due_date': (t.start_date + timedelta(days=14)) if t.start_date else None})()]
+            rows = [type('X', (), {'id': None, 'homework_id': None})()]
         for lh in rows:
             hw = homework_map.get(lh.homework_id) if lh.homework_id else None
-            due = lh.due_date or ((t.start_date + timedelta(days=14)) if t.start_date else None)
+            due = _homework_due_datetime_for_task(
+                t, ordered_lessons=due_lessons, status_map=due_status_map
+            )
             is_uq = bool(getattr(t, 'homework_unique', False))
             if lh.id:
                 eff_sid = lh.status_id if lh.status_id is not None else t.status_id
@@ -2376,7 +2495,7 @@ def get_my_homework():
                 remarks = t.homework_teacher_remarks
             st_row = status_map.get(eff_sid)
             is_overdue_row = bool(
-                t.start_date and (t.start_date + timedelta(days=14)) < now and
+                due and due < now and
                 (not st_row or (st_row.group or '').lower() not in ('done', 'completed', 'готово'))
             )
             result.append({
@@ -2390,7 +2509,7 @@ def get_my_homework():
                 'status_group': st_row.group if st_row else None,
                 'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
                 'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
-                'due_date': due.strftime('%d.%m.%Y') if due else None,
+                'due_date': due.strftime('%d.%m.%Y %H:%M') if due else None,
                 'due_date_iso': due.strftime('%Y-%m-%dT%H:%M') if due else None,
                 'is_overdue': is_overdue_row,
                 'homework_submitted_at': sub_at.strftime('%d.%m.%Y %H:%M') if sub_at else None,
