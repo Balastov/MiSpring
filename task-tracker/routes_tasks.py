@@ -252,6 +252,31 @@ def _refresh_lesson_homework_due_dates_for_student(student_id, *, commit=True):
     return updated
 
 
+def _sync_task_start_end_duration(task):
+    """
+    Согласует start_date, duration и end_date.
+    Приоритет у duration — так полоса в календаре совпадает с выбранной продолжительностью.
+    """
+    if not task.start_date:
+        return
+    dur = None
+    try:
+        if task.duration is not None and int(task.duration) > 0:
+            dur = int(task.duration)
+    except (TypeError, ValueError):
+        dur = None
+    if dur:
+        task.end_date = task.start_date + timedelta(minutes=dur)
+        return
+    if task.end_date and task.end_date > task.start_date:
+        span = int((task.end_date - task.start_date).total_seconds() // 60)
+        if 1 <= span <= 24 * 60:
+            task.duration = span
+        return
+    task.duration = 60
+    task.end_date = task.start_date + timedelta(hours=1)
+
+
 def _set_task_homeworks(task, homework_ids):
     # Keep legacy single-homework fields in sync.
     cleaned = [int(h) for h in (homework_ids or []) if h]
@@ -891,10 +916,7 @@ def add_task():
         task.homework_required = True
     elif homework_required and homework_ids:
         _set_task_homeworks(task, homework_ids)
-    if task.start_date and task.end_date and task.end_date > task.start_date:
-        span_min = int((task.end_date - task.start_date).total_seconds() // 60)
-        if 1 <= span_min <= 24 * 60:
-            task.duration = span_min
+    _sync_task_start_end_duration(task)
     db.session.commit()
     lesson_type_row = TaskType.query.filter_by(name='Урок').first()
     if task.student_id and lesson_type_row and task.task_type_id == lesson_type_row.id:
@@ -1452,11 +1474,7 @@ def update_task(task_id):
         ):
             return jsonify({'error': 'Укажите текст уникального ДЗ'}), 400
 
-        # Длительность = разница start/end (календарь, форма), чтобы duration не расходился с полосой на сетке
-        if task.start_date and task.end_date and task.end_date > task.start_date:
-            span_min = int((task.end_date - task.start_date).total_seconds() // 60)
-            if 1 <= span_min <= 24 * 60:
-                task.duration = span_min
+        _sync_task_start_end_duration(task)
 
         db.session.commit()
 
@@ -1712,22 +1730,16 @@ def get_tasks_calendar():
     for r in lh_rows:
         hw_ids_map.setdefault(r.task_id, []).append(r.homework_id)
     def _calendar_event_end(task):
-        """FullCalendar end is exclusive; need a real end instant. Reconcile duration vs stored end_date."""
+        """Конец события для FullCalendar: всегда start + duration (если задана)."""
         if not task.start_date:
             return None
-        dur_end = None
-        if task.duration and int(task.duration) > 0:
-            dur_end = task.start_date + timedelta(minutes=int(task.duration))
+        try:
+            if task.duration is not None and int(task.duration) > 0:
+                return task.start_date + timedelta(minutes=int(task.duration))
+        except (TypeError, ValueError):
+            pass
         if task.end_date and task.end_date > task.start_date:
-            if dur_end is not None:
-                diff = abs((task.end_date - dur_end).total_seconds())
-                # Частый кейс: в БД end на +1 ч по умолчанию, а duration = 30 мин — тянем по duration.
-                # После drag PUT выравнивает duration с end; тогда diff < 3 мин — берём end_date.
-                if diff > 180:
-                    return dur_end
             return task.end_date
-        if dur_end is not None:
-            return dur_end
         return task.start_date + timedelta(hours=1)
 
     for t in tasks:

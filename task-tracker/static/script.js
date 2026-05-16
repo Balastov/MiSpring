@@ -1737,9 +1737,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // #endregion
         calendar = new FullCalendar.Calendar(calendarContainer, {
             locale: 'ru',
+            timeZone: 'local',
             firstDay: 1, // Start week on Monday
             initialView: 'timeGridWeek',
             editable: true,
+            eventDurationEditable: true,
+            eventResizableFromStart: true,
             longPressDelay: 300,
             eventLongPressDelay: 300,
             selectLongPressDelay: 300,
@@ -1778,7 +1781,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             failureCallback();
                             return;
                         }
-                        successCallback(payload);
+                        const normalized = payload.map((ev) => {
+                            const props = ev.extendedProps || {};
+                            const durMin = props.duration != null ? parseInt(props.duration, 10) : NaN;
+                            if (!ev.start || !(durMin > 0)) return ev;
+                            const start = new Date(ev.start);
+                            if (Number.isNaN(start.getTime())) return ev;
+                            const end = new Date(start.getTime() + durMin * 60000);
+                            const pad = (n) => String(n).padStart(2, '0');
+                            return {
+                                ...ev,
+                                end: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:${pad(end.getSeconds())}`,
+                            };
+                        });
+                        successCallback(normalized);
                     })
                     .catch((e) => {
                         // #region agent log
@@ -1813,9 +1829,15 @@ document.addEventListener('DOMContentLoaded', () => {
             eventDisplay: 'block',
             dayMaxEvents: 4,
             eventDidMount: function(info) {
+                const props = info.event.extendedProps || {};
                 const s = info.event.start;
-                const e = info.event.end;
-                if (!s || !e) return;
+                let e = info.event.end;
+                if (!s) return;
+                const durMin = props.duration != null ? parseInt(props.duration, 10) : NaN;
+                if ((!e || e <= s) && durMin > 0) {
+                    e = new Date(s.getTime() + durMin * 60000);
+                }
+                if (!e || e <= s) return;
                 const mins = (e - s) / 60000;
                 if (mins > 0 && mins <= 40) {
                     info.el.classList.add('fc-cal-event-short');
@@ -2138,6 +2160,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Этап плана обучения обязателен');
                 return;
             }
+        }
+
+        if (formStartDate.value && formDuration.value) {
+            recalcEndDate();
         }
 
         // Collect form data
