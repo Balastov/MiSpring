@@ -209,6 +209,34 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN homework_custom_text TEXT')
     conn.commit()
 
+    # Синхронизация end_date и duration для существующих задач:
+    # 1) если задана duration > 0 — приводим end_date к start_date + duration минут;
+    # 2) иначе если есть end_date > start_date — выставляем duration по разнице.
+    cursor.execute(
+        """
+        UPDATE task
+           SET end_date = datetime(start_date, '+' || CAST(duration AS INTEGER) || ' minutes')
+         WHERE start_date IS NOT NULL
+           AND duration IS NOT NULL
+           AND CAST(duration AS INTEGER) > 0
+           AND (
+                end_date IS NULL
+             OR datetime(end_date) <> datetime(start_date, '+' || CAST(duration AS INTEGER) || ' minutes')
+           )
+        """
+    )
+    cursor.execute(
+        """
+        UPDATE task
+           SET duration = CAST((julianday(end_date) - julianday(start_date)) * 24 * 60 AS INTEGER)
+         WHERE start_date IS NOT NULL
+           AND end_date IS NOT NULL
+           AND datetime(end_date) > datetime(start_date)
+           AND (duration IS NULL OR CAST(duration AS INTEGER) <= 0)
+        """
+    )
+    conn.commit()
+
     # Таблица файлов подтверждения ДЗ
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='homework_evidence'")
     if not cursor.fetchone():
