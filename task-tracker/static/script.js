@@ -1832,21 +1832,6 @@ document.addEventListener('DOMContentLoaded', () => {
             height: '100%',
             eventDisplay: 'block',
             dayMaxEvents: 4,
-            eventDidMount: function(info) {
-                const props = info.event.extendedProps || {};
-                const s = info.event.start;
-                let e = info.event.end;
-                if (!s) return;
-                const durMin = props.duration != null ? parseInt(props.duration, 10) : NaN;
-                if ((!e || e <= s) && durMin > 0) {
-                    e = new Date(s.getTime() + durMin * 60000);
-                }
-                if (!e || e <= s) return;
-                const mins = (e - s) / 60000;
-                if (mins > 0 && mins <= 40) {
-                    info.el.classList.add('fc-cal-event-short');
-                }
-            },
         });
         calendar.render();
 
