@@ -98,6 +98,7 @@ class Task(db.Model):
     user_id = db.Column(db.Integer, nullable=True)
     student_id = db.Column(db.Integer, nullable=True)
     is_paid = db.Column(db.Boolean, default=False)
+    is_paid_manual = db.Column(db.Boolean, default=False, nullable=False)
     payment_date = db.Column(db.DateTime, nullable=True)
     homework_id = db.Column(db.Integer, nullable=True)
     homework_required = db.Column(db.Boolean, default=True)
@@ -134,6 +135,7 @@ class Task(db.Model):
             'user_id': self.user_id,
             'student_id': self.student_id,
             'is_paid': self.is_paid,
+            'is_paid_manual': bool(self.is_paid_manual),
             'payment_date': self.payment_date.strftime('%d.%m.%Y %H:%M') if self.payment_date else None,
             'payment_date_iso': self.payment_date.strftime('%Y-%m-%dT%H:%M') if self.payment_date else None,
             'homework_id': self.homework_id,

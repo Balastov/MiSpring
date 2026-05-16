@@ -16,7 +16,8 @@ def sync_prepaid_marks(student):
     - Всего оплачено N уроков (сумма всех StudentPayment).
     - Берём все уроки ученика с start_date >= prepaid_since (кроме отменённых),
       сортируем по дате.
-    - Первые N помечаем is_paid=True, остальные — is_paid=False.
+    - Первые N уроков без ручной отметки помечаем is_paid=True, остальные — is_paid=False.
+    - Уроки с is_paid_manual не меняются автоматически (только вручную в карточке урока).
     - Отменённые уроки пропускаем (не тратят баланс, не помечаются).
     - Обновляем кеш prepaid_lessons = N − кол-во проведённых среди оплаченных.
     """
@@ -47,9 +48,11 @@ def sync_prepaid_marks(student):
     active = [t for t in all_lessons
               if not t.status_id or t.status_id not in cancelled_ids]
 
+    auto_lessons = [t for t in active if not getattr(t, 'is_paid_manual', False)]
     conducted_in_paid = 0
-    for i, t in enumerate(active):
+    for i, t in enumerate(auto_lessons):
         t.is_paid = i < total_paid
+    for t in active:
         if t.is_paid and conducted_id and t.status_id == conducted_id:
             conducted_in_paid += 1
 

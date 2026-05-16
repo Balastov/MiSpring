@@ -207,6 +207,9 @@ with app.app_context():
         cursor.execute('ALTER TABLE task ADD COLUMN homework_unique BOOLEAN DEFAULT 0')
     if 'homework_custom_text' not in task_columns_final2:
         cursor.execute('ALTER TABLE task ADD COLUMN homework_custom_text TEXT')
+    task_columns_final3 = [col[1] for col in cursor.execute('PRAGMA table_info(task)').fetchall()]
+    if 'is_paid_manual' not in task_columns_final3:
+        cursor.execute('ALTER TABLE task ADD COLUMN is_paid_manual BOOLEAN DEFAULT 0')
     conn.commit()
 
     # Синхронизация end_date и duration для существующих задач:
