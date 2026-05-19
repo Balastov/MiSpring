@@ -2312,15 +2312,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnStatusCompleted) {
         btnStatusCompleted.addEventListener('click', () => {
-            showConductedDialog();
+            // showConductedDialog(); — диалог отключён, см. закомментированный код ниже
+            _pendingAdvancePlanStep = null;
+            updateTaskStatus('Проведён');
         });
     }
 
+    /*
     function showConductedDialog() {
         const dlg = document.getElementById('conducted-dialog-modal');
         if (!dlg) { updateTaskStatus('Проведён'); return; }
 
-        // Reset state
         dlg.querySelectorAll('.toggle-ans-btn').forEach(b => b.classList.remove('active'));
         const testMsg = document.getElementById('test-soon-msg');
         if (testMsg) testMsg.classList.add('hidden');
@@ -2361,6 +2363,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelBtn.onclick = () => dlg.classList.add('hidden');
         }
     }
+    */
 
     if (btnStatusNoShow) {
         btnStatusNoShow.addEventListener('click', () => {
