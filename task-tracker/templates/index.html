@@ -724,13 +724,13 @@
                     <div id="form-user-roles" class="checkbox-group"></div>
                 </div>
                 <div class="form-row hidden" id="form-user-lesson-price-row">
-                    <label>Стоимость урока (₽)</label>
-                    <input type="number" id="form-user-lesson-price" min="0" step="1" placeholder="не задана">
+                    <label>Стоимость урока (₽)*</label>
+                    <input type="number" id="form-user-lesson-price" min="0" step="1" required>
                 </div>
                 <div class="form-row hidden" id="form-user-teacher-row">
-                    <label>Учитель</label>
-                    <select id="form-user-teacher-id">
-                        <option value="">— не назначен —</option>
+                    <label>Учитель*</label>
+                    <select id="form-user-teacher-id" required>
+                        <option value="">— выберите учителя —</option>
                     </select>
                 </div>
                 <div class="form-row hidden" id="form-user-photo-row">

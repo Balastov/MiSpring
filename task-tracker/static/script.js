@@ -280,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyStudentLoginBtn = document.getElementById('copy-student-login-btn');
     const copyStudentPasswordBtn = document.getElementById('copy-student-password-btn');
     let _pendingPhotoFile = null;
+    let cachedUserRoles = [];
 
     // Teacher card (main page)
     const myTeacherCard = document.getElementById('my-teacher-card');
@@ -3934,10 +3935,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderRoleCheckboxes(rolesData.roles, []);
                 formUserRoles.querySelectorAll('input[name="user-role"]').forEach(cb => { cb.disabled = false; });
 
-                // Hide lesson_price, teacher, photo for new users
-                formUserLessonPriceRow.classList.add('hidden');
                 formUserLessonPrice.value = '';
-                formUserTeacherRow.classList.add('hidden');
+                formUserTeacherId.innerHTML = '<option value="">— выберите учителя —</option>';
                 formUserPhotoRow.classList.add('hidden');
                 formUserPhotoPreview.classList.add('hidden');
                 formUserLessonPrice.disabled = false;
@@ -3949,7 +3948,59 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     });
 
+    function userHasStudentRoleSelected() {
+        const studentRole = cachedUserRoles.find(r => r.name === 'student');
+        if (!studentRole) return false;
+        const cb = formUserRoles.querySelector(`input[name="user-role"][value="${studentRole.id}"]`);
+        return !!(cb && cb.checked);
+    }
+
+    function loadTeachersIntoUserForm() {
+        return fetch('/api/teachers')
+            .then(r => r.json())
+            .then(td => {
+                const prev = formUserTeacherId.value;
+                formUserTeacherId.innerHTML = '<option value="">— выберите учителя —</option>'
+                    + (td.teachers || []).map(t => `<option value="${t.id}">${escapeHtml(t.display_name)}</option>`).join('');
+                if (prev) formUserTeacherId.value = prev;
+            });
+    }
+
+    function updateStudentFieldsVisibility() {
+        const isStudent = userHasStudentRoleSelected();
+        const canManageAdmin = hasRole('admin', 'owner');
+        const canManageTeacher = hasRole('teacher');
+        if (isStudent && canManageAdmin) {
+            formUserLessonPriceRow.classList.remove('hidden');
+            formUserTeacherRow.classList.remove('hidden');
+            loadTeachersIntoUserForm();
+        } else if (isStudent && canManageTeacher) {
+            formUserLessonPriceRow.classList.remove('hidden');
+            formUserTeacherRow.classList.add('hidden');
+        } else {
+            formUserLessonPriceRow.classList.add('hidden');
+            formUserTeacherRow.classList.add('hidden');
+        }
+    }
+
+    function validateStudentUserFields() {
+        if (!userHasStudentRoleSelected()) return true;
+        const priceVal = (formUserLessonPrice.value || '').trim();
+        if (priceVal === '' || Number.isNaN(parseFloat(priceVal)) || parseFloat(priceVal) < 0) {
+            alert('Для ученика укажите стоимость урока (число ≥ 0)');
+            return false;
+        }
+        if (hasRole('admin', 'owner') && !formUserTeacherRow.classList.contains('hidden')) {
+            if (!formUserTeacherId.value) {
+                alert('Для ученика необходимо выбрать учителя');
+                return false;
+            }
+        }
+        return true;
+    }
+
     function renderRoleCheckboxes(allRoles, selectedRoleNames) {
+        cachedUserRoles = allRoles || [];
         formUserRoles.innerHTML = '';
         allRoles.forEach(role => {
             const label = document.createElement('label');
@@ -3961,10 +4012,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedRoleNames.includes(role.name)) {
                 cb.checked = true;
             }
+            cb.addEventListener('change', updateStudentFieldsVisibility);
             label.appendChild(cb);
             label.appendChild(document.createTextNode(' ' + role.name));
             formUserRoles.appendChild(label);
         });
+        updateStudentFieldsVisibility();
     }
 
     function closeUserModal() {
@@ -4045,6 +4098,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!username) { alert('Логин обязателен'); return; }
         if (!displayName) { alert('Имя обязательно'); return; }
+        if (!validateStudentUserFields()) return;
 
         // Collect selected roles
         const roleIds = [];
@@ -4058,6 +4112,12 @@ document.addEventListener('DOMContentLoaded', () => {
             userData.is_active = isActive;
             userData.role_ids = roleIds;
         }
+        if (userHasStudentRoleSelected()) {
+            userData.lesson_price = parseFloat(formUserLessonPrice.value);
+            if (isAdminLike && formUserTeacherId.value) {
+                userData.teacher_id = parseInt(formUserTeacherId.value, 10);
+            }
+        }
 
         if (editingUserId) {
             if (!isAdminLike && !isTeacherOnly) {
@@ -4066,7 +4126,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // Update — sequential to avoid SQLite locking
             if (isAdminLike && !formUserTeacherRow.classList.contains('hidden')) {
-                userData.teacher_id = formUserTeacherId.value ? parseInt(formUserTeacherId.value) : null;
+                userData.teacher_id = formUserTeacherId.value ? parseInt(formUserTeacherId.value, 10) : null;
+            }
+            if (isAdminLike && userHasStudentRoleSelected()) {
+                userData.lesson_price = parseFloat(formUserLessonPrice.value);
             }
 
             const checkOk = r => r.ok ? Promise.resolve() : r.json().then(e => { throw new Error(e.error || 'Ошибка'); });
@@ -4077,16 +4140,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(userData)
             })
             .then(checkOk)
-            .then(() => {
-                if (isAdminLike && !formUserLessonPriceRow.classList.contains('hidden')) {
-                    const priceVal = formUserLessonPrice.value;
-                    return fetch(`/api/students/${editingUserId}/lesson-price`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ lesson_price: priceVal === '' ? null : parseFloat(priceVal) })
-                    }).then(checkOk);
-                }
-            })
             .then(() => {
                 if (isAdminLike && _pendingPhotoFile) {
                     const fd = new FormData();
@@ -4199,20 +4252,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         formUserLessonPrice.disabled = false;
                     }
 
-                    // Teacher selector for students (admin/owner only)
                     if (isStudent && canManageAdmin) {
-                        fetch('/api/teachers').then(r => r.json()).then(td => {
-                            formUserTeacherId.innerHTML = '<option value="">— не назначен —</option>'
-                                + (td.teachers || []).map(t => `<option value="${t.id}">${t.display_name}</option>`).join('');
-                            if (user.teacher_id) formUserTeacherId.value = user.teacher_id;
+                        loadTeachersIntoUserForm().then(() => {
+                            if (user.teacher_id) formUserTeacherId.value = String(user.teacher_id);
                         });
-                        formUserTeacherRow.classList.remove('hidden');
-                        formUserTeacherId.disabled = false;
-                    } else {
-                        formUserTeacherRow.classList.add('hidden');
-                        formUserTeacherId.innerHTML = '<option value="">— не назначен —</option>';
                         formUserTeacherId.disabled = false;
                     }
+                    updateStudentFieldsVisibility();
 
                     // Photo field only for edited users with teacher role.
                     if (isTeacher) {

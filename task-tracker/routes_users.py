@@ -24,6 +24,45 @@ def _is_student_user(user):
     return 'student' in roles
 
 
+def _student_role_id():
+    role = Role.query.filter_by(name='student').first()
+    return role.id if role else None
+
+
+def _role_ids_include_student(role_ids):
+    sid = _student_role_id()
+    if not sid or not role_ids:
+        return False
+    try:
+        ids = {int(r) for r in role_ids}
+    except (TypeError, ValueError):
+        return False
+    return sid in ids
+
+
+def _validate_student_required_fields(data):
+    """Обязательные поля ученика: учитель и стоимость урока."""
+    teacher_id = data.get('teacher_id')
+    if not teacher_id:
+        return 'Для ученика необходимо выбрать учителя'
+
+    lesson_price = data.get('lesson_price')
+    if lesson_price is None or (isinstance(lesson_price, str) and not str(lesson_price).strip()):
+        return 'Для ученика необходимо указать стоимость урока'
+    try:
+        price = float(lesson_price)
+        if price < 0:
+            return 'Стоимость урока не может быть отрицательной'
+    except (TypeError, ValueError):
+        return 'Некорректная стоимость урока'
+    return None
+
+
+def _apply_student_fields(user, data):
+    user.teacher_id = int(data['teacher_id'])
+    user.lesson_price = float(data['lesson_price'])
+
+
 def _can_teacher_manage_student(user):
     if not user or not _is_teacher():
         return False
@@ -127,6 +166,12 @@ def add_user():
     if timezone is None:
         return jsonify({'error': 'Некорректный часовой пояс'}), 400
 
+    role_ids = data.get('role_ids', [])
+    if _role_ids_include_student(role_ids):
+        student_err = _validate_student_required_fields(data)
+        if student_err:
+            return jsonify({'error': student_err}), 400
+
     user = User(
         username=username,
         display_name=display_name,
@@ -137,10 +182,11 @@ def add_user():
     db.session.add(user)
     db.session.commit()
 
-    role_ids = data.get('role_ids', [])
     for role_id in role_ids:
         if Role.query.get(role_id):
             db.session.add(UserRole(user_id=user.id, role_id=role_id))
+    if _role_ids_include_student(role_ids):
+        _apply_student_fields(user, data)
     db.session.commit()
 
     return jsonify(user.to_dict()), 201
@@ -185,11 +231,34 @@ def update_user(user_id):
     if 'teacher_id' in data:
         user.teacher_id = data['teacher_id'] or None
 
+    if 'lesson_price' in data:
+        lp = data.get('lesson_price')
+        if lp is None or (isinstance(lp, str) and not str(lp).strip()):
+            user.lesson_price = None
+        else:
+            try:
+                price = float(lp)
+                if price < 0:
+                    return jsonify({'error': 'Стоимость урока не может быть отрицательной'}), 400
+                user.lesson_price = price
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Некорректная стоимость урока'}), 400
+
     if 'timezone' in data:
         timezone = _normalize_timezone(data.get('timezone'))
         if timezone is None:
             return jsonify({'error': 'Некорректный часовой пояс'}), 400
         user.timezone = timezone
+
+    db.session.flush()
+    if _is_student_user(user):
+        check = {
+            'teacher_id': user.teacher_id,
+            'lesson_price': user.lesson_price if user.lesson_price is not None else data.get('lesson_price'),
+        }
+        student_err = _validate_student_required_fields(check)
+        if student_err:
+            return jsonify({'error': student_err}), 400
 
     db.session.commit()
     return jsonify(user.to_dict())
