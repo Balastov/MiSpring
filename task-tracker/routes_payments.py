@@ -91,6 +91,7 @@ def _get_balance(student):
             ).count()
 
     remaining = total_paid - conducted_count
+    history = lesson_price_history(student.id)
     return {
         'total_paid': total_paid,
         'conducted': conducted_count,
@@ -98,7 +99,7 @@ def _get_balance(student):
         'prepaid_since': student.prepaid_since.strftime('%d.%m.%Y') if student.prepaid_since else None,
         'prepaid_since_iso': student.prepaid_since.strftime('%Y-%m-%d') if student.prepaid_since else None,
         'lesson_price': student.lesson_price,
-        'lesson_price_history': [h.to_dict() for h in (history := lesson_price_history(student.id))],
+        'lesson_price_history': [h.to_dict() for h in history],
         'requires_price_effective_date': bool(history)
         and not (len(history) == 1 and history[0].effective_from is None),
         'payments': [p.to_dict() for p in payments],
