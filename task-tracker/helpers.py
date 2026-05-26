@@ -4,6 +4,8 @@ from functools import wraps
 from flask import jsonify
 from flask_login import login_required, current_user
 
+LAST_SEEN_UPDATE_INTERVAL_SEC = 60
+
 
 def parse_datetime(value):
     if not value:
@@ -19,6 +21,41 @@ def parse_datetime(value):
         return None
     except (TypeError, ValueError):
         return None
+
+
+def staff_can_view_last_seen():
+    """Учитель, админ и владелец видят время последнего визита пользователей."""
+    return user_has_role('admin', 'owner', 'teacher')
+
+
+def record_user_last_seen(user, force=False):
+    """Обновляет last_seen_at (не чаще раза в минуту, если force=False)."""
+    if not user or not getattr(user, 'id', None):
+        return
+    from extensions import db
+
+    now = datetime.now()
+    last = user.last_seen_at
+    if (
+        not force
+        and last
+        and (now - last).total_seconds() < LAST_SEEN_UPDATE_INTERVAL_SEC
+    ):
+        return
+    user.last_seen_at = now
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def last_seen_for_api(user):
+    if not user or not user.last_seen_at:
+        return {'last_seen_at': None, 'last_seen_at_display': None}
+    return {
+        'last_seen_at': user.last_seen_at.isoformat(),
+        'last_seen_at_display': user.last_seen_at.strftime('%d.%m.%Y %H:%M'),
+    }
 
 
 def user_has_role(*role_names):

@@ -15,6 +15,7 @@ class User(UserMixin, db.Model):
     is_active = db.Column(db.Boolean, default=True)
     timezone = db.Column(db.String(16), nullable=False, default='UTC+03:00')
     created_at = db.Column(db.DateTime, default=datetime.now)
+    last_seen_at = db.Column(db.DateTime, nullable=True)
 
     # Telegram integration
     telegram_id = db.Column(db.String(50), unique=True, nullable=True)

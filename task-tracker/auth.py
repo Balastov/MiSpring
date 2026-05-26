@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, url_for, render_templat
 from flask_login import login_user, logout_user, login_required, current_user
 from extensions import db
 from models import User, Role, UserRole
+from helpers import record_user_last_seen
 import os
 import requests as http_requests
 
@@ -34,6 +35,7 @@ def auth_login():
         return jsonify({'error': 'Учётная запись деактивирована'}), 403
 
     login_user(user, remember=True)
+    record_user_last_seen(user, force=True)
     return jsonify(user.to_dict())
 
 
@@ -132,6 +134,7 @@ def auth_yandex_callback():
         return redirect(url_for('auth.login_page'))
 
     login_user(user, remember=True)
+    record_user_last_seen(user, force=True)
     return redirect(url_for('index'))
 
 
@@ -206,4 +209,5 @@ def auth_vk_callback():
         return redirect(url_for('auth.login_page'))
 
     login_user(user, remember=True)
+    record_user_last_seen(user, force=True)
     return redirect(url_for('index'))

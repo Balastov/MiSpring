@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import current_user, login_required
 from extensions import db
 from models import User, UserRole, Role
-from helpers import require_role, user_has_role
+from helpers import require_role, user_has_role, staff_can_view_last_seen, last_seen_for_api
 from lesson_price_service import sync_student_lesson_price
 import secrets
 import os
@@ -129,9 +129,12 @@ def get_users():
     paginator = db.paginate(query.order_by(User.id), page=page, per_page=per_page, error_out=False)
     max_id_result = db.session.execute(db.select(db.func.max(User.id))).scalar()
     next_id = (max_id_result or 0) + 1
+    include_last_seen = staff_can_view_last_seen()
     payload = []
     for u in paginator.items:
         item = u.to_dict()
+        if include_last_seen:
+            item.update(last_seen_for_api(u))
         if _can_view_student_credentials(u):
             item['plain_password'] = u.password_plain or ''
         payload.append(item)

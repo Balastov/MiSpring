@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, redirect, url_for, render_template
-from flask_login import login_required
+from flask_login import login_required, current_user
 import os
 import sqlite3
 from sqlalchemy import text
@@ -39,6 +39,17 @@ def unauthorized():
     if request.path.startswith('/api/'):
         return jsonify({'error': 'Требуется авторизация'}), 401
     return redirect(url_for('auth.login_page'))
+
+
+@app.before_request
+def track_user_last_seen():
+    if not current_user.is_authenticated:
+        return
+    path = request.path or ''
+    if path.startswith('/static') or path == '/sw.js':
+        return
+    from helpers import record_user_last_seen
+    record_user_last_seen(current_user)
 
 
 # ========== App Version ==========
@@ -155,6 +166,8 @@ with app.app_context():
         cursor.execute('ALTER TABLE user ADD COLUMN password_plain VARCHAR(255)')
     if 'timezone' not in user_columns:
         cursor.execute("ALTER TABLE user ADD COLUMN timezone VARCHAR(16) DEFAULT 'UTC+03:00'")
+    if 'last_seen_at' not in user_columns:
+        cursor.execute('ALTER TABLE user ADD COLUMN last_seen_at DATETIME')
     cursor.execute("UPDATE user SET timezone = 'UTC+03:00' WHERE timezone IS NULL OR TRIM(timezone) = ''")
     conn.commit()
 

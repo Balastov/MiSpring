@@ -3824,6 +3824,7 @@ document.addEventListener('DOMContentLoaded', () => {
             usersTheadRow.innerHTML = `
                 <th>ID</th><th>Логин</th><th>Имя</th><th>Роли</th>
                 <th>Источник</th><th>Активен</th><th>Дата создания</th>
+                <th>Последний визит</th>
                 <th>Telegram ID</th><th>Telegram Username</th><th>Уведомления TG</th>
                 <th></th><th></th><th></th><th></th>`;
         } else {
@@ -3834,7 +3835,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         usersTbody.innerHTML = '';
         if (users.length === 0) {
-            usersTbody.innerHTML = `<tr><td colspan="${canManage ? 14 : 5}" class="empty-msg">Пользователей нет</td></tr>`;
+            usersTbody.innerHTML = `<tr><td colspan="${canManage ? 15 : 5}" class="empty-msg">Пользователей нет</td></tr>`;
             return;
         }
 
@@ -3858,6 +3859,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(sourceLabels[user.auth_source] || user.auth_source)}</td>
                     <td class="cell-bool">${user.is_active ? '✓' : '✗'}</td>
                     <td>${user.created_at || '—'}</td>
+                    <td>${user.last_seen_at_display || '—'}</td>
                     <td>${user.telegram_id ? escapeHtml(user.telegram_id) : '—'}</td>
                     <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
                     <td class="cell-bool">${user.telegram_notifications ? '✓' : '✗'}</td>
