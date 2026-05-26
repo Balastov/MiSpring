@@ -836,6 +836,64 @@
         </div>
     </div>
 
+    <!-- Reset Student Password Modal -->
+    <div id="reset-password-modal" class="modal hidden">
+        <div class="modal-content reset-password-modal-content">
+            <div class="modal-header">
+                <h2 id="reset-password-modal-title">Сброс пароля</h2>
+                <button type="button" class="modal-close" id="reset-password-modal-close" aria-label="Закрыть">&times;</button>
+            </div>
+            <div id="reset-password-form-panel">
+                <p id="reset-password-user-label" class="reset-password-user-label"></p>
+                <fieldset class="reset-password-mode-fieldset">
+                    <legend class="sr-only">Способ задания пароля</legend>
+                    <label class="reset-password-mode-option">
+                        <input type="radio" name="reset-password-mode" value="auto" checked>
+                        <span class="reset-password-mode-body">
+                            <span class="reset-password-mode-title">Сгенерировать автоматически</span>
+                            <span class="reset-password-mode-hint">Надёжный случайный пароль</span>
+                        </span>
+                    </label>
+                    <label class="reset-password-mode-option">
+                        <input type="radio" name="reset-password-mode" value="manual">
+                        <span class="reset-password-mode-body">
+                            <span class="reset-password-mode-title">Указать вручную</span>
+                            <span class="reset-password-mode-hint">Не менее 8 символов, буква и цифра</span>
+                        </span>
+                    </label>
+                </fieldset>
+                <div id="reset-password-manual-fields" class="reset-password-manual-fields hidden">
+                    <div class="form-row">
+                        <label for="reset-password-input">Новый пароль</label>
+                        <input type="password" id="reset-password-input" class="form-control" autocomplete="new-password">
+                    </div>
+                    <div class="form-row">
+                        <label for="reset-password-confirm-input">Подтвердите пароль</label>
+                        <input type="password" id="reset-password-confirm-input" class="form-control" autocomplete="new-password">
+                    </div>
+                </div>
+                <p id="reset-password-error" class="reset-password-error hidden" role="alert"></p>
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" id="reset-password-submit-btn">Сбросить пароль</button>
+                    <button type="button" class="btn-secondary" id="reset-password-cancel-btn">Отмена</button>
+                </div>
+            </div>
+            <div id="reset-password-success-panel" class="hidden">
+                <p class="reset-password-success-text">Пароль успешно изменён. Сообщите его ученику.</p>
+                <div class="form-row">
+                    <label for="reset-password-result">Новый пароль</label>
+                    <div class="reset-password-result-row">
+                        <input type="text" id="reset-password-result" class="form-control" readonly>
+                        <button type="button" class="btn-secondary" id="reset-password-copy-btn">Копировать</button>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" id="reset-password-done-btn">Готово</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Change Password Modal -->
     <div id="change-password-modal" class="modal hidden">
         <div class="modal-content">

@@ -298,7 +298,28 @@ def reset_user_password(user_id):
     if _is_teacher() and not _can_teacher_manage_student(user):
         return jsonify({'error': 'Недостаточно прав для этого ученика'}), 403
 
-    new_password = secrets.token_urlsafe(8)
+    data = request.get_json(silent=True) or {}
+    mode = (data.get('mode') or 'auto').strip().lower()
+
+    def _validate_manual_password(pw: str):
+        pw = str(pw or '')
+        if len(pw) < 8:
+            return 'Пароль должен быть не короче 8 символов'
+        if not re.search(r'[A-Za-z]', pw):
+            return 'В пароле должна быть хотя бы одна английская буква'
+        if not re.search(r'\d', pw):
+            return 'В пароле должна быть хотя бы одна цифра'
+        return None
+
+    if mode == 'manual':
+        manual_pw = data.get('password') or ''
+        err = _validate_manual_password(manual_pw)
+        if err:
+            return jsonify({'error': err}), 400
+        new_password = str(manual_pw)
+    else:
+        # Backward compatible default: auto-generate.
+        new_password = secrets.token_urlsafe(12)
     user.set_password(new_password)
     user.password_plain = new_password
     db.session.commit()

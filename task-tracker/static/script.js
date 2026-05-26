@@ -282,6 +282,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let _pendingPhotoFile = null;
     let cachedUserRoles = [];
 
+    const resetPasswordModal = document.getElementById('reset-password-modal');
+    const resetPasswordModalClose = document.getElementById('reset-password-modal-close');
+    const resetPasswordFormPanel = document.getElementById('reset-password-form-panel');
+    const resetPasswordSuccessPanel = document.getElementById('reset-password-success-panel');
+    const resetPasswordUserLabel = document.getElementById('reset-password-user-label');
+    const resetPasswordManualFields = document.getElementById('reset-password-manual-fields');
+    const resetPasswordInput = document.getElementById('reset-password-input');
+    const resetPasswordConfirmInput = document.getElementById('reset-password-confirm-input');
+    const resetPasswordError = document.getElementById('reset-password-error');
+    const resetPasswordSubmitBtn = document.getElementById('reset-password-submit-btn');
+    const resetPasswordCancelBtn = document.getElementById('reset-password-cancel-btn');
+    const resetPasswordResult = document.getElementById('reset-password-result');
+    const resetPasswordCopyBtn = document.getElementById('reset-password-copy-btn');
+    const resetPasswordDoneBtn = document.getElementById('reset-password-done-btn');
+    const resetPasswordModeRadios = document.querySelectorAll('input[name="reset-password-mode"]');
+    let resetPasswordUserId = null;
+
     // Teacher card (main page)
     const myTeacherCard = document.getElementById('my-teacher-card');
     const myTeacherPhoto = document.getElementById('my-teacher-photo');
@@ -3800,6 +3817,167 @@ document.addEventListener('DOMContentLoaded', () => {
 
     backToMainFromUsersBtn.addEventListener('click', showMainPage);
 
+    function validateManualResetPassword(pw) {
+        const val = String(pw || '');
+        if (val.length < 8) {
+            return 'Пароль должен быть не короче 8 символов';
+        }
+        if (!/[A-Za-z]/.test(val)) {
+            return 'В пароле должна быть хотя бы одна английская буква';
+        }
+        if (!/\d/.test(val)) {
+            return 'В пароле должна быть хотя бы одна цифра';
+        }
+        return null;
+    }
+
+    function setResetPasswordError(message) {
+        if (!resetPasswordError) return;
+        if (message) {
+            resetPasswordError.textContent = message;
+            resetPasswordError.classList.remove('hidden');
+        } else {
+            resetPasswordError.textContent = '';
+            resetPasswordError.classList.add('hidden');
+        }
+    }
+
+    function updateResetPasswordModeUI() {
+        const mode = document.querySelector('input[name="reset-password-mode"]:checked')?.value || 'auto';
+        if (resetPasswordManualFields) {
+            resetPasswordManualFields.classList.toggle('hidden', mode !== 'manual');
+        }
+        setResetPasswordError('');
+    }
+
+    function closeResetPasswordModal() {
+        if (!resetPasswordModal) return;
+        resetPasswordModal.classList.add('hidden');
+        resetPasswordUserId = null;
+        setResetPasswordError('');
+        if (resetPasswordFormPanel) resetPasswordFormPanel.classList.remove('hidden');
+        if (resetPasswordSuccessPanel) resetPasswordSuccessPanel.classList.add('hidden');
+        if (resetPasswordInput) resetPasswordInput.value = '';
+        if (resetPasswordConfirmInput) resetPasswordConfirmInput.value = '';
+        if (resetPasswordResult) resetPasswordResult.value = '';
+        const autoRadio = document.querySelector('input[name="reset-password-mode"][value="auto"]');
+        if (autoRadio) autoRadio.checked = true;
+        updateResetPasswordModeUI();
+        if (resetPasswordSubmitBtn) {
+            resetPasswordSubmitBtn.disabled = false;
+            resetPasswordSubmitBtn.textContent = 'Сбросить пароль';
+        }
+    }
+
+    function openResetPasswordModal(userId, userName) {
+        if (!resetPasswordModal) return;
+        resetPasswordUserId = userId;
+        if (resetPasswordUserLabel) {
+            resetPasswordUserLabel.innerHTML = `Ученик: <strong>${escapeHtml(userName || '—')}</strong>`;
+        }
+        if (resetPasswordFormPanel) resetPasswordFormPanel.classList.remove('hidden');
+        if (resetPasswordSuccessPanel) resetPasswordSuccessPanel.classList.add('hidden');
+        if (resetPasswordInput) resetPasswordInput.value = '';
+        if (resetPasswordConfirmInput) resetPasswordConfirmInput.value = '';
+        if (resetPasswordResult) resetPasswordResult.value = '';
+        const autoRadio = document.querySelector('input[name="reset-password-mode"][value="auto"]');
+        if (autoRadio) autoRadio.checked = true;
+        updateResetPasswordModeUI();
+        if (resetPasswordSubmitBtn) {
+            resetPasswordSubmitBtn.disabled = false;
+            resetPasswordSubmitBtn.textContent = 'Сбросить пароль';
+        }
+        if (resetPasswordCopyBtn) resetPasswordCopyBtn.textContent = 'Копировать';
+        resetPasswordModal.classList.remove('hidden');
+    }
+
+    function showResetPasswordSuccess(newPassword) {
+        if (resetPasswordFormPanel) resetPasswordFormPanel.classList.add('hidden');
+        if (resetPasswordSuccessPanel) resetPasswordSuccessPanel.classList.remove('hidden');
+        if (resetPasswordResult) resetPasswordResult.value = newPassword;
+        if (editingUserId === resetPasswordUserId && formStudentPasswordView) {
+            formStudentPasswordView.value = newPassword;
+            if (copyStudentPasswordBtn) copyStudentPasswordBtn.disabled = false;
+        }
+        copyTextToClipboard(newPassword).then((copied) => {
+            if (resetPasswordCopyBtn) {
+                resetPasswordCopyBtn.textContent = copied ? 'Скопировано ✓' : 'Копировать';
+            }
+        });
+    }
+
+    if (resetPasswordModeRadios.length) {
+        resetPasswordModeRadios.forEach((radio) => {
+            radio.addEventListener('change', updateResetPasswordModeUI);
+        });
+    }
+    if (resetPasswordModalClose) resetPasswordModalClose.addEventListener('click', closeResetPasswordModal);
+    if (resetPasswordCancelBtn) resetPasswordCancelBtn.addEventListener('click', closeResetPasswordModal);
+    if (resetPasswordDoneBtn) resetPasswordDoneBtn.addEventListener('click', closeResetPasswordModal);
+    if (resetPasswordModal) {
+        resetPasswordModal.addEventListener('click', (e) => {
+            if (e.target === resetPasswordModal) closeResetPasswordModal();
+        });
+    }
+    if (resetPasswordCopyBtn) {
+        resetPasswordCopyBtn.addEventListener('click', () => {
+            const val = resetPasswordResult?.value || '';
+            if (!val) return;
+            copyTextToClipboard(val).then((copied) => {
+                resetPasswordCopyBtn.textContent = copied ? 'Скопировано ✓' : 'Не удалось скопировать';
+                if (copied) {
+                    setTimeout(() => { resetPasswordCopyBtn.textContent = 'Копировать'; }, 2000);
+                }
+            });
+        });
+    }
+    if (resetPasswordSubmitBtn) {
+        resetPasswordSubmitBtn.addEventListener('click', () => {
+            if (!resetPasswordUserId) return;
+            const mode = document.querySelector('input[name="reset-password-mode"]:checked')?.value || 'auto';
+            const payload = { mode };
+            if (mode === 'manual') {
+                const pw = resetPasswordInput?.value || '';
+                const confirm = resetPasswordConfirmInput?.value || '';
+                if (pw !== confirm) {
+                    setResetPasswordError('Пароли не совпадают');
+                    return;
+                }
+                const err = validateManualResetPassword(pw);
+                if (err) {
+                    setResetPasswordError(err);
+                    return;
+                }
+                payload.password = pw;
+            }
+            setResetPasswordError('');
+            resetPasswordSubmitBtn.disabled = true;
+            resetPasswordSubmitBtn.textContent = 'Сохранение…';
+            fetch(`/api/users/${resetPasswordUserId}/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
+                .then(({ ok, body }) => {
+                    if (!ok) {
+                        setResetPasswordError(body.error || 'Ошибка сброса пароля');
+                        resetPasswordSubmitBtn.disabled = false;
+                        resetPasswordSubmitBtn.textContent = 'Сбросить пароль';
+                        return;
+                    }
+                    if (body.new_password) {
+                        showResetPasswordSuccess(body.new_password);
+                    }
+                })
+                .catch(() => {
+                    setResetPasswordError('Ошибка сети');
+                    resetPasswordSubmitBtn.disabled = false;
+                    resetPasswordSubmitBtn.textContent = 'Сбросить пароль';
+                });
+        });
+    }
+
     function fetchUsers(page) {
         if (page !== undefined) currentUsersPage = page;
         if (!hasRole('admin', 'owner', 'teacher')) {
@@ -3865,7 +4043,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="cell-bool">${user.telegram_notifications ? '✓' : '✗'}</td>
                     <td><button class="btn-edit" data-id="${user.id}">Изменить</button></td>
                     ${deleteCell}
-                    <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>
+                    <td><button class="btn-reset-password" data-id="${user.id}" data-name="${escapeAttr(user.display_name)}">Сбросить пароль</button></td>
                     <td>${balanceBtn}</td>`;
             } else {
                 tr.innerHTML = `
@@ -3873,7 +4051,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(user.display_name)}</td>
                     <td>${user.created_at || '—'}</td>
                     <td>${user.telegram_username ? escapeHtml(user.telegram_username) : '—'}</td>
-                    <td><button class="btn-reset-password" data-id="${user.id}">Сбросить пароль</button></td>`;
+                    <td><button class="btn-reset-password" data-id="${user.id}" data-name="${escapeAttr(user.display_name || user.username)}">Сбросить пароль</button></td>`;
             }
             usersTbody.appendChild(tr);
         });
@@ -4303,20 +4481,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (resetBtn) {
-            if (!confirm('Сбросить пароль этого пользователя?')) return;
-            const id = resetBtn.dataset.id;
-            fetch(`/api/users/${id}/reset-password`, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.new_password) {
-                        copyTextToClipboard(data.new_password).then((copied) => {
-                            const copyHint = copied ? '\nПароль скопирован в буфер обмена.' : '\nНе удалось скопировать автоматически.';
-                            alert(`Новый пароль: ${data.new_password}\n${copyHint}\n\nСообщите его пользователю.`);
-                        });
-                    } else if (data.error) {
-                        alert(data.error);
-                    }
-                });
+            const id = parseInt(resetBtn.dataset.id, 10);
+            const name = resetBtn.dataset.name || '';
+            openResetPasswordModal(id, name);
         }
 
         const balBtn = e.target.closest('.btn-balance');
