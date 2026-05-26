@@ -24,7 +24,7 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, LessonHomework, ChatDialog, ChatMessage, ChatPushSubscription
+from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, StudentLessonPrice, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, LessonHomework, ChatDialog, ChatMessage, ChatPushSubscription
 
 
 # ========== Flask-Login Callbacks ==========
@@ -298,6 +298,30 @@ with app.app_context():
     up_cols = [col[1] for col in cursor.execute('PRAGMA table_info(user_plan)').fetchall()]
     if 'next_step_id' not in up_cols:
         cursor.execute('ALTER TABLE user_plan ADD COLUMN next_step_id INTEGER')
+        conn.commit()
+
+    # История стоимости урока
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='student_lesson_price'")
+    if not cursor.fetchone():
+        cursor.execute('''CREATE TABLE student_lesson_price (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            price REAL NOT NULL,
+            effective_from DATE,
+            created_at DATETIME,
+            created_by_user_id INTEGER,
+            FOREIGN KEY(student_id) REFERENCES user(id),
+            FOREIGN KEY(created_by_user_id) REFERENCES user(id)
+        )''')
+        cursor.execute(
+            'CREATE INDEX IF NOT EXISTS ix_student_lesson_price_student_id ON student_lesson_price(student_id)'
+        )
+        cursor.execute(
+            '''INSERT INTO student_lesson_price (student_id, price, effective_from, created_at)
+               SELECT id, lesson_price, NULL, datetime('now')
+               FROM user
+               WHERE lesson_price IS NOT NULL'''
+        )
         conn.commit()
 
     # Миграция таблицы setting (создаётся через db.create_all, но на всякий случай)

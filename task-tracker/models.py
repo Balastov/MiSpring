@@ -441,6 +441,27 @@ class HomeworkEvidence(db.Model):
         }
 
 
+class StudentLessonPrice(db.Model):
+    """История стоимости урока ученика. effective_from=NULL — начальная цена без даты."""
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    price = db.Column(db.Float, nullable=False)
+    effective_from = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'price': self.price,
+            'effective_from': self.effective_from.isoformat() if self.effective_from else None,
+            'effective_from_display': self.effective_from.strftime('%d.%m.%Y') if self.effective_from else None,
+            'is_initial': self.effective_from is None,
+            'created_at': self.created_at.strftime('%d.%m.%Y %H:%M') if self.created_at else None,
+        }
+
+
 class StudentPayment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)

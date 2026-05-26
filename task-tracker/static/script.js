@@ -4352,12 +4352,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let lessonPriceHtml = '';
         if (canManage) {
+            const requiresDate = !!data.requires_price_effective_date;
+            const history = data.lesson_price_history || [];
+            const historyHtml = history.length
+                ? history.map(h => `
+                    <div class="lesson-price-history-item">
+                        <span class="lesson-price-history-date">${h.is_initial ? 'с начала' : (h.effective_from_display || '—')}</span>
+                        <span class="lesson-price-history-price">${Number(h.price).toFixed(0)} ₽</span>
+                    </div>
+                `).join('')
+                : '<p class="empty-msg">История не задана</p>';
             lessonPriceHtml = `
-            <div class="balance-lesson-price">
-                <label>Стоимость урока (₽):</label>
-                <div class="lesson-price-row">
-                    <input type="number" id="balance-lesson-price-input" class="form-control" value="${data.lesson_price != null ? data.lesson_price : ''}" min="0" step="1" placeholder="не задана">
-                    <button type="button" class="btn-primary btn-sm" id="save-lesson-price-btn">Сохранить</button>
+            <div class="balance-lesson-price-block">
+                <div class="balance-lesson-price">
+                    <label>Текущая стоимость (₽):</label>
+                    <span class="balance-lesson-price-current">${data.lesson_price != null ? Number(data.lesson_price).toFixed(0) : '—'}</span>
+                </div>
+                <div class="lesson-price-form">
+                    <label>Новая стоимость (₽):</label>
+                    <div class="lesson-price-row">
+                        <input type="number" id="balance-lesson-price-input" class="form-control" value="" min="0" step="1" placeholder="${data.lesson_price != null ? data.lesson_price : 'не задана'}">
+                        <input type="date" id="balance-lesson-price-date" class="form-control" title="Дата, с которой действует цена"${requiresDate ? ' required' : ''}>
+                        <button type="button" class="btn-primary btn-sm" id="save-lesson-price-btn">Добавить</button>
+                    </div>
+                    <p class="hint lesson-price-hint">${requiresDate
+                        ? 'Укажите дату, с которой действует новая стоимость'
+                        : 'Для первой стоимости дата не нужна; при смене цены укажите дату'}</p>
+                </div>
+                <div class="lesson-price-history">
+                    <h4 class="lesson-price-history-title">История стоимости</h4>
+                    <div class="lesson-price-history-list">${historyHtml}</div>
                 </div>
             </div>`;
         }
@@ -4411,14 +4435,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (canManage) {
             document.getElementById('save-lesson-price-btn').addEventListener('click', () => {
-                const price = document.getElementById('balance-lesson-price-input').value;
+                const priceInput = document.getElementById('balance-lesson-price-input');
+                const dateInput = document.getElementById('balance-lesson-price-date');
+                const priceVal = priceInput.value.trim();
+                if (priceVal === '') {
+                    alert('Укажите новую стоимость');
+                    return;
+                }
+                const requiresDate = !!data.requires_price_effective_date;
+                const effectiveFrom = dateInput ? dateInput.value : '';
+                if (requiresDate && !effectiveFrom) {
+                    alert('Укажите дату, с которой действует новая стоимость');
+                    return;
+                }
+                const payload = { lesson_price: parseFloat(priceVal) };
+                if (effectiveFrom) payload.effective_from = effectiveFrom;
                 fetch(`/api/students/${studentId}/lesson-price`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ lesson_price: price === '' ? null : parseFloat(price) })
+                    body: JSON.stringify(payload)
                 })
-                .then(r => r.json())
-                .then(() => loadBalanceData(studentId, studentName))
+                .then(r => r.json().then(body => ({ ok: r.ok, body })))
+                .then(({ ok, body }) => {
+                    if (!ok) {
+                        alert(body.error || 'Ошибка сохранения');
+                        return;
+                    }
+                    loadBalanceData(studentId, studentName);
+                })
                 .catch(() => alert('Ошибка сохранения'));
             });
 

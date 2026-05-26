@@ -3,6 +3,7 @@ from flask_login import current_user, login_required
 from extensions import db
 from models import User, UserRole, Role
 from helpers import require_role, user_has_role
+from lesson_price_service import sync_student_lesson_price
 import secrets
 import os
 import re
@@ -187,6 +188,11 @@ def add_user():
             db.session.add(UserRole(user_id=user.id, role_id=role_id))
     if _role_ids_include_student(role_ids):
         _apply_student_fields(user, data)
+        err = sync_student_lesson_price(
+            user, user.lesson_price, created_by_user_id=current_user.id
+        )
+        if err:
+            return jsonify({'error': err}), 400
     db.session.commit()
 
     return jsonify(user.to_dict()), 201
@@ -233,16 +239,15 @@ def update_user(user_id):
 
     if 'lesson_price' in data:
         lp = data.get('lesson_price')
-        if lp is None or (isinstance(lp, str) and not str(lp).strip()):
-            user.lesson_price = None
-        else:
-            try:
-                price = float(lp)
-                if price < 0:
-                    return jsonify({'error': 'Стоимость урока не может быть отрицательной'}), 400
-                user.lesson_price = price
-            except (TypeError, ValueError):
-                return jsonify({'error': 'Некорректная стоимость урока'}), 400
+        price_val = None if lp is None or (isinstance(lp, str) and not str(lp).strip()) else lp
+        err = sync_student_lesson_price(
+            user,
+            price_val,
+            effective_from=data.get('lesson_price_effective_from'),
+            created_by_user_id=current_user.id,
+        )
+        if err:
+            return jsonify({'error': err}), 400
 
     if 'timezone' in data:
         timezone = _normalize_timezone(data.get('timezone'))

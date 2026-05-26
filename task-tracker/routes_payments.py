@@ -4,6 +4,12 @@ from datetime import datetime, timedelta
 from extensions import db
 from models import User, StudentPayment, Task, TaskStatus, TaskType
 from helpers import user_has_role
+from lesson_price_service import (
+    sync_student_lesson_price,
+    lesson_price_history,
+    build_price_history_index,
+    price_at_date,
+)
 
 payments_bp = Blueprint('payments', __name__)
 
@@ -92,6 +98,9 @@ def _get_balance(student):
         'prepaid_since': student.prepaid_since.strftime('%d.%m.%Y') if student.prepaid_since else None,
         'prepaid_since_iso': student.prepaid_since.strftime('%Y-%m-%d') if student.prepaid_since else None,
         'lesson_price': student.lesson_price,
+        'lesson_price_history': [h.to_dict() for h in (history := lesson_price_history(student.id))],
+        'requires_price_effective_date': bool(history)
+        and not (len(history) == 1 and history[0].effective_from is None),
         'payments': [p.to_dict() for p in payments],
     }
 
@@ -191,17 +200,22 @@ def update_lesson_price(student_id):
     student = db.get_or_404(User, student_id)
     data = request.get_json(force=True, silent=True) or {}
 
-    price = data.get('lesson_price')
-    if price is None or price == '':
-        student.lesson_price = None
-    else:
-        try:
-            student.lesson_price = float(price)
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Некорректная цена'}), 400
+    err = sync_student_lesson_price(
+        student,
+        data.get('lesson_price'),
+        effective_from=data.get('effective_from'),
+        created_by_user_id=current_user.id,
+    )
+    if err:
+        return jsonify({'error': err}), 400
 
     db.session.commit()
-    return jsonify({'ok': True, 'lesson_price': student.lesson_price})
+    history = lesson_price_history(student.id)
+    return jsonify({
+        'ok': True,
+        'lesson_price': student.lesson_price,
+        'lesson_price_history': [h.to_dict() for h in history],
+    })
 
 
 @payments_bp.route('/api/students/<int:student_id>/test-notification', methods=['POST'])
@@ -304,7 +318,7 @@ def _parse_report_date(value):
 @payments_bp.route('/api/reports/income', methods=['GET'])
 @login_required
 def income_by_lessons_report():
-    """Доход: уроки с отметкой «оплачен» (is_paid), дата начала в интервале; сумма = стоимость урока ученика."""
+    """Доход: уроки с отметкой «оплачен» (is_paid), дата начала в интервале; сумма — по стоимости на дату урока."""
     if not user_has_role('admin', 'owner', 'teacher'):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
@@ -342,6 +356,7 @@ def income_by_lessons_report():
     tasks = query.all()
     student_ids = {t.student_id for t in tasks if t.student_id}
     users_by_id = {u.id: u for u in User.query.filter(User.id.in_(student_ids)).all()} if student_ids else {}
+    price_history_by_student = build_price_history_index(list(student_ids))
 
     by_student = {}
     total_amount = 0.0
@@ -350,9 +365,14 @@ def income_by_lessons_report():
     for t in tasks:
         sid = t.student_id
         user = users_by_id.get(sid)
-        price = float(user.lesson_price) if user and user.lesson_price is not None else 0.0
-        if user and user.lesson_price is None:
+        fallback = float(user.lesson_price) if user and user.lesson_price is not None else None
+        history = price_history_by_student.get(sid, [])
+        resolved = price_at_date(history, t.start_date, fallback=fallback)
+        if resolved is None:
+            price = 0.0
             lessons_without_price += 1
+        else:
+            price = float(resolved)
 
         if sid not in by_student:
             by_student[sid] = {
