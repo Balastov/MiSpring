@@ -30,9 +30,9 @@ def _send_tg_message(token, chat_id, text):
 def send_lesson_reminders(app):
     """
     Запускается планировщиком каждые 5 минут.
-    Ищет уроки с началом через ~24 часа или ~1 час
-    и отправляет ученику напоминание в Telegram.
-    Дополнительно: сообщения в чат от назначенного учителя за ~24 ч и ~30 мин до урока (подпись «ИмяGPT»).
+    Ищет уроки с началом через ~1 час и отправляет ученику напоминание в Telegram.
+    Дополнительно: сообщение в чат от учителя за ~30 мин до урока (подпись отправителя — в UI, не в тексте).
+    Напоминания за ~24 ч отключены (см. закомментированные блоки ниже).
     """
     with app.app_context():
         from extensions import db
@@ -121,12 +121,7 @@ def send_lesson_reminders(app):
                     _alert_admin_missing_teacher(student, task, 'teacher_inactive')
                     continue
                 label = lesson_reminder_sender_label(teacher)
-                body = build_text(task)
-                footer = f'\n\n— {label}'
-                if len(body) + len(footer) > 1000:
-                    body = (body[: max(0, 1000 - len(footer))]).rstrip() + footer
-                else:
-                    body = body + footer
+                body = (build_text(task) or '')[:1000]
                 if send_system_chat_message(teacher, student.id, body, sender_label=label):
                     logger.info(f'Chat lesson reminder sent: task={task_id}, student={student.id}, teacher={teacher.id}')
 
@@ -159,20 +154,20 @@ def send_lesson_reminders(app):
                 _send_tg_message(token, student.telegram_id, text)
                 logger.info(f'Reminder sent: task={task_id}, student={student.id}')
 
-        # ── Чат: за 24 часа ───────────────────────────────────────────────────
-        ids_chat_24h = [row.id for row in Task.query.filter(
-            Task.task_type_id == lesson_type.id,
-            Task.start_date >= now + timedelta(hours=23, minutes=45),
-            Task.start_date <= now + timedelta(hours=24, minutes=15),
-            Task.notified_chat_24h == False,  # noqa: E712
-            Task.student_id.isnot(None),
-        ).with_entities(Task.id).all()]
-
-        _claim_chat_and_send(
-            ids_chat_24h,
-            Task.notified_chat_24h,
-            lambda t: f'Приветствую! Завтра у вас урок в {_lesson_start_label(t)}',
-        )
+        # ── Чат: за 24 часа (отключено; раскомментировать при необходимости) ──
+        # ids_chat_24h = [row.id for row in Task.query.filter(
+        #     Task.task_type_id == lesson_type.id,
+        #     Task.start_date >= now + timedelta(hours=23, minutes=45),
+        #     Task.start_date <= now + timedelta(hours=24, minutes=15),
+        #     Task.notified_chat_24h == False,  # noqa: E712
+        #     Task.student_id.isnot(None),
+        # ).with_entities(Task.id).all()]
+        #
+        # _claim_chat_and_send(
+        #     ids_chat_24h,
+        #     Task.notified_chat_24h,
+        #     lambda t: f'Приветствую! Завтра у вас урок в {_lesson_start_label(t)}',
+        # )
 
         # ── Чат: за 30 минут ─────────────────────────────────────────────────
         ids_chat_30m = [row.id for row in Task.query.filter(
@@ -193,23 +188,23 @@ def send_lesson_reminders(app):
             logger.warning('TELEGRAM_BOT_TOKEN не задан — Telegram-напоминания пропущены')
             return
 
-        # ── 24-часовое напоминание ──────────────────────────────────────────
-        ids_24h = [row.id for row in Task.query.filter(
-            Task.task_type_id == lesson_type.id,
-            Task.start_date >= now + timedelta(hours=23, minutes=45),
-            Task.start_date <= now + timedelta(hours=24, minutes=15),
-            Task.notified_24h == False,  # noqa: E712
-            Task.student_id.isnot(None),
-        ).with_entities(Task.id).all()]
+        # ── Telegram: за 24 часа (отключено; раскомментировать при необходимости) ──
+        # ids_24h = [row.id for row in Task.query.filter(
+        #     Task.task_type_id == lesson_type.id,
+        #     Task.start_date >= now + timedelta(hours=23, minutes=45),
+        #     Task.start_date <= now + timedelta(hours=24, minutes=15),
+        #     Task.notified_24h == False,  # noqa: E712
+        #     Task.student_id.isnot(None),
+        # ).with_entities(Task.id).all()]
+        #
+        # _claim_and_notify(
+        #     ids_24h,
+        #     Task.notified_24h,
+        #     lambda t: f'Здравствуйте!\n Напоминаю, завтра {t.start_date.day} {MONTHS_RU[t.start_date.month]} '
+        #               f'в {t.start_date.strftime("%H:%M")} у вас урок английского языка.',
+        # )
 
-        _claim_and_notify(
-            ids_24h,
-            Task.notified_24h,
-            lambda t: f'Здравствуйте!\n Напоминаю, завтра {t.start_date.day} {MONTHS_RU[t.start_date.month]} '
-                      f'в {t.start_date.strftime("%H:%M")} у вас урок английского языка.',
-        )
-
-        # ── Часовое напоминание ─────────────────────────────────────────────
+        # ── Часовое напоминание (Telegram) ───────────────────────────────────
         ids_1h = [row.id for row in Task.query.filter(
             Task.task_type_id == lesson_type.id,
             Task.start_date >= now + timedelta(minutes=45),
