@@ -4766,9 +4766,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.error) return;
                 document.getElementById('plan-title').textContent = data.template.full_name || data.template.name;
                 const p = data.progress;
-                const done = Math.min(p.conducted, p.total);
+                const done = p.completed != null ? p.completed : (p.conducted || 0);
                 document.getElementById('plan-progress-label').textContent =
-                    `${done} из ${p.total} тем пройдено`;
+                    `${done} из ${p.total} тем изучено`;
                 document.getElementById('plan-progress-percent').textContent = `${p.percent}%`;
                 setTimeout(() => {
                     document.getElementById('plan-progress-fill').style.width = p.percent + '%';
@@ -4776,14 +4776,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const list = document.getElementById('plan-steps-list');
                 list.innerHTML = '';
                 data.steps.forEach((step, i) => {
-                    const isDone = i < p.conducted;
-                    const isCurrent = i === p.conducted && p.conducted < p.total;
-                    const cls = isDone ? 'done' : isCurrent ? 'current' : 'pending';
-                    const icon = isDone ? '✓' : isCurrent ? '→' : String(i + 1);
+                    const status = step.status || 'upcoming';
+                    const cls = status === 'completed' ? 'done' : status === 'current' ? 'current' : 'pending';
+                    const icon = status === 'completed' ? '✓' : status === 'current' ? '→' : String(i + 1);
                     const el = document.createElement('div');
                     el.className = `plan-step plan-step--${cls}`;
                     el.innerHTML = `<span class="plan-step-icon">${icon}</span>
-                        <span class="plan-step-title">${step.title}</span>`;
+                        <span class="plan-step-title">${escapeHtml(step.title)}</span>`;
                     list.appendChild(el);
                 });
             });

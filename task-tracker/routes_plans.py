@@ -7,22 +7,58 @@ from helpers import user_has_role
 plans_bp = Blueprint('plans', __name__)
 
 
-def _get_progress(student_id, template):
+def _annotate_plan_steps(template, next_step_id=None):
+    """Статусы шагов плана: completed (изучено), current (текущая), upcoming (впереди)."""
     if not template:
-        return {'conducted': 0, 'total': 0, 'percent': 0}
-    conducted = db.session.execute(
-        db.select(db.func.count(Task.id))
-        .join(TaskStatus, Task.status_id == TaskStatus.id)
-        .join(TaskType, Task.task_type_id == TaskType.id)
-        .where(
-            Task.student_id == student_id,
-            TaskStatus.name == 'Проведён',
-            TaskType.name == 'Урок',
-        )
-    ).scalar() or 0
-    total = len(template.steps)
-    percent = min(int(conducted * 100 / total), 100) if total > 0 else 0
-    return {'conducted': conducted, 'total': total, 'percent': percent}
+        return []
+    steps = sorted(template.steps, key=lambda s: (s.order_num, s.id))
+    if not steps:
+        return []
+
+    next_order = None
+    next_id = None
+    if next_step_id:
+        ns = db.session.get(PlanStep, next_step_id)
+        if ns and ns.template_id == template.id:
+            next_order = ns.order_num
+            next_id = ns.id
+
+    annotated = []
+    for i, step in enumerate(steps):
+        if next_order is None:
+            status = 'current' if i == 0 else 'upcoming'
+        elif step.order_num < next_order:
+            status = 'completed'
+        elif step.id == next_id:
+            status = 'current'
+        else:
+            status = 'upcoming'
+        row = step.to_dict()
+        row['status'] = status
+        annotated.append(row)
+    return annotated
+
+
+def _progress_from_steps(steps_with_status):
+    total = len(steps_with_status)
+    completed = sum(1 for s in steps_with_status if s.get('status') == 'completed')
+    percent = int(completed * 100 / total) if total > 0 else 0
+    current = next((s for s in steps_with_status if s.get('status') == 'current'), None)
+    return {
+        'conducted': completed,
+        'completed': completed,
+        'total': total,
+        'percent': percent,
+        'current_step_id': current.get('id') if current else None,
+        'current_step_title': current.get('title') if current else None,
+    }
+
+
+def _get_progress(student_id, template, next_step_id=None):
+    if not template:
+        return _progress_from_steps([])
+    steps = _annotate_plan_steps(template, next_step_id)
+    return _progress_from_steps(steps)
 
 
 def _template_full_name(template):
@@ -225,9 +261,10 @@ def get_student_plan(student_id):
         return jsonify({'error': 'План не найден', 'template': None, 'steps': [], 'progress': None})
     if template.parent_id is None:
         return jsonify({'error': 'Назначен только 1-й уровень плана. Назначьте 2-й уровень.', 'template': None, 'steps': [], 'progress': None})
-    progress = _get_progress(student_id, template)
+    steps = _annotate_plan_steps(template, up.next_step_id)
+    progress = _progress_from_steps(steps)
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
-                    'steps': [s.to_dict() for s in template.steps],
+                    'steps': steps,
                     'progress': progress,
                     'next_step_id': up.next_step_id})
 
@@ -268,10 +305,12 @@ def my_plan():
         return jsonify({'error': 'План не найден'}), 404
     if template.parent_id is None:
         return jsonify({'error': 'Назначен только 1-й уровень плана. Обратитесь к учителю для назначения 2-го уровня.'}), 400
-    progress = _get_progress(current_user.id, template)
+    steps = _annotate_plan_steps(template, up.next_step_id)
+    progress = _progress_from_steps(steps)
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
-                    'steps': [s.to_dict() for s in template.steps],
-                    'progress': progress})
+                    'steps': steps,
+                    'progress': progress,
+                    'next_step_id': up.next_step_id})
 
 
 # ── Список студентов с назначенными планами (для страницы управления) ─────────

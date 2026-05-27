@@ -918,6 +918,77 @@
     color: var(--sd-text);
 }
 
+.sd-plan-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 4px;
+    padding-right: 2px;
+}
+
+.sd-plan-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+    border-left: 3px solid transparent;
+}
+
+.sd-plan-step--done {
+    background: #ecfdf5;
+    color: var(--sd-text-muted);
+}
+
+.sd-plan-step--current {
+    background: rgba(26, 81, 95, 0.08);
+    color: var(--sd-text);
+    font-weight: 600;
+    border-left-color: var(--sd-primary, #1a515f);
+}
+
+.sd-plan-step--pending {
+    background: #f3f4f6;
+    color: var(--sd-text-muted);
+}
+
+.sd-plan-step-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.sd-plan-step--done .sd-plan-step-icon {
+    background: var(--sd-success, #16a34a);
+    color: #fff;
+}
+
+.sd-plan-step--current .sd-plan-step-icon {
+    background: var(--sd-primary, #1a515f);
+    color: #fff;
+}
+
+.sd-plan-step--pending .sd-plan-step-icon {
+    border: 2px solid #d1d5db;
+    color: var(--sd-text-muted);
+    font-size: 10px;
+}
+
+.sd-plan-step-title {
+    flex: 1;
+    min-width: 0;
+}
+
 .sd-btn-link {
     background: none;
     border: none;

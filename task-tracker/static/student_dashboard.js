@@ -559,8 +559,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Learning Plan =====
 
+    function planStepUi(status, index) {
+        if (status === 'completed') {
+            return { cls: 'done', icon: '✓', label: 'Изучено' };
+        }
+        if (status === 'current') {
+            return { cls: 'current', icon: '→', label: 'Сейчас' };
+        }
+        return { cls: 'pending', icon: String(index + 1), label: 'Впереди' };
+    }
+
+    function renderPlan(data) {
+        if (!sdPlanContent) return;
+        const template = data.template || {};
+        const steps = Array.isArray(data.steps) ? data.steps : [];
+        const progress = data.progress || { completed: 0, total: 0, percent: 0 };
+        const done = progress.completed != null ? progress.completed : (progress.conducted || 0);
+        const total = progress.total || steps.length || 0;
+        const percent = progress.percent != null ? progress.percent : (total ? Math.round(done * 100 / total) : 0);
+        const currentTitle = progress.current_step_title;
+
+        if (!steps.length) {
+            sdPlanContent.innerHTML = '<p class="sd-empty">В плане пока нет тем</p>';
+            return;
+        }
+
+        const stepsHtml = steps.map((step, i) => {
+            const ui = planStepUi(step.status, i);
+            return `
+                <div class="sd-plan-step sd-plan-step--${ui.cls}" title="${ui.label}">
+                    <span class="sd-plan-step-icon" aria-hidden="true">${ui.icon}</span>
+                    <span class="sd-plan-step-title">${escapeHtml(step.title || '—')}</span>
+                </div>`;
+        }).join('');
+
+        const currentHtml = currentTitle
+            ? `<p class="sd-plan-next">Текущая тема: <b>${escapeHtml(currentTitle)}</b></p>`
+            : '';
+
+        sdPlanContent.innerHTML = `
+            <div class="sd-plan-name">${escapeHtml(template.full_name || template.name || 'План обучения')}</div>
+            <div class="sd-plan-progress-wrap">
+                <div class="sd-plan-progress-label">
+                    <span>${done} из ${total} тем изучено</span>
+                    <span>${percent}%</span>
+                </div>
+                <div class="sd-plan-progress-track" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100">
+                    <div class="sd-plan-progress-fill" style="width:0%"></div>
+                </div>
+            </div>
+            ${currentHtml}
+            <div class="sd-plan-steps-list">${stepsHtml}</div>
+        `;
+
+        requestAnimationFrame(() => {
+            const fill = sdPlanContent.querySelector('.sd-plan-progress-fill');
+            if (fill) fill.style.width = `${percent}%`;
+        });
+    }
+
     function loadPlan() {
-        sdPlanContent.innerHTML = '<p class="sd-empty">Этот функционал на доработке</p>';
+        if (!sdPlanContent) return;
+        sdPlanContent.innerHTML = '<p class="sd-loading">Загрузка…</p>';
+        fetch('/api/my-plan')
+            .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
+            .then(({ ok, body }) => {
+                if (!ok) {
+                    const msg = body.error || 'План не назначен';
+                    sdPlanContent.innerHTML = `<p class="sd-empty">${escapeHtml(msg)}</p>`;
+                    return;
+                }
+                renderPlan(body);
+            })
+            .catch(() => {
+                sdPlanContent.innerHTML = '<p class="sd-empty">Не удалось загрузить план</p>';
+            });
     }
 
     // ===== Lessons History =====
