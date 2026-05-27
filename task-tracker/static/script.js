@@ -4785,6 +4785,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="plan-step-title">${escapeHtml(step.title)}</span>`;
                     list.appendChild(el);
                 });
+                requestAnimationFrame(() => {
+                    const currentEl = list.querySelector('.plan-step--current');
+                    if (currentEl) {
+                        currentEl.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    }
+                });
             });
     }
 

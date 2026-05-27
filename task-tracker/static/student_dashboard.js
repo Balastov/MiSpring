@@ -615,6 +615,11 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(() => {
             const fill = sdPlanContent.querySelector('.sd-plan-progress-fill');
             if (fill) fill.style.width = `${percent}%`;
+            const list = sdPlanContent.querySelector('.sd-plan-steps-list');
+            const currentEl = list && list.querySelector('.sd-plan-step--current');
+            if (currentEl) {
+                currentEl.scrollIntoView({ block: 'center', inline: 'nearest' });
+            }
         });
     }
 
