@@ -1449,11 +1449,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const s = data.series;
                 seriesStudentNameInput.value = s.student_name || '';
                 seriesTaskTypeNameInput.value = s.task_type_name || '';
-                seriesStartDateInput.value = toDatetimeLocalInputValue(s.start_date_iso);
+                if (seriesStartDateInput) {
+                    const anchorStart = formStartDate && formStartDate.value
+                        ? formStartDate.value.slice(0, 16)
+                        : toDatetimeLocalInputValue(s.start_date_iso);
+                    seriesStartDateInput.value = anchorStart;
+                }
                 if (seriesRecurrenceRuleInput) {
                     seriesRecurrenceRuleInput.value = s.recurrence_rule || 'WEEKLY';
                 }
-                if (seriesUntilDateInput) seriesUntilDateInput.value = toDatetimeLocalInputValue(s.end_date_iso);
+                if (seriesUntilDateInput) {
+                    const endIso = s.end_date_iso || '';
+                    seriesUntilDateInput.value = endIso.length >= 10 ? endIso.slice(0, 10) : endIso;
+                }
                 lessonSeriesModal.classList.remove('hidden');
             })
             .catch(() => alert('Не удалось загрузить серию'));
@@ -1487,18 +1495,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Укажите дату окончания серии');
                 return;
             }
-            const startDateOnly = seriesStartDateInput && seriesStartDateInput.value
-                ? seriesStartDateInput.value.slice(0, 10)
-                : '';
-            if (startDateOnly && untilVal < startDateOnly) {
-                alert('Дата окончания серии должна быть не раньше первого урока');
+            const startVal = seriesStartDateInput ? seriesStartDateInput.value : '';
+            if (!startVal) {
+                alert('Укажите дату и время урока');
+                return;
+            }
+            const startDateOnly = startVal.slice(0, 10);
+            if (untilVal < startDateOnly) {
+                alert('Дата окончания серии должна быть не раньше даты урока');
                 return;
             }
             fetch(`/api/lesson-series/${currentSeriesId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    end_date: untilVal,
+                    start_date: startVal,
+                    from_task_id: editingTaskId,
+                    repeat_until: untilVal,
                     recurrence_rule: seriesRecurrenceRuleInput ? seriesRecurrenceRuleInput.value : 'WEEKLY',
                 }),
             })
@@ -1514,7 +1527,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         BIWEEKLY: 'через неделю',
                         MONTHLY: 'каждый месяц',
                     };
-                    const untilLabel = untilVal ? untilVal.replace('T', ' ') : '';
+                    const untilLabel = untilVal || '';
                     closeLessonSeriesModal();
                     // Обновляем календарь и таблицу
                     if (currentView === 'calendar' && calendar) {

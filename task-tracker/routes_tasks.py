@@ -1096,6 +1096,46 @@ def get_lesson_series(series_id):
     return jsonify({'series': data})
 
 
+def _series_status_map(tasks):
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    if not status_ids:
+        return {}
+    return {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+
+
+def _apply_series_task_datetime(task, start_dt, duration):
+    mins = duration or task.duration or 60
+    task.start_date = start_dt
+    task.end_date = start_dt + timedelta(minutes=mins)
+    task.duration = mins
+    if hasattr(task, 'series_exception'):
+        task.series_exception = False
+
+
+def _clone_series_task(template_task, series, start_dt, duration):
+    dt_end = start_dt + timedelta(minutes=duration)
+    return Task(
+        description=template_task.description or '',
+        created_at=datetime.now(),
+        start_date=start_dt,
+        end_date=dt_end,
+        author=template_task.author,
+        user_id=template_task.user_id,
+        student_id=template_task.student_id,
+        is_paid=template_task.is_paid,
+        payment_date=template_task.payment_date,
+        homework_id=None,
+        homework_required=False,
+        status_id=None,
+        task_type_id=series.task_type_id,
+        duration=duration,
+        comment=None,
+        plan_step_id=None,
+        series_id=series.id,
+        series_exception=False,
+    )
+
+
 @tasks_bp.route('/api/lesson-series/<int:series_id>', methods=['PUT'])
 @login_required
 def update_lesson_series(series_id):
@@ -1111,87 +1151,66 @@ def update_lesson_series(series_id):
     if not repeat_until:
         return jsonify({'error': 'Некорректная дата окончания серии'}), 400
 
-    if not series.start_date:
-        return jsonify({'error': 'Серия не содержит даты начала'}), 400
-    if repeat_until < series.start_date:
-        return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
     limit_error = _validate_repeat_until_limit(repeat_until)
     if limit_error:
         return jsonify({'error': limit_error}), 400
     new_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or _normalize_recurrence_rule(series.recurrence_rule) or 'WEEKLY'
 
     try:
-        desired_starts = _build_series_starts(series.start_date, repeat_until, new_rule)
-        if not desired_starts:
-            return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
-
         existing_tasks = Task.query.filter_by(series_id=series.id).order_by(
             Task.start_date.asc(), Task.series_index.asc(), Task.id.asc()
         ).all()
         if not existing_tasks:
             return jsonify({'error': 'Не найдены уроки этой серии'}), 400
 
-        # Берём первый урок серии как шаблон для добавляемых уроков
-        template_task = existing_tasks[0]
+        anchor_task = existing_tasks[0]
+        from_task_id = data.get('from_task_id')
+        if from_task_id:
+            candidate = Task.query.filter_by(id=int(from_task_id), series_id=series.id).first()
+            if candidate:
+                anchor_task = candidate
+
+        anchor_start = parse_datetime(data.get('start_date')) if data.get('start_date') else anchor_task.start_date
+        if not anchor_start:
+            return jsonify({'error': 'Укажите дату и время урока'}), 400
+        if repeat_until < anchor_start:
+            return jsonify({'error': 'Дата окончания серии должна быть не раньше даты начала'}), 400
+
+        status_map = _series_status_map(existing_tasks)
+        anchor_terminal = _task_status_terminal(status_map.get(anchor_task.status_id))
+
+        if anchor_terminal:
+            first_start = _next_series_date(anchor_start, new_rule)
+        else:
+            first_start = anchor_start
+
+        desired_starts = _build_series_starts(first_start, repeat_until, new_rule)
+        if not desired_starts:
+            return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
+
+        template_task = anchor_task
         duration = template_task.duration or 60
-        is_paid = template_task.is_paid
-        payment_date = template_task.payment_date
 
-        desired_keys = {dt.strftime('%Y-%m-%dT%H:%M') for dt in desired_starts}
-        existing_by_key = {}
-        for t in existing_tasks:
-            if t.start_date:
-                existing_by_key[t.start_date.strftime('%Y-%m-%dT%H:%M')] = t
+        def _is_before_anchor(t):
+            if not t.start_date or not anchor_task.start_date:
+                return False
+            return t.start_date < anchor_task.start_date
 
-        # Добавляем недостающие уроки серии по новой дате окончания
-        for dt_start in desired_starts:
-            key = dt_start.strftime('%Y-%m-%dT%H:%M')
-            if key in existing_by_key:
-                continue
-            dt_end = dt_start + timedelta(minutes=duration)
-            task = Task(
-                description=template_task.description or '',
-                created_at=datetime.now(),
-                start_date=dt_start,
-                end_date=dt_end,
-                author=template_task.author,
-                user_id=template_task.user_id,
-                student_id=template_task.student_id,
-                is_paid=is_paid,
-                payment_date=payment_date,
-                homework_id=None,
-                homework_required=False,
-                status_id=None,
-                task_type_id=series.task_type_id,
-                duration=duration,
-                comment=None,
-                plan_step_id=None,
-                series_id=series.id,
-                series_exception=False,
-            )
-            db.session.add(task)
+        from_anchor = [t for t in existing_tasks if not _is_before_anchor(t)]
+        updatable = [
+            t for t in from_anchor
+            if not _task_status_terminal(status_map.get(t.status_id))
+        ]
 
-        # Удаляем лишние уроки за пределами новой даты (если не проведены/не отменены)
-        removable = []
-        status_ids = {t.status_id for t in existing_tasks if t.status_id}
-        status_map = {}
-        if status_ids:
-            statuses = TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()
-            status_map = {s.id: s for s in statuses}
-        for t in existing_tasks:
-            key = t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None
-            if key in desired_keys:
-                continue
-            st = status_map.get(t.status_id) if t.status_id else None
-            st_name = st.name if st else None
-            st_group = (st.group or '').lower() if st and st.group else ''
-            if st_name in ('Проведён', 'Отменён', 'Неявка') or st_group in ('done', 'cancelled', 'no_show'):
-                continue
-            removable.append(t)
-        for t in removable:
+        for idx, dt_start in enumerate(desired_starts):
+            if idx < len(updatable):
+                _apply_series_task_datetime(updatable[idx], dt_start, duration)
+            else:
+                db.session.add(_clone_series_task(template_task, series, dt_start, duration))
+
+        for t in updatable[len(desired_starts):]:
             db.session.delete(t)
 
-        # Обновляем индексы/границы серии
         db.session.flush()
         refreshed = Task.query.filter_by(series_id=series.id).order_by(
             Task.start_date.asc(), Task.id.asc()
@@ -1199,7 +1218,8 @@ def update_lesson_series(series_id):
         for idx, t in enumerate(refreshed):
             t.series_index = idx
         series.occurrences_count = len(refreshed)
-        series.end_date = desired_starts[-1]
+        series.start_date = refreshed[0].start_date if refreshed else anchor_start
+        series.end_date = refreshed[-1].start_date if refreshed else desired_starts[-1]
         series.recurrence_rule = new_rule
 
         db.session.commit()
