@@ -1302,7 +1302,9 @@ select.filter-control {
 }
 
 #calendar-container .fc-event.fc-event-no-show,
-#calendar-container .fc-event.fc-event-no-show .fc-event-main {
+#calendar-container .fc-event.fc-event-no-show .fc-event-main,
+#calendar-container .fc-event.fc-event-cancelled,
+#calendar-container .fc-event.fc-event-cancelled .fc-event-main {
     opacity: 0.92;
 }
 

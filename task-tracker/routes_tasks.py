@@ -1779,7 +1779,8 @@ def get_tasks_calendar():
         props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
         end_dt = _calendar_event_end(t)
         is_no_show = status_name == 'Неявка' or status_group == 'no_show'
-        if is_no_show:
+        is_cancelled = status_name == 'Отменён' or status_group == 'cancelled'
+        if is_no_show or is_cancelled:
             event_color = '#9ca3af'
         else:
             event_color = '#38a169' if t.is_paid else '#1A515F'

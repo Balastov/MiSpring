@@ -1858,6 +1858,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (props.status_name === 'Неявка' || sg === 'no_show') {
                     classes.push('fc-event-no-show');
                 }
+                if (props.status_name === 'Отменён' || sg === 'cancelled') {
+                    classes.push('fc-event-cancelled');
+                }
                 return classes;
             },
             height: '100%',
