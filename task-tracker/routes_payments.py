@@ -22,8 +22,9 @@ def sync_prepaid_marks(student):
     - Всего оплачено N уроков (сумма всех StudentPayment).
     - Берём все уроки ученика с start_date >= prepaid_since (кроме отменённых),
       сортируем по дате.
-    - Первые N уроков без ручной отметки помечаем is_paid=True, остальные — is_paid=False.
-    - Уроки с is_paid_manual не меняются автоматически (только вручную в карточке урока).
+    - Первые N уроков (по дате) помечаем is_paid=True, остальные — is_paid=False.
+    - Урок с is_paid_manual и is_paid=True не перезаписывается (ручная «оплачен»).
+    - Урок с is_paid_manual и is_paid=False пересчитывается автоматически (сбрасывается manual).
     - Отменённые уроки пропускаем (не тратят баланс, не помечаются).
     - Обновляем кеш prepaid_lessons = N − кол-во проведённых среди оплаченных.
     """
@@ -54,12 +55,21 @@ def sync_prepaid_marks(student):
     active = [t for t in all_lessons
               if not t.status_id or t.status_id not in cancelled_ids]
 
-    auto_lessons = [t for t in active if not getattr(t, 'is_paid_manual', False)]
+    assigned = 0
     conducted_in_paid = 0
-    for i, t in enumerate(auto_lessons):
-        t.is_paid = i < total_paid
     for t in active:
-        if t.is_paid and conducted_id and t.status_id == conducted_id:
+        manual = bool(getattr(t, 'is_paid_manual', False))
+        if manual and t.is_paid:
+            assigned += 1
+            if conducted_id and t.status_id == conducted_id:
+                conducted_in_paid += 1
+            continue
+        should_pay = assigned < total_paid
+        t.is_paid = should_pay
+        if manual and not t.is_paid:
+            t.is_paid_manual = False
+        assigned += 1
+        if should_pay and conducted_id and t.status_id == conducted_id:
             conducted_in_paid += 1
 
     # Отменённые — снимаем is_paid, они не тратят баланс
@@ -113,6 +123,8 @@ def get_balance(student_id):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
     student = db.get_or_404(User, student_id)
+    if student.prepaid_since:
+        sync_prepaid_marks(student)
     return jsonify(_get_balance(student))
 
 
