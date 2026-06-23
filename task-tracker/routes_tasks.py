@@ -1324,8 +1324,10 @@ def update_task(task_id):
         if 'is_paid' in data:
             new_paid = bool(data['is_paid'])
             if new_paid != bool(task.is_paid):
+                task.is_paid = new_paid
                 task.is_paid_manual = True
-            task.is_paid = new_paid
+            elif not getattr(task, 'is_paid_manual', False):
+                task.is_paid = new_paid
         if 'payment_date' in data:
             task.payment_date = parse_datetime(data['payment_date'])
         if 'homework_unique' in data:
@@ -1728,6 +1730,18 @@ def get_tasks_calendar():
         dt_end = parse_datetime(end[:16]) if len(end) > 16 else parse_datetime(end)
         if dt_end:
             query = query.where(Task.start_date <= dt_end)
+
+    # Пересчёт предоплаты для учеников в выбранном диапазоне (актуальные is_paid в календаре)
+    preview_tasks = db.session.execute(query).scalars().all()
+    student_ids = {t.student_id for t in preview_tasks if t.student_id}
+    if student_ids:
+        from routes_payments import sync_prepaid_marks
+        students = User.query.filter(
+            User.id.in_(student_ids),
+            User.prepaid_since.isnot(None),
+        ).all()
+        for student in students:
+            sync_prepaid_marks(student)
 
     tasks = db.session.execute(query).scalars().all()
 

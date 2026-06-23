@@ -22,10 +22,9 @@ def sync_prepaid_marks(student):
     - Всего оплачено N уроков (сумма всех StudentPayment).
     - Берём все уроки ученика с start_date >= prepaid_since (кроме отменённых),
       сортируем по дате.
-    - Первые N уроков (по дате) помечаем is_paid=True, остальные — is_paid=False.
-    - Урок с is_paid_manual и is_paid=True не перезаписывается (ручная «оплачен»).
-    - Урок с is_paid_manual и is_paid=False пересчитывается автоматически (сбрасывается manual).
-    - Отменённые уроки пропускаем (не тратят баланс, не помечаются).
+    - Первые N уроков (по дате, без отменённых и неявок) помечаем is_paid=True.
+    - При пересчёте сбрасываем is_paid_manual (ручные исключения не сохраняются между синками).
+    - Отменённые и неявки не входят в очередь и не тратят предоплату.
     - Обновляем кеш prepaid_lessons = N − кол-во проведённых среди оплаченных.
     """
     if not student or not student.prepaid_since:
@@ -35,47 +34,42 @@ def sync_prepaid_marks(student):
     if not lesson_type:
         return
 
-    cancelled_statuses = TaskStatus.query.filter(
-        (TaskStatus.name == 'Отменён') | (TaskStatus.group == 'cancelled')
+    skipped_statuses = TaskStatus.query.filter(
+        (TaskStatus.name.in_(['Отменён', 'Неявка']))
+        | (TaskStatus.group.in_(['cancelled', 'no_show']))
     ).all()
-    cancelled_ids = {s.id for s in cancelled_statuses}
+    skipped_ids = {s.id for s in skipped_statuses}
     conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
     conducted_id = conducted_status.id if conducted_status else None
 
     payments = StudentPayment.query.filter_by(student_id=student.id).all()
     total_paid = sum(p.lessons_count for p in payments)
 
-    # Все уроки в периоде предоплаты, кроме отменённых, по дате
+    # Все уроки в периоде предоплаты, кроме отменённых/неявок, по дате
     all_lessons = Task.query.filter(
         Task.student_id == student.id,
         Task.task_type_id == lesson_type.id,
         Task.start_date >= student.prepaid_since,
     ).order_by(Task.start_date.asc(), Task.id.asc()).all()
 
-    active = [t for t in all_lessons
-              if not t.status_id or t.status_id not in cancelled_ids]
+    active = [
+        t for t in all_lessons
+        if not t.status_id or t.status_id not in skipped_ids
+    ]
 
-    assigned = 0
     conducted_in_paid = 0
-    for t in active:
-        manual = bool(getattr(t, 'is_paid_manual', False))
-        if manual and t.is_paid:
-            assigned += 1
-            if conducted_id and t.status_id == conducted_id:
-                conducted_in_paid += 1
-            continue
-        should_pay = assigned < total_paid
-        t.is_paid = should_pay
-        if manual and not t.is_paid:
-            t.is_paid_manual = False
-        assigned += 1
-        if should_pay and conducted_id and t.status_id == conducted_id:
+    for i, t in enumerate(active):
+        paid = i < total_paid
+        t.is_paid = paid
+        t.is_paid_manual = False
+        if paid and conducted_id and t.status_id == conducted_id:
             conducted_in_paid += 1
 
-    # Отменённые — снимаем is_paid, они не тратят баланс
+    # Отменённые / неявки — не тратят предоплату
     for t in all_lessons:
-        if t.status_id and t.status_id in cancelled_ids:
+        if t.status_id and t.status_id in skipped_ids:
             t.is_paid = False
+            t.is_paid_manual = False
 
     remaining = max(0, total_paid - conducted_in_paid)
     student.prepaid_lessons = remaining
