@@ -1796,10 +1796,23 @@ def get_tasks_calendar():
         end_dt = _calendar_event_end(t)
         is_no_show = status_name == 'Неявка' or status_group == 'no_show'
         is_cancelled = status_name == 'Отменён' or status_group == 'cancelled'
-        if is_no_show or is_cancelled:
+        now = datetime.now()
+        overdue_unpaid = (
+            not t.is_paid
+            and t.start_date
+            and t.start_date < now - timedelta(days=7)
+            and not is_no_show
+            and not is_cancelled
+        )
+        if t.is_paid:
+            event_color = '#38a169'
+        elif is_no_show or is_cancelled:
             event_color = '#9ca3af'
+        elif overdue_unpaid:
+            event_color = '#b85c5c'
         else:
-            event_color = '#38a169' if t.is_paid else '#1A515F'
+            event_color = '#1A515F'
+        props['unpaid_overdue_7d'] = overdue_unpaid
         events.append({
             'id': t.id,
             'title': title,

@@ -407,6 +407,12 @@ select.filter-control {
     z-index: 1;
 }
 
+#calendar-container .fc-event.fc-event-unpaid-overdue,
+#calendar-container .fc-event.fc-event-unpaid-overdue .fc-event-main {
+    background-color: #b85c5c !important;
+    border-color: #a04f4f !important;
+}
+
 #calendar-container .fc-now-indicator {
     border-color: var(--color-primary);
 }
