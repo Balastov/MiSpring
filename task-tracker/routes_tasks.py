@@ -334,6 +334,37 @@ def _task_status_terminal(st):
     return name in ('Проведён', 'Отменён', 'Неявка') or group in ('done', 'cancelled', 'no_show')
 
 
+def _student_homework_lesson_eligible(task, status_row, lesson_homework_row=None):
+    """
+    ДЗ в кабинете ученика — только после проведения урока.
+    «В работе» на будущих уроках (цепочка ДЗ) не показываем.
+    """
+    if not status_row:
+        return False
+    name = status_row.name or ''
+    group = (status_row.group or '').lower()
+    if name in ('Отменён', 'Неявка') or group in ('cancelled', 'no_show'):
+        return False
+    if name == 'Проведён':
+        return True
+    if name in ('На проверке', 'Выполнено') or group in ('in_review', 'done', 'completed'):
+        return True
+    if name == 'В работе' or group == 'in_progress':
+        sub_at = None
+        remarks = None
+        if lesson_homework_row and getattr(lesson_homework_row, 'id', None):
+            sub_at = getattr(lesson_homework_row, 'submitted_at', None)
+            remarks = getattr(lesson_homework_row, 'teacher_remarks', None)
+        if not sub_at:
+            sub_at = task.homework_submitted_at
+        if remarks is None or not str(remarks).strip():
+            remarks = task.homework_teacher_remarks
+        if sub_at or (remarks and str(remarks).strip()):
+            return True
+        return False
+    return False
+
+
 def _next_active_lesson_after(skipped_task):
     """Следующий урок ученика после skipped_task, не в терминальном статусе."""
     lesson_type = TaskType.query.filter_by(name='Урок').first()
@@ -2018,8 +2049,13 @@ def get_my_lessons_history():
 @login_required
 def get_task_evidence(task_id):
     task = db.get_or_404(Task, task_id)
-    if not (task.student_id == current_user.id or _can_teacher_access_task(task)):
+    is_student = task.student_id == current_user.id
+    if not (is_student or _can_teacher_access_task(task)):
         return jsonify({'error': 'Недостаточно прав'}), 403
+    if is_student:
+        task_st = db.session.get(TaskStatus, task.status_id) if task.status_id else None
+        if not _student_homework_lesson_eligible(task, task_st):
+            return jsonify({'error': 'Домашнее задание доступно после проведения урока'}), 403
 
     lh_rows = _task_homework_rows(task.id)
     lh_param = request.args.get('lesson_homework_id', type=int)
@@ -2050,6 +2086,10 @@ def upload_task_evidence(task_id):
     is_teacher_upload = _can_teacher_access_task(task)
     if not (is_student_upload or is_teacher_upload):
         return jsonify({'error': 'Недостаточно прав для загрузки файлов'}), 403
+    if is_student_upload:
+        task_st = db.session.get(TaskStatus, task.status_id) if task.status_id else None
+        if not _student_homework_lesson_eligible(task, task_st):
+            return jsonify({'error': 'Домашнее задание доступно после проведения урока'}), 403
     uploader_role = 'student' if is_student_upload else 'teacher'
 
     incoming = request.files.getlist('files')
@@ -2154,6 +2194,9 @@ def submit_homework_for_review(task_id):
     task = db.get_or_404(Task, task_id)
     if task.student_id != current_user.id:
         return jsonify({'error': 'Недостаточно прав'}), 403
+    task_st = db.session.get(TaskStatus, task.status_id) if task.status_id else None
+    if not _student_homework_lesson_eligible(task, task_st):
+        return jsonify({'error': 'Домашнее задание доступно после проведения урока'}), 403
 
     data = request.get_json(force=True, silent=True) or {}
     lh_rows = _task_homework_rows(task.id)
@@ -2532,6 +2575,7 @@ def get_my_homework():
     now = datetime.now()
     result = []
     for t in tasks:
+        task_st = status_map.get(t.status_id)
         rows = by_task.get(t.id) or []
         if not rows and t.homework_id:
             rows = [type('X', (), {'id': None, 'homework_id': t.homework_id})()]
@@ -2557,6 +2601,9 @@ def get_my_homework():
                 sub_at = t.homework_submitted_at
                 remarks = t.homework_teacher_remarks
             st_row = status_map.get(eff_sid)
+            lh_for_eligibility = lh if getattr(lh, 'id', None) else None
+            if not _student_homework_lesson_eligible(t, st_row or task_st, lh_for_eligibility):
+                continue
             is_overdue_row = bool(
                 due and due < now and
                 (not st_row or (st_row.group or '').lower() not in ('done', 'completed', 'готово'))
