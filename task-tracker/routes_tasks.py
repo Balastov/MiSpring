@@ -1530,6 +1530,15 @@ def update_task(task_id):
         ):
             return jsonify({'error': 'Укажите текст уникального ДЗ'}), 400
 
+        if (
+            lesson_row_validate
+            and task.task_type_id == lesson_row_validate.id
+            and task.status_id
+            and task.status_id in _skipped_lesson_status_ids()
+        ):
+            task.is_paid = False
+            task.is_paid_manual = False
+
         _sync_task_start_end_duration(task)
 
         db.session.commit()
@@ -1767,10 +1776,7 @@ def get_tasks_calendar():
     student_ids = {t.student_id for t in preview_tasks if t.student_id}
     if student_ids:
         from routes_payments import sync_prepaid_marks
-        students = User.query.filter(
-            User.id.in_(student_ids),
-            User.prepaid_since.isnot(None),
-        ).all()
+        students = User.query.filter(User.id.in_(student_ids)).all()
         for student in students:
             sync_prepaid_marks(student)
 
@@ -1835,10 +1841,10 @@ def get_tasks_calendar():
             and not is_no_show
             and not is_cancelled
         )
-        if t.is_paid:
-            event_color = '#38a169'
-        elif is_no_show or is_cancelled:
+        if is_no_show or is_cancelled:
             event_color = '#9ca3af'
+        elif t.is_paid:
+            event_color = '#38a169'
         elif overdue_unpaid:
             event_color = '#b85c5c'
         else:

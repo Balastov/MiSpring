@@ -1853,19 +1853,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const props = arg.event.extendedProps || {};
                 const classes = [];
                 if (props.series_id) classes.push('fc-event-series');
-                if (props.is_paid) {
+                const sg = (props.status_group || '').toLowerCase();
+                const isNoShow = props.status_name === 'Неявка' || sg === 'no_show';
+                const isCancelled = props.status_name === 'Отменён' || sg === 'cancelled';
+                if (isNoShow) {
+                    classes.push('fc-event-no-show');
+                } else if (isCancelled) {
+                    classes.push('fc-event-cancelled');
+                } else if (props.is_paid) {
                     classes.push('fc-event-paid');
                 } else if (props.unpaid_overdue_7d) {
                     classes.push('fc-event-unpaid-overdue');
                 } else {
                     classes.push('fc-event-unpaid');
-                }
-                const sg = (props.status_group || '').toLowerCase();
-                if (!props.is_paid && (props.status_name === 'Неявка' || sg === 'no_show')) {
-                    classes.push('fc-event-no-show');
-                }
-                if (!props.is_paid && (props.status_name === 'Отменён' || sg === 'cancelled')) {
-                    classes.push('fc-event-cancelled');
                 }
                 return classes;
             },

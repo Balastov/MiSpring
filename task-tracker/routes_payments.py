@@ -27,7 +27,7 @@ def sync_prepaid_marks(student):
     - Отменённые и неявки не входят в очередь и не тратят предоплату.
     - Обновляем кеш prepaid_lessons = N − кол-во проведённых среди оплаченных.
     """
-    if not student or not student.prepaid_since:
+    if not student:
         return
 
     lesson_type = TaskType.query.filter_by(name='Урок').first()
@@ -39,6 +39,21 @@ def sync_prepaid_marks(student):
         | (TaskStatus.group.in_(['cancelled', 'no_show']))
     ).all()
     skipped_ids = {s.id for s in skipped_statuses}
+
+    # Отменённые / неявки никогда не считаются оплаченными
+    skipped_lessons = Task.query.filter(
+        Task.student_id == student.id,
+        Task.task_type_id == lesson_type.id,
+        Task.status_id.in_(skipped_ids),
+    ).all() if skipped_ids else []
+    for t in skipped_lessons:
+        t.is_paid = False
+        t.is_paid_manual = False
+
+    if not student.prepaid_since:
+        db.session.commit()
+        return
+
     conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
     conducted_id = conducted_status.id if conducted_status else None
 
@@ -64,12 +79,6 @@ def sync_prepaid_marks(student):
         t.is_paid_manual = False
         if paid and conducted_id and t.status_id == conducted_id:
             conducted_in_paid += 1
-
-    # Отменённые / неявки — не тратят предоплату
-    for t in all_lessons:
-        if t.status_id and t.status_id in skipped_ids:
-            t.is_paid = False
-            t.is_paid_manual = False
 
     remaining = max(0, total_paid - conducted_in_paid)
     student.prepaid_lessons = remaining

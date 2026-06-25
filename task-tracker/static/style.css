@@ -1311,7 +1311,14 @@ select.filter-control {
 #calendar-container .fc-event.fc-event-no-show .fc-event-main,
 #calendar-container .fc-event.fc-event-cancelled,
 #calendar-container .fc-event.fc-event-cancelled .fc-event-main {
+    background-color: #9ca3af !important;
+    border-color: #9ca3af !important;
     opacity: 0.92;
+}
+
+#calendar-container .fc-event.fc-event-no-show.fc-event-paid::before,
+#calendar-container .fc-event.fc-event-cancelled.fc-event-paid::before {
+    display: none;
 }
 
 .form-actions {
