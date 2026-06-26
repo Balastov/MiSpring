@@ -69,6 +69,59 @@ def _template_full_name(template):
     return template.name
 
 
+def _next_scheduled_lesson_plan_step_id(student_id, template):
+    """
+    Тема ближайшего предстоящего урока — источник правды для «текущей» темы плана.
+    Совпадает с логикой GET /api/my-next-lesson.
+    """
+    from sqlalchemy import or_
+    from datetime import datetime
+
+    if not student_id or not template:
+        return None
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return None
+
+    excluded = TaskStatus.query.filter(
+        or_(
+            TaskStatus.name.in_(['Отменён', 'Проведён', 'Неявка']),
+            TaskStatus.group.in_(['cancelled', 'no_show', 'done']),
+        )
+    ).all()
+    excluded_ids = [s.id for s in excluded]
+    now = datetime.now()
+
+    task = Task.query.filter(
+        Task.student_id == student_id,
+        Task.task_type_id == lesson_type.id,
+        Task.start_date > now,
+        Task.plan_step_id.isnot(None),
+        or_(Task.status_id.is_(None), ~Task.status_id.in_(excluded_ids)),
+    ).order_by(Task.start_date.asc(), Task.id.asc()).first()
+
+    if not task or not task.plan_step_id:
+        return None
+
+    step = db.session.get(PlanStep, task.plan_step_id)
+    if step and step.template_id == template.id:
+        return step.id
+    return None
+
+
+def _effective_plan_next_step_id(student_id, template, user_plan):
+    """Текущий шаг плана: сначала тема ближайшего урока, иначе сохранённый next_step_id."""
+    from_lesson = _next_scheduled_lesson_plan_step_id(student_id, template)
+    if from_lesson:
+        return from_lesson
+    if user_plan and user_plan.next_step_id:
+        step = db.session.get(PlanStep, user_plan.next_step_id)
+        if step and step.template_id == template.id:
+            return user_plan.next_step_id
+    return None
+
+
 # ── Шаблоны ──────────────────────────────────────────────────────────────────
 
 @plans_bp.route('/api/plan-templates', methods=['GET'])
@@ -261,12 +314,13 @@ def get_student_plan(student_id):
         return jsonify({'error': 'План не найден', 'template': None, 'steps': [], 'progress': None})
     if template.parent_id is None:
         return jsonify({'error': 'Назначен только 1-й уровень плана. Назначьте 2-й уровень.', 'template': None, 'steps': [], 'progress': None})
-    steps = _annotate_plan_steps(template, up.next_step_id)
+    effective_next = _effective_plan_next_step_id(student_id, template, up)
+    steps = _annotate_plan_steps(template, effective_next)
     progress = _progress_from_steps(steps)
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': steps,
                     'progress': progress,
-                    'next_step_id': up.next_step_id})
+                    'next_step_id': effective_next})
 
 
 @plans_bp.route('/api/students/<int:student_id>/plan', methods=['PUT'])
@@ -305,12 +359,13 @@ def my_plan():
         return jsonify({'error': 'План не найден'}), 404
     if template.parent_id is None:
         return jsonify({'error': 'Назначен только 1-й уровень плана. Обратитесь к учителю для назначения 2-го уровня.'}), 400
-    steps = _annotate_plan_steps(template, up.next_step_id)
+    effective_next = _effective_plan_next_step_id(current_user.id, template, up)
+    steps = _annotate_plan_steps(template, effective_next)
     progress = _progress_from_steps(steps)
     return jsonify({'template': {'id': template.id, 'name': template.name, 'full_name': _template_full_name(template)},
                     'steps': steps,
                     'progress': progress,
-                    'next_step_id': up.next_step_id})
+                    'next_step_id': effective_next})
 
 
 # ── Список студентов с назначенными планами (для страницы управления) ─────────
