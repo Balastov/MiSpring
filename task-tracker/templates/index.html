@@ -970,14 +970,19 @@
     <!-- Reports Page -->
     <div id="reports-page" class="page hidden">
         <div class="page-header">
-            <h2>Отчёты</h2>
+            <h2 id="reports-page-title">Отчёты</h2>
             <div class="page-actions">
-                <button id="back-to-main-from-reports-btn" class="btn-secondary">Назад к задачам</button>
+                <button type="button" id="back-to-reports-menu-btn" class="btn-secondary hidden">К списку отчётов</button>
+                <button type="button" id="back-to-main-from-reports-btn" class="btn-secondary">Назад к задачам</button>
             </div>
         </div>
         <div class="reports-section">
-            <div class="report-income-card">
-                <h3 class="report-income-title">Отчёт №1: Доход</h3>
+            <div id="reports-menu" class="reports-menu">
+                <button type="button" id="open-report-income-btn" class="report-option-btn">Доход</button>
+                <button type="button" id="open-report-earnings-btn" class="report-option-btn">Платежи по годам</button>
+            </div>
+
+            <div id="report-income-view" class="report-view hidden">
                 <p class="report-income-desc">Уроки с отметкой «оплачен», дата начала в выбранном интервале. Сумма — по стоимости урока на дату урока (из истории стоимости).</p>
                 <div class="report-filters report-income-filters">
                     <label for="report-income-date-from">С</label>
@@ -1012,13 +1017,15 @@
                 </div>
             </div>
 
-            <h3 class="report-section-title">Платежи по годам</h3>
-            <div class="report-filters">
-                <label>Год:</label>
-                <select id="report-year-select" class="filter-control"></select>
-                <button id="report-load-btn" class="btn-primary">Загрузить</button>
+            <div id="report-earnings-view" class="report-view hidden">
+                <p class="report-income-desc">Сводка поступивших платежей по месяцам за выбранный год.</p>
+                <div class="report-filters">
+                    <label for="report-year-select">Год:</label>
+                    <select id="report-year-select" class="filter-control"></select>
+                    <button type="button" id="report-load-btn" class="btn-primary">Загрузить</button>
+                </div>
+                <div id="report-content"></div>
             </div>
-            <div id="report-content"></div>
         </div>
     </div>
 

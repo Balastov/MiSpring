@@ -1679,16 +1679,33 @@ select.filter-control {
     padding: 0 20px;
 }
 
-.report-income-card {
-    margin-bottom: 32px;
-    padding-bottom: 28px;
-    border-bottom: 1px solid var(--color-border-light);
+.reports-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 360px;
+    margin: 24px auto 0;
 }
 
-.report-income-title {
-    margin: 0 0 8px;
-    font-size: 18px;
-    color: var(--color-primary);
+.report-option-btn {
+    background-color: var(--color-primary);
+    color: #fff;
+    border: none;
+    padding: 14px 20px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 15px;
+    text-align: center;
+    transition: all var(--transition);
+}
+
+.report-option-btn:hover {
+    background-color: var(--color-primary-hover);
+    box-shadow: var(--shadow-sm);
+}
+
+.report-view {
+    margin-top: 8px;
 }
 
 .report-income-desc {

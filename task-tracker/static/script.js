@@ -323,6 +323,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Reports page elements
     const reportsPage = document.getElementById('reports-page');
+    const reportsPageTitle = document.getElementById('reports-page-title');
+    const reportsMenu = document.getElementById('reports-menu');
+    const reportIncomeView = document.getElementById('report-income-view');
+    const reportEarningsView = document.getElementById('report-earnings-view');
+    const backToReportsMenuBtn = document.getElementById('back-to-reports-menu-btn');
+    const openReportIncomeBtn = document.getElementById('open-report-income-btn');
+    const openReportEarningsBtn = document.getElementById('open-report-earnings-btn');
     const backToMainFromReportsBtn = document.getElementById('back-to-main-from-reports-btn');
     const reportYearSelect = document.getElementById('report-year-select');
     const reportLoadBtn = document.getElementById('report-load-btn');
@@ -5519,16 +5526,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    function showReportsPage() {
-        hideAllPages();
-        reportsPage.classList.remove('hidden');
+    function showReportsMenu() {
+        if (reportsPageTitle) reportsPageTitle.textContent = 'Отчёты';
+        if (reportsMenu) reportsMenu.classList.remove('hidden');
+        if (reportIncomeView) reportIncomeView.classList.add('hidden');
+        if (reportEarningsView) reportEarningsView.classList.add('hidden');
+        if (backToReportsMenuBtn) backToReportsMenuBtn.classList.add('hidden');
+    }
 
-        const range = defaultIncomeReportRange();
-        if (reportIncomeDateFrom) reportIncomeDateFrom.value = range.from;
-        if (reportIncomeDateTo) reportIncomeDateTo.value = range.to;
-        setIncomeSplitVisible(false);
-        loadIncomeReport();
-
+    function initReportYearSelect() {
+        if (!reportYearSelect) return;
         const currentYear = new Date().getFullYear();
         reportYearSelect.innerHTML = '';
         for (let y = currentYear; y >= currentYear - 3; y--) {
@@ -5537,11 +5544,44 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.textContent = y;
             reportYearSelect.appendChild(opt);
         }
+    }
 
-        loadEarningsReport(currentYear);
+    function openIncomeReportView() {
+        if (reportsMenu) reportsMenu.classList.add('hidden');
+        if (reportEarningsView) reportEarningsView.classList.add('hidden');
+        if (reportIncomeView) reportIncomeView.classList.remove('hidden');
+        if (backToReportsMenuBtn) backToReportsMenuBtn.classList.remove('hidden');
+        if (reportsPageTitle) reportsPageTitle.textContent = 'Доход';
+
+        const range = defaultIncomeReportRange();
+        if (reportIncomeDateFrom) reportIncomeDateFrom.value = range.from;
+        if (reportIncomeDateTo) reportIncomeDateTo.value = range.to;
+        setIncomeSplitVisible(false);
+        loadIncomeReport();
+    }
+
+    function openEarningsReportView() {
+        if (reportsMenu) reportsMenu.classList.add('hidden');
+        if (reportIncomeView) reportIncomeView.classList.add('hidden');
+        if (reportEarningsView) reportEarningsView.classList.remove('hidden');
+        if (backToReportsMenuBtn) backToReportsMenuBtn.classList.remove('hidden');
+        if (reportsPageTitle) reportsPageTitle.textContent = 'Платежи по годам';
+
+        initReportYearSelect();
+        const year = reportYearSelect ? parseInt(reportYearSelect.value, 10) : new Date().getFullYear();
+        loadEarningsReport(year || new Date().getFullYear());
+    }
+
+    function showReportsPage() {
+        hideAllPages();
+        reportsPage.classList.remove('hidden');
+        showReportsMenu();
     }
 
     if (backToMainFromReportsBtn) backToMainFromReportsBtn.addEventListener('click', showMainPage);
+    if (backToReportsMenuBtn) backToReportsMenuBtn.addEventListener('click', showReportsMenu);
+    if (openReportIncomeBtn) openReportIncomeBtn.addEventListener('click', openIncomeReportView);
+    if (openReportEarningsBtn) openReportEarningsBtn.addEventListener('click', openEarningsReportView);
 
     if (reportIncomeLoadBtn) reportIncomeLoadBtn.addEventListener('click', loadIncomeReport);
 
