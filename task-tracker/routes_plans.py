@@ -122,6 +122,66 @@ def _effective_plan_next_step_id(student_id, template, user_plan):
     return None
 
 
+def _lesson_excluded_status_ids():
+    from sqlalchemy import or_
+    rows = TaskStatus.query.filter(
+        or_(
+            TaskStatus.name.in_(['Отменён', 'Проведён', 'Неявка']),
+            TaskStatus.group.in_(['cancelled', 'no_show', 'done']),
+        )
+    ).all()
+    return {s.id for s in rows}
+
+
+def _students_for_plan_reports():
+    student_role = Role.query.filter_by(name='student').first()
+    if not student_role:
+        return []
+    student_ids = [ur.user_id for ur in UserRole.query.filter_by(role_id=student_role.id).all()]
+    if not student_ids:
+        return []
+    q = User.query.filter(User.id.in_(student_ids), User.is_active == True)
+    if user_has_role('teacher') and not user_has_role('admin', 'owner'):
+        q = q.filter(User.teacher_id == current_user.id)
+    return q.order_by(User.display_name).all()
+
+
+def _student_plan_context(student):
+    up = UserPlan.query.filter_by(student_id=student.id).first()
+    if not up:
+        return None
+    template = db.session.get(PlanTemplate, up.template_id)
+    if not template or template.parent_id is None:
+        return None
+    steps = sorted(template.steps, key=lambda s: (s.order_num, s.id))
+    effective_next = _effective_plan_next_step_id(student.id, template, up)
+    annotated = _annotate_plan_steps(template, effective_next)
+    progress = _progress_from_steps(annotated)
+    current_step = next((s for s in annotated if s.get('status') == 'current'), None)
+    return {
+        'user_plan': up,
+        'template': template,
+        'steps': steps,
+        'effective_next_step_id': effective_next,
+        'progress': progress,
+        'current_step': current_step,
+    }
+
+
+def _future_student_lessons(student_id, lesson_type_id, excluded_ids):
+    from sqlalchemy import or_
+    from datetime import datetime
+
+    excluded_list = list(excluded_ids) if excluded_ids else [-1]
+    return Task.query.filter(
+        Task.student_id == student_id,
+        Task.task_type_id == lesson_type_id,
+        Task.start_date.isnot(None),
+        Task.start_date > datetime.now(),
+        or_(Task.status_id.is_(None), ~Task.status_id.in_(excluded_list)),
+    ).order_by(Task.start_date.asc(), Task.id.asc()).all()
+
+
 # ── Шаблоны ──────────────────────────────────────────────────────────────────
 
 @plans_bp.route('/api/plan-templates', methods=['GET'])
@@ -385,3 +445,127 @@ def students_with_plans():
         {'id': s.id, 'display_name': s.display_name, 'template_id': assignments.get(s.id)}
         for s in students
     ]})
+
+
+@plans_bp.route('/api/reports/plan-current-topics', methods=['GET'])
+@login_required
+def report_plan_current_topics():
+    """Сводка: на какой теме курса сейчас каждый ученик."""
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    rows = []
+    for student in _students_for_plan_reports():
+        ctx = _student_plan_context(student)
+        if not ctx:
+            rows.append({
+                'student_id': student.id,
+                'student_name': student.display_name,
+                'plan_name': None,
+                'current_topic': None,
+                'current_topic_order': None,
+                'completed_topics': 0,
+                'total_topics': 0,
+                'progress_percent': 0,
+                'status': 'no_plan',
+            })
+            continue
+
+        progress = ctx['progress']
+        current = ctx['current_step']
+        rows.append({
+            'student_id': student.id,
+            'student_name': student.display_name,
+            'plan_name': _template_full_name(ctx['template']),
+            'current_topic': current.get('title') if current else None,
+            'current_topic_order': (current.get('order_num') + 1) if current else None,
+            'completed_topics': progress.get('completed') or 0,
+            'total_topics': progress.get('total') or 0,
+            'progress_percent': progress.get('percent') or 0,
+            'status': 'ok',
+        })
+
+    by_topic = {}
+    for row in rows:
+        if row['status'] != 'ok' or not row['current_topic']:
+            key = '— План не назначен или тема не определена'
+        else:
+            key = row['current_topic']
+        by_topic.setdefault(key, []).append(row['student_name'])
+
+    grouped = [
+        {'topic': topic, 'students': sorted(names)}
+        for topic, names in sorted(by_topic.items(), key=lambda x: x[0])
+    ]
+
+    return jsonify({'students': rows, 'by_topic': grouped})
+
+
+@plans_bp.route('/api/reports/plan-topic-schedule', methods=['GET'])
+@login_required
+def report_plan_topic_schedule():
+    """По каждому ученику — даты будущих уроков и темы; темы без уроков в расписании."""
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    excluded_ids = _lesson_excluded_status_ids()
+    students_data = []
+
+    for student in _students_for_plan_reports():
+        ctx = _student_plan_context(student)
+        if not ctx:
+            students_data.append({
+                'student_id': student.id,
+                'student_name': student.display_name,
+                'plan_name': None,
+                'schedule': [],
+                'unscheduled_topics': [],
+                'status': 'no_plan',
+            })
+            continue
+
+        template = ctx['template']
+        steps = ctx['steps']
+        step_by_id = {s.id: s for s in steps}
+        current = ctx['current_step']
+        current_order = current.get('order_num') if current else None
+
+        schedule = []
+        scheduled_step_ids = set()
+        if lesson_type:
+            for lesson in _future_student_lessons(student.id, lesson_type.id, excluded_ids):
+                step = step_by_id.get(lesson.plan_step_id) if lesson.plan_step_id else None
+                if lesson.plan_step_id and step:
+                    scheduled_step_ids.add(step.id)
+                schedule.append({
+                    'lesson_id': lesson.id,
+                    'lesson_date_iso': lesson.start_date.strftime('%Y-%m-%dT%H:%M:%S'),
+                    'lesson_date': lesson.start_date.strftime('%d.%m.%Y %H:%M'),
+                    'step_id': step.id if step else None,
+                    'step_title': step.title if step else '—',
+                    'step_order': (step.order_num + 1) if step else None,
+                })
+
+        unscheduled = []
+        for step in steps:
+            if current_order is not None and step.order_num < current_order:
+                continue
+            if step.id in scheduled_step_ids:
+                continue
+            unscheduled.append({
+                'step_id': step.id,
+                'step_title': step.title,
+                'step_order': step.order_num + 1,
+            })
+
+        students_data.append({
+            'student_id': student.id,
+            'student_name': student.display_name,
+            'plan_name': _template_full_name(template),
+            'schedule': schedule,
+            'unscheduled_topics': unscheduled,
+            'status': 'ok',
+        })
+
+    return jsonify({'students': students_data})

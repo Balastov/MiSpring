@@ -327,9 +327,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportsMenu = document.getElementById('reports-menu');
     const reportIncomeView = document.getElementById('report-income-view');
     const reportEarningsView = document.getElementById('report-earnings-view');
+    const reportPlanTopicsView = document.getElementById('report-plan-topics-view');
+    const reportPlanScheduleView = document.getElementById('report-plan-schedule-view');
     const backToReportsMenuBtn = document.getElementById('back-to-reports-menu-btn');
     const openReportIncomeBtn = document.getElementById('open-report-income-btn');
     const openReportEarningsBtn = document.getElementById('open-report-earnings-btn');
+    const openReportPlanTopicsBtn = document.getElementById('open-report-plan-topics-btn');
+    const openReportPlanScheduleBtn = document.getElementById('open-report-plan-schedule-btn');
     const backToMainFromReportsBtn = document.getElementById('back-to-main-from-reports-btn');
     const reportYearSelect = document.getElementById('report-year-select');
     const reportLoadBtn = document.getElementById('report-load-btn');
@@ -345,6 +349,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportIncomeByStudentTbody = document.getElementById('report-income-by-student-tbody');
     const reportIncomeTotalLessons = document.getElementById('report-income-total-lessons');
     const reportIncomeTotalAmount = document.getElementById('report-income-total-amount');
+    const reportPlanTopicsContent = document.getElementById('report-plan-topics-content');
+    const reportPlanTopicsLoadBtn = document.getElementById('report-plan-topics-load-btn');
+    const reportPlanScheduleContent = document.getElementById('report-plan-schedule-content');
+    const reportPlanScheduleLoadBtn = document.getElementById('report-plan-schedule-load-btn');
     let incomeReportSplitOpen = false;
     let lastIncomeReportData = null;
     const homeworkReviewPage = document.getElementById('homework-review-page');
@@ -5531,6 +5539,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (reportsMenu) reportsMenu.classList.remove('hidden');
         if (reportIncomeView) reportIncomeView.classList.add('hidden');
         if (reportEarningsView) reportEarningsView.classList.add('hidden');
+        if (reportPlanTopicsView) reportPlanTopicsView.classList.add('hidden');
+        if (reportPlanScheduleView) reportPlanScheduleView.classList.add('hidden');
         if (backToReportsMenuBtn) backToReportsMenuBtn.classList.add('hidden');
     }
 
@@ -5549,6 +5559,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function openIncomeReportView() {
         if (reportsMenu) reportsMenu.classList.add('hidden');
         if (reportEarningsView) reportEarningsView.classList.add('hidden');
+        if (reportPlanTopicsView) reportPlanTopicsView.classList.add('hidden');
+        if (reportPlanScheduleView) reportPlanScheduleView.classList.add('hidden');
         if (reportIncomeView) reportIncomeView.classList.remove('hidden');
         if (backToReportsMenuBtn) backToReportsMenuBtn.classList.remove('hidden');
         if (reportsPageTitle) reportsPageTitle.textContent = 'Доход';
@@ -5563,6 +5575,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function openEarningsReportView() {
         if (reportsMenu) reportsMenu.classList.add('hidden');
         if (reportIncomeView) reportIncomeView.classList.add('hidden');
+        if (reportPlanTopicsView) reportPlanTopicsView.classList.add('hidden');
+        if (reportPlanScheduleView) reportPlanScheduleView.classList.add('hidden');
         if (reportEarningsView) reportEarningsView.classList.remove('hidden');
         if (backToReportsMenuBtn) backToReportsMenuBtn.classList.remove('hidden');
         if (reportsPageTitle) reportsPageTitle.textContent = 'Платежи по годам';
@@ -5570,6 +5584,178 @@ document.addEventListener('DOMContentLoaded', () => {
         initReportYearSelect();
         const year = reportYearSelect ? parseInt(reportYearSelect.value, 10) : new Date().getFullYear();
         loadEarningsReport(year || new Date().getFullYear());
+    }
+
+    function openPlanTopicsReportView() {
+        if (reportsMenu) reportsMenu.classList.add('hidden');
+        if (reportIncomeView) reportIncomeView.classList.add('hidden');
+        if (reportEarningsView) reportEarningsView.classList.add('hidden');
+        if (reportPlanScheduleView) reportPlanScheduleView.classList.add('hidden');
+        if (reportPlanTopicsView) reportPlanTopicsView.classList.remove('hidden');
+        if (backToReportsMenuBtn) backToReportsMenuBtn.classList.remove('hidden');
+        if (reportsPageTitle) reportsPageTitle.textContent = 'Темы учеников сейчас';
+        loadPlanTopicsReport();
+    }
+
+    function openPlanScheduleReportView() {
+        if (reportsMenu) reportsMenu.classList.add('hidden');
+        if (reportIncomeView) reportIncomeView.classList.add('hidden');
+        if (reportEarningsView) reportEarningsView.classList.add('hidden');
+        if (reportPlanTopicsView) reportPlanTopicsView.classList.add('hidden');
+        if (reportPlanScheduleView) reportPlanScheduleView.classList.remove('hidden');
+        if (backToReportsMenuBtn) backToReportsMenuBtn.classList.remove('hidden');
+        if (reportsPageTitle) reportsPageTitle.textContent = 'Даты тем по расписанию';
+        loadPlanScheduleReport();
+    }
+
+    function loadPlanTopicsReport() {
+        if (!reportPlanTopicsContent) return;
+        reportPlanTopicsContent.innerHTML = '<p class="loading">Загрузка...</p>';
+        fetch('/api/reports/plan-current-topics')
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    reportPlanTopicsContent.innerHTML = `<p class="empty-msg">${escapeHtml(data.error || 'Ошибка загрузки')}</p>`;
+                    return;
+                }
+                renderPlanTopicsReport(data);
+            })
+            .catch(() => {
+                reportPlanTopicsContent.innerHTML = '<p class="empty-msg">Ошибка загрузки</p>';
+            });
+    }
+
+    function renderPlanTopicsReport(data) {
+        if (!reportPlanTopicsContent) return;
+        const students = Array.isArray(data.students) ? data.students : [];
+        if (students.length === 0) {
+            reportPlanTopicsContent.innerHTML = '<p class="empty-msg">Нет учеников для отображения</p>';
+            return;
+        }
+
+        let tableRows = '';
+        students.forEach((row) => {
+            const topic = row.status === 'ok'
+                ? (row.current_topic || '—')
+                : 'План не назначен';
+            const progress = row.status === 'ok' && row.total_topics
+                ? `${row.completed_topics} / ${row.total_topics} (${row.progress_percent}%)`
+                : '—';
+            const planName = row.plan_name ? escapeHtml(row.plan_name) : '—';
+            const order = row.current_topic_order ? `№${row.current_topic_order}` : '—';
+            tableRows += `
+                <tr>
+                    <td>${escapeHtml(row.student_name || '—')}</td>
+                    <td>${planName}</td>
+                    <td>${order}</td>
+                    <td>${escapeHtml(topic)}</td>
+                    <td>${progress}</td>
+                </tr>`;
+        });
+
+        let groupedHtml = '';
+        const groups = Array.isArray(data.by_topic) ? data.by_topic : [];
+        if (groups.length) {
+            groupedHtml = groups.map((g) => `
+                <div class="report-topic-group">
+                    <h4 class="report-topic-group-title">${escapeHtml(g.topic || '—')}</h4>
+                    <ul class="report-topic-group-list">
+                        ${(g.students || []).map((name) => `<li>${escapeHtml(name)}</li>`).join('')}
+                    </ul>
+                </div>`).join('');
+        }
+
+        reportPlanTopicsContent.innerHTML = `
+            <table class="data-table report-table">
+                <thead>
+                    <tr>
+                        <th>Ученик</th>
+                        <th>План</th>
+                        <th>№ темы</th>
+                        <th>Текущая тема</th>
+                        <th>Прогресс</th>
+                    </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+            <h3 class="report-section-title">Группировка по темам</h3>
+            ${groupedHtml || '<p class="empty-msg">Нет данных</p>'}`;
+    }
+
+    function loadPlanScheduleReport() {
+        if (!reportPlanScheduleContent) return;
+        reportPlanScheduleContent.innerHTML = '<p class="loading">Загрузка...</p>';
+        fetch('/api/reports/plan-topic-schedule')
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    reportPlanScheduleContent.innerHTML = `<p class="empty-msg">${escapeHtml(data.error || 'Ошибка загрузки')}</p>`;
+                    return;
+                }
+                renderPlanScheduleReport(data);
+            })
+            .catch(() => {
+                reportPlanScheduleContent.innerHTML = '<p class="empty-msg">Ошибка загрузки</p>';
+            });
+    }
+
+    function renderPlanScheduleReport(data) {
+        if (!reportPlanScheduleContent) return;
+        const students = Array.isArray(data.students) ? data.students : [];
+        if (students.length === 0) {
+            reportPlanScheduleContent.innerHTML = '<p class="empty-msg">Нет учеников для отображения</p>';
+            return;
+        }
+
+        let html = '';
+        students.forEach((student) => {
+            const planName = student.plan_name ? escapeHtml(student.plan_name) : 'План не назначен';
+            html += `<div class="report-plan-student-block">
+                <h3 class="report-plan-student-title">${escapeHtml(student.student_name || '—')}</h3>
+                <p class="report-plan-student-meta">${planName}</p>`;
+
+            if (student.status !== 'ok') {
+                html += '<p class="empty-msg">План не назначен</p></div>';
+                return;
+            }
+
+            const schedule = Array.isArray(student.schedule) ? student.schedule : [];
+            if (schedule.length === 0) {
+                html += '<p class="hint">Нет будущих уроков в календаре</p>';
+            } else {
+                html += `<table class="data-table report-table">
+                    <thead>
+                        <tr>
+                            <th>Дата урока</th>
+                            <th>№</th>
+                            <th>Тема</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                schedule.forEach((item) => {
+                    html += `<tr>
+                        <td>${escapeHtml(item.lesson_date || '—')}</td>
+                        <td>${item.step_order != null ? item.step_order : '—'}</td>
+                        <td>${escapeHtml(item.step_title || '—')}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+            }
+
+            const unscheduled = Array.isArray(student.unscheduled_topics) ? student.unscheduled_topics : [];
+            if (unscheduled.length) {
+                html += '<p class="hint" style="margin-top:12px;">Темы без урока в расписании:</p><ul class="report-topic-group-list">';
+                unscheduled.forEach((step) => {
+                    const num = step.step_order != null ? `№${step.step_order} — ` : '';
+                    html += `<li>${num}${escapeHtml(step.step_title || '—')}</li>`;
+                });
+                html += '</ul>';
+            }
+
+            html += '</div>';
+        });
+
+        reportPlanScheduleContent.innerHTML = html;
     }
 
     function showReportsPage() {
@@ -5582,8 +5768,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (backToReportsMenuBtn) backToReportsMenuBtn.addEventListener('click', showReportsMenu);
     if (openReportIncomeBtn) openReportIncomeBtn.addEventListener('click', openIncomeReportView);
     if (openReportEarningsBtn) openReportEarningsBtn.addEventListener('click', openEarningsReportView);
+    if (openReportPlanTopicsBtn) openReportPlanTopicsBtn.addEventListener('click', openPlanTopicsReportView);
+    if (openReportPlanScheduleBtn) openReportPlanScheduleBtn.addEventListener('click', openPlanScheduleReportView);
 
     if (reportIncomeLoadBtn) reportIncomeLoadBtn.addEventListener('click', loadIncomeReport);
+    if (reportPlanTopicsLoadBtn) reportPlanTopicsLoadBtn.addEventListener('click', loadPlanTopicsReport);
+    if (reportPlanScheduleLoadBtn) reportPlanScheduleLoadBtn.addEventListener('click', loadPlanScheduleReport);
 
     if (reportIncomeSplitBtn) {
         reportIncomeSplitBtn.addEventListener('click', () => {

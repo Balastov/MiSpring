@@ -980,6 +980,8 @@
             <div id="reports-menu" class="reports-menu">
                 <button type="button" id="open-report-income-btn" class="report-option-btn">Доход</button>
                 <button type="button" id="open-report-earnings-btn" class="report-option-btn">Платежи по годам</button>
+                <button type="button" id="open-report-plan-topics-btn" class="report-option-btn">Темы учеников сейчас</button>
+                <button type="button" id="open-report-plan-schedule-btn" class="report-option-btn">Даты тем по расписанию</button>
             </div>
 
             <div id="report-income-view" class="report-view hidden">
@@ -1025,6 +1027,22 @@
                     <button type="button" id="report-load-btn" class="btn-primary">Загрузить</button>
                 </div>
                 <div id="report-content"></div>
+            </div>
+
+            <div id="report-plan-topics-view" class="report-view hidden">
+                <p class="report-income-desc">Текущая тема курса у каждого ученика (по ближайшему запланированному уроку или прогрессу плана).</p>
+                <div class="report-filters">
+                    <button type="button" id="report-plan-topics-load-btn" class="btn-primary">Обновить</button>
+                </div>
+                <div id="report-plan-topics-content"></div>
+            </div>
+
+            <div id="report-plan-schedule-view" class="report-view hidden">
+                <p class="report-income-desc">Когда по расписанию уроков ученик дойдёт до каждой темы. Темы без уроков в календаре показаны отдельно.</p>
+                <div class="report-filters">
+                    <button type="button" id="report-plan-schedule-load-btn" class="btn-primary">Обновить</button>
+                </div>
+                <div id="report-plan-schedule-content"></div>
             </div>
         </div>
     </div>
