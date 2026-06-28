@@ -1746,6 +1746,75 @@ def get_next_homework_for_student(student_id):
     return jsonify({'homework_id': hw_id, 'reason': reason})
 
 
+# ========== Calendar / Kanban display helpers ==========
+
+def _task_event_end_dt(task):
+    if not task.start_date:
+        return None
+    try:
+        if task.duration is not None and int(task.duration) > 0:
+            return task.start_date + timedelta(minutes=int(task.duration))
+    except (TypeError, ValueError):
+        pass
+    if task.end_date and task.end_date > task.start_date:
+        return task.end_date
+    return task.start_date + timedelta(hours=1)
+
+
+def _is_done_task_status(st):
+    if not st:
+        return False
+    group = (st.group or '').lower() if st.group else ''
+    return group in ('done', 'completed', 'готово')
+
+
+def _build_task_display_payload(t, student_map, type_map, status_obj_map, hw_ids_map=None):
+    student_name = student_map.get(t.student_id, '')
+    type_name = type_map.get(t.task_type_id, '')
+    st_row = status_obj_map.get(t.status_id)
+    status_name = st_row.name if st_row else ''
+    status_group = (st_row.group or '').lower() if st_row and st_row.group else ''
+    title_parts = [p for p in [student_name, type_name] if p]
+    title = ' — '.join(title_parts) or f'Задача #{t.id}'
+    if status_name:
+        title += f' [{status_name}]'
+    props = t.to_dict()
+    props['student_name'] = student_name or None
+    props['task_type_name'] = type_name or None
+    props['status_name'] = status_name or None
+    props['status_group'] = status_group or None
+    if hw_ids_map is not None:
+        props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
+    is_no_show = status_name == 'Неявка' or status_group == 'no_show'
+    is_cancelled = status_name == 'Отменён' or status_group == 'cancelled'
+    now = datetime.now()
+    overdue_unpaid = (
+        not t.is_paid
+        and t.start_date
+        and t.start_date < now - timedelta(days=7)
+        and not is_no_show
+        and not is_cancelled
+    )
+    if is_no_show or is_cancelled:
+        event_color = '#9ca3af'
+    elif t.is_paid:
+        event_color = '#38a169'
+    elif overdue_unpaid:
+        event_color = '#b85c5c'
+    else:
+        event_color = '#1A515F'
+    props['unpaid_overdue_7d'] = overdue_unpaid
+    end_dt = _task_event_end_dt(t)
+    return {
+        'id': t.id,
+        'title': title,
+        'color': event_color,
+        'start': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
+        'end': end_dt.strftime('%Y-%m-%dT%H:%M:%S') if end_dt else None,
+        'extendedProps': props,
+    }
+
+
 # ========== Calendar Endpoint ==========
 
 @tasks_bp.route('/api/tasks/calendar', methods=['GET'])
@@ -1803,63 +1872,81 @@ def get_tasks_calendar():
     hw_ids_map = {}
     for r in lh_rows:
         hw_ids_map.setdefault(r.task_id, []).append(r.homework_id)
-    def _calendar_event_end(task):
-        """Конец события для FullCalendar: всегда start + duration (если задана)."""
-        if not task.start_date:
-            return None
-        try:
-            if task.duration is not None and int(task.duration) > 0:
-                return task.start_date + timedelta(minutes=int(task.duration))
-        except (TypeError, ValueError):
-            pass
-        if task.end_date and task.end_date > task.start_date:
-            return task.end_date
-        return task.start_date + timedelta(hours=1)
 
     for t in tasks:
-        student_name = student_map.get(t.student_id, '')
-        type_name = type_map.get(t.task_type_id, '')
-        st_row = status_obj_map.get(t.status_id)
-        status_name = st_row.name if st_row else ''
-        status_group = (st_row.group or '').lower() if st_row and st_row.group else ''
-        title_parts = [p for p in [student_name, type_name] if p]
-        title = ' — '.join(title_parts) or f'Задача #{t.id}'
-        if status_name:
-            title += f' [{status_name}]'
-        props = t.to_dict()
-        props['status_name'] = status_name or None
-        props['status_group'] = status_group or None
-        props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
-        end_dt = _calendar_event_end(t)
-        is_no_show = status_name == 'Неявка' or status_group == 'no_show'
-        is_cancelled = status_name == 'Отменён' or status_group == 'cancelled'
-        now = datetime.now()
-        overdue_unpaid = (
-            not t.is_paid
-            and t.start_date
-            and t.start_date < now - timedelta(days=7)
-            and not is_no_show
-            and not is_cancelled
-        )
-        if is_no_show or is_cancelled:
-            event_color = '#9ca3af'
-        elif t.is_paid:
-            event_color = '#38a169'
-        elif overdue_unpaid:
-            event_color = '#b85c5c'
-        else:
-            event_color = '#1A515F'
-        props['unpaid_overdue_7d'] = overdue_unpaid
-        events.append({
-            'id': t.id,
-            'title': title,
-            'start': t.start_date.strftime('%Y-%m-%dT%H:%M:%S') if t.start_date else None,
-            'end': end_dt.strftime('%Y-%m-%dT%H:%M:%S') if end_dt else None,
-            'color': event_color,
-            'extendedProps': props,
-        })
+        events.append(_build_task_display_payload(
+            t, student_map, type_map, status_obj_map, hw_ids_map=hw_ids_map,
+        ))
 
     return jsonify(events)
+
+
+@tasks_bp.route('/api/tasks/kanban', methods=['GET'])
+@login_required
+def get_kanban_tasks():
+    """Kanban: уроки на сегодня и ранее, статус не в группе Done."""
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return jsonify({'tasks': [], 'statuses': []})
+
+    end_of_today = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    query = db.select(Task).where(
+        Task.task_type_id == lesson_type.id,
+        Task.start_date.isnot(None),
+        Task.start_date <= end_of_today,
+    ).order_by(Task.start_date.asc(), Task.id.asc())
+    if not user_has_role('admin', 'owner'):
+        query = query.where(Task.user_id == current_user.id)
+
+    student_id = request.args.get('student_id', type=int)
+    if student_id:
+        query = query.where(Task.student_id == student_id)
+
+    is_paid = request.args.get('is_paid')
+    if is_paid == '1':
+        query = query.where(Task.is_paid == True)
+    elif is_paid == '0':
+        query = query.where(Task.is_paid == False)
+
+    all_statuses = TaskStatus.query.order_by(TaskStatus.id).all()
+    status_obj_map = {s.id: s for s in all_statuses}
+    done_status_ids = {s.id for s in all_statuses if _is_done_task_status(s)}
+
+    tasks = db.session.execute(query).scalars().all()
+    tasks = [
+        t for t in tasks
+        if not t.status_id or t.status_id not in done_status_ids
+    ]
+
+    student_ids = {t.student_id for t in tasks if t.student_id}
+    student_map = {}
+    if student_ids:
+        student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
+    type_map = {lesson_type.id: lesson_type.name}
+
+    task_ids = [t.id for t in tasks]
+    lh_rows = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
+        LessonHomework.task_id.asc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
+    ).all() if task_ids else []
+    hw_ids_map = {}
+    for r in lh_rows:
+        hw_ids_map.setdefault(r.task_id, []).append(r.homework_id)
+
+    cards = [
+        _build_task_display_payload(t, student_map, type_map, status_obj_map, hw_ids_map=hw_ids_map)
+        for t in tasks
+    ]
+
+    statuses_payload = [
+        {'id': s.id, 'name': s.name, 'group': s.group}
+        for s in all_statuses
+    ]
+
+    return jsonify({'tasks': cards, 'statuses': statuses_payload})
 
 
 # ========== Students Endpoint ==========

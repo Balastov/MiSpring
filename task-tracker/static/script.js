@@ -378,11 +378,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterApplyBtn = document.getElementById('filter-apply-btn');
     const filterResetBtn = document.getElementById('filter-reset-btn');
 
-    // Calendar elements
-    const viewToggleBtn = document.getElementById('view-toggle-btn');
+    // Calendar / Kanban / view elements
+    const viewSwitcher = document.getElementById('view-switcher');
+    const calendarToolsGroup = document.getElementById('calendar-tools-group');
     const calendarStepToggleBtn = document.getElementById('calendar-step-toggle-btn');
     const calendarRangeToggleBtn = document.getElementById('calendar-range-toggle-btn');
     const calendarContainer = document.getElementById('calendar-container');
+    const kanbanView = document.getElementById('kanban-view');
+    const kanbanBoard = document.getElementById('kanban-board');
+    const kanbanRefreshBtn = document.getElementById('kanban-refresh-btn');
+    const kanbanColumnsSettingsBtn = document.getElementById('kanban-columns-settings-btn');
+    const kanbanColumnsModal = document.getElementById('kanban-columns-modal');
+    const kanbanColumnsModalClose = document.getElementById('kanban-columns-modal-close');
+    const kanbanColumnsCancelBtn = document.getElementById('kanban-columns-cancel-btn');
+    const kanbanColumnsSaveBtn = document.getElementById('kanban-columns-save-btn');
+    const kanbanColumnsChecklist = document.getElementById('kanban-columns-checklist');
     const tableView = document.getElementById('table-view');
 
     // Change password modal elements
@@ -400,6 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let useQuarterHourStep = false;
     let useFullDayRange = false;
     let calendar = null;
+    let kanbanStatusesCache = [];
+    let kanbanDragTaskId = null;
+    const KANBAN_COLUMNS_STORAGE_KEY = 'mispring_kanban_visible_status_ids';
     let currentTaskStatusesPage = 1;
     let editingStatusId = null;
     let currentTaskTypesPage = 1;
@@ -775,6 +788,8 @@ document.addEventListener('DOMContentLoaded', () => {
             loadFilterTaskTypes().then(() => {
                 if (currentView === 'calendar') {
                     initCalendar();
+                } else if (currentView === 'kanban') {
+                    loadKanban();
                 } else {
                     fetchTasks();
                 }
@@ -1432,8 +1447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (_) { /* 204 */ }
                 closeTaskDeleteConfirm();
                 closeModal();
-                if (currentView === 'calendar' && calendar) calendar.refetchEvents();
-                fetchTasks(currentPage);
+                refreshCurrentTaskView();
                 showAppToast(toastMsg);
             })
             .catch((err) => {
@@ -1681,6 +1695,54 @@ document.addEventListener('DOMContentLoaded', () => {
         return params.toString();
     }
 
+    function buildKanbanFilterParams() {
+        const params = new URLSearchParams();
+        if (filterStudentId.value) params.set('student_id', filterStudentId.value);
+        if (filterIsPaid.value) params.set('is_paid', filterIsPaid.value);
+        return params.toString();
+    }
+
+    function refreshCurrentTaskView() {
+        if (currentView === 'table') {
+            fetchTasks();
+        } else if (currentView === 'calendar') {
+            if (!calendar) initCalendar();
+            else calendar.refetchEvents();
+        } else if (currentView === 'kanban') {
+            loadKanban();
+        }
+    }
+
+    function setTaskView(view) {
+        currentView = view;
+        if (tableView) tableView.classList.toggle('hidden', view !== 'table');
+        if (calendarContainer) calendarContainer.classList.toggle('hidden', view !== 'calendar');
+        if (kanbanView) kanbanView.classList.toggle('hidden', view !== 'kanban');
+        if (calendarToolsGroup) calendarToolsGroup.classList.toggle('hidden', view !== 'calendar');
+        if (taskListSection) {
+            taskListSection.classList.remove('view-calendar', 'view-kanban', 'view-table');
+            if (view === 'calendar') taskListSection.classList.add('view-calendar');
+            else if (view === 'kanban') taskListSection.classList.add('view-kanban');
+            else if (view === 'table') taskListSection.classList.add('view-table');
+        }
+        if (viewSwitcher) {
+            viewSwitcher.querySelectorAll('.view-switcher-btn').forEach((btn) => {
+                btn.classList.toggle('view-switcher-btn--active', btn.dataset.view === view);
+            });
+        }
+        if (view === 'table') {
+            fetchTasks();
+        } else if (view === 'calendar') {
+            if (!calendar) initCalendar();
+            else {
+                calendar.updateSize();
+                calendar.refetchEvents();
+            }
+        } else if (view === 'kanban') {
+            loadKanban();
+        }
+    }
+
     filterTodayBtn.addEventListener('click', () => {
         const today = new Date();
         const y = today.getFullYear();
@@ -1692,7 +1754,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     filterApplyBtn.addEventListener('click', () => {
         currentPage = 1;
-        fetchTasks();
+        refreshCurrentTaskView();
     });
 
     filterResetBtn.addEventListener('click', () => {
@@ -1707,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 const lessonType = data.task_types.find(tt => tt.name === 'Урок');
                 if (lessonType) filterTaskTypeId.value = lessonType.id;
-                fetchTasks();
+                refreshCurrentTaskView();
             });
     });
 
@@ -2000,34 +2062,277 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    viewToggleBtn.addEventListener('click', () => {
-        // #region agent log
-        _agentDebugLog('run1', 'H5', 'script.js:viewToggle:click', 'view_toggle_click', {
-            fromView: currentView,
-            hasCalendar: !!calendar,
-        });
-        // #endregion
-        if (currentView === 'table') {
-            currentView = 'calendar';
-            tableView.classList.add('hidden');
-            calendarContainer.classList.remove('hidden');
-            taskListSection.classList.add('view-calendar');
-            viewToggleBtn.textContent = 'Таблица';
-            if (!calendar) {
-                initCalendar();
-            } else {
-                calendar.updateSize();
-                calendar.refetchEvents();
+    // ========== Kanban Logic ==========
+
+    function getKanbanVisibleStatusIds(allStatuses) {
+        try {
+            const raw = localStorage.getItem(KANBAN_COLUMNS_STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length) {
+                    const valid = new Set(allStatuses.map((s) => String(s.id)));
+                    const filtered = parsed.map(String).filter((id) => valid.has(id));
+                    if (filtered.length) return filtered;
+                }
             }
-        } else {
-            currentView = 'table';
-            calendarContainer.classList.add('hidden');
-            tableView.classList.remove('hidden');
-            taskListSection.classList.remove('view-calendar');
-            viewToggleBtn.textContent = 'Календарь';
-            fetchTasks();
+        } catch (e) { /* ignore */ }
+        return allStatuses.map((s) => String(s.id));
+    }
+
+    function saveKanbanVisibleStatusIds(ids) {
+        localStorage.setItem(KANBAN_COLUMNS_STORAGE_KEY, JSON.stringify(ids.map(String)));
+    }
+
+    function taskDisplayCardClasses(props) {
+        const classes = ['kanban-card'];
+        const sg = (props.status_group || '').toLowerCase();
+        const isNoShow = props.status_name === 'Неявка' || sg === 'no_show';
+        const isCancelled = props.status_name === 'Отменён' || sg === 'cancelled';
+        if (isNoShow) classes.push('kanban-card--no-show');
+        else if (isCancelled) classes.push('kanban-card--cancelled');
+        else if (props.is_paid) classes.push('kanban-card--paid');
+        else if (props.unpaid_overdue_7d) classes.push('kanban-card--unpaid-overdue');
+        return classes;
+    }
+
+    function formatKanbanTimeRange(startIso, endIso) {
+        if (!startIso) return '—';
+        const start = new Date(startIso);
+        if (Number.isNaN(start.getTime())) return startIso;
+        const pad = (n) => String(n).padStart(2, '0');
+        const datePart = `${pad(start.getDate())}.${pad(start.getMonth() + 1)}.${start.getFullYear()}`;
+        const timePart = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+        if (!endIso) return `${datePart} ${timePart}`;
+        const end = new Date(endIso);
+        if (Number.isNaN(end.getTime())) return `${datePart} ${timePart}`;
+        const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+        return `${datePart} ${timePart} – ${endTime}`;
+    }
+
+    function createKanbanCardElement(task) {
+        const props = task.extendedProps || {};
+        const card = document.createElement('div');
+        card.className = taskDisplayCardClasses(props).join(' ');
+        card.style.borderLeftColor = task.color || '#1A515F';
+        card.draggable = true;
+        card.dataset.taskId = String(task.id);
+        card.innerHTML = `
+            <div class="kanban-card-title">${escapeHtml(task.title || `Задача #${task.id}`)}</div>
+            <div class="kanban-card-time">${escapeHtml(formatKanbanTimeRange(task.start, task.end))}</div>
+        `;
+        card.addEventListener('click', () => {
+            openEditFromCalendar({ id: task.id, extendedProps: props });
+        });
+        card.addEventListener('dragstart', (e) => {
+            kanbanDragTaskId = task.id;
+            card.classList.add('kanban-card--dragging');
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(task.id));
+            }
+        });
+        card.addEventListener('dragend', () => {
+            kanbanDragTaskId = null;
+            card.classList.remove('kanban-card--dragging');
+            if (kanbanBoard) {
+                kanbanBoard.querySelectorAll('.kanban-drop-target').forEach((el) => {
+                    el.classList.remove('kanban-drop-target');
+                });
+            }
+        });
+        return card;
+    }
+
+    function bindKanbanColumnDrop(columnBody, statusId) {
+        columnBody.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            columnBody.classList.add('kanban-drop-target');
+        });
+        columnBody.addEventListener('dragleave', (e) => {
+            if (!columnBody.contains(e.relatedTarget)) {
+                columnBody.classList.remove('kanban-drop-target');
+            }
+        });
+        columnBody.addEventListener('drop', (e) => {
+            e.preventDefault();
+            columnBody.classList.remove('kanban-drop-target');
+            const taskId = kanbanDragTaskId || parseInt(e.dataTransfer.getData('text/plain'), 10);
+            if (!taskId) return;
+            const newStatusId = statusId === 'none' ? null : parseInt(statusId, 10);
+            moveKanbanTaskStatus(taskId, newStatusId);
+        });
+    }
+
+    function moveKanbanTaskStatus(taskId, newStatusId) {
+        fetch(`/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status_id: newStatusId }),
+        })
+            .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showAppToast(data.error || 'Не удалось изменить статус', true);
+                    return;
+                }
+                loadKanban();
+                if (calendar) calendar.refetchEvents();
+            })
+            .catch(() => showAppToast('Ошибка при изменении статуса', true));
+    }
+
+    function renderKanbanBoard(data) {
+        if (!kanbanBoard) return;
+        kanbanBoard.innerHTML = '';
+        const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+        const statuses = Array.isArray(data.statuses) ? data.statuses : [];
+        kanbanStatusesCache = statuses;
+
+        if (!statuses.length && !tasks.length) {
+            kanbanBoard.innerHTML = '<p class="kanban-empty-msg">Нет уроков для отображения</p>';
+            return;
         }
-    });
+
+        const visibleIds = getKanbanVisibleStatusIds(statuses);
+        const columns = statuses.filter((s) => visibleIds.includes(String(s.id)));
+
+        const buckets = {};
+        columns.forEach((s) => { buckets[String(s.id)] = []; });
+        const unassigned = [];
+
+        tasks.forEach((task) => {
+            const sid = task.extendedProps && task.extendedProps.status_id;
+            if (sid && buckets[String(sid)]) {
+                buckets[String(sid)].push(task);
+            } else if (sid && visibleIds.includes(String(sid))) {
+                buckets[String(sid)] = buckets[String(sid)] || [];
+                buckets[String(sid)].push(task);
+            } else if (!sid) {
+                unassigned.push(task);
+            }
+        });
+
+        if (unassigned.length) {
+            const col = document.createElement('div');
+            col.className = 'kanban-column';
+            col.innerHTML = `
+                <div class="kanban-column-header">
+                    <span>Без статуса</span>
+                    <span class="kanban-column-count">${unassigned.length}</span>
+                </div>
+            `;
+            const body = document.createElement('div');
+            body.className = 'kanban-column-body';
+            body.dataset.statusId = 'none';
+            unassigned.forEach((task) => body.appendChild(createKanbanCardElement(task)));
+            bindKanbanColumnDrop(body, 'none');
+            col.appendChild(body);
+            kanbanBoard.appendChild(col);
+        }
+
+        columns.forEach((status) => {
+            const items = buckets[String(status.id)] || [];
+            const col = document.createElement('div');
+            col.className = 'kanban-column';
+            col.innerHTML = `
+                <div class="kanban-column-header">
+                    <span>${escapeHtml(status.name || '—')}</span>
+                    <span class="kanban-column-count">${items.length}</span>
+                </div>
+            `;
+            const body = document.createElement('div');
+            body.className = 'kanban-column-body';
+            body.dataset.statusId = String(status.id);
+            items.forEach((task) => body.appendChild(createKanbanCardElement(task)));
+            bindKanbanColumnDrop(body, String(status.id));
+            col.appendChild(body);
+            kanbanBoard.appendChild(col);
+        });
+
+        if (!columns.length && !unassigned.length) {
+            kanbanBoard.innerHTML = '<p class="kanban-empty-msg">Выберите колонки в настройках «Колонки»</p>';
+        }
+    }
+
+    function loadKanban() {
+        if (!kanbanBoard) return;
+        kanbanBoard.innerHTML = '<p class="kanban-empty-msg">Загрузка…</p>';
+        const qs = buildKanbanFilterParams();
+        fetch(`/api/tasks/kanban${qs ? `?${qs}` : ''}`)
+            .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    kanbanBoard.innerHTML = `<p class="kanban-empty-msg">${escapeHtml(data.error || 'Ошибка загрузки')}</p>`;
+                    return;
+                }
+                renderKanbanBoard(data);
+            })
+            .catch(() => {
+                kanbanBoard.innerHTML = '<p class="kanban-empty-msg">Ошибка загрузки</p>';
+            });
+    }
+
+    function openKanbanColumnsModal() {
+        if (!kanbanColumnsModal || !kanbanColumnsChecklist) return;
+        const statuses = kanbanStatusesCache.length
+            ? kanbanStatusesCache
+            : [];
+        const loadStatuses = statuses.length
+            ? Promise.resolve({ statuses })
+            : fetch('/api/tasks/kanban').then((r) => r.json()).then((data) => {
+                kanbanStatusesCache = data.statuses || [];
+                return { statuses: kanbanStatusesCache };
+            });
+
+        loadStatuses.then(({ statuses: list }) => {
+            const visible = new Set(getKanbanVisibleStatusIds(list));
+            kanbanColumnsChecklist.innerHTML = '';
+            list.forEach((s) => {
+                const label = document.createElement('label');
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = String(s.id);
+                cb.checked = visible.has(String(s.id));
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(s.name || `Статус #${s.id}`));
+                kanbanColumnsChecklist.appendChild(label);
+            });
+            kanbanColumnsModal.classList.remove('hidden');
+        });
+    }
+
+    function saveKanbanColumnsFromModal() {
+        if (!kanbanColumnsChecklist) return;
+        const ids = Array.from(kanbanColumnsChecklist.querySelectorAll('input[type=checkbox]:checked'))
+            .map((cb) => cb.value);
+        if (!ids.length) {
+            showAppToast('Должна быть выбрана хотя бы одна колонка', true);
+            return;
+        }
+        saveKanbanVisibleStatusIds(ids);
+        if (kanbanColumnsModal) kanbanColumnsModal.classList.add('hidden');
+        if (currentView === 'kanban') loadKanban();
+    }
+
+    if (viewSwitcher) {
+        viewSwitcher.querySelectorAll('.view-switcher-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                if (view) setTaskView(view);
+            });
+        });
+    }
+
+    if (kanbanRefreshBtn) kanbanRefreshBtn.addEventListener('click', loadKanban);
+    if (kanbanColumnsSettingsBtn) kanbanColumnsSettingsBtn.addEventListener('click', openKanbanColumnsModal);
+    if (kanbanColumnsSaveBtn) kanbanColumnsSaveBtn.addEventListener('click', saveKanbanColumnsFromModal);
+    if (kanbanColumnsCancelBtn && kanbanColumnsModal) {
+        kanbanColumnsCancelBtn.addEventListener('click', () => kanbanColumnsModal.classList.add('hidden'));
+    }
+    if (kanbanColumnsModalClose && kanbanColumnsModal) {
+        kanbanColumnsModalClose.addEventListener('click', () => kanbanColumnsModal.classList.add('hidden'));
+    }
 
     if (calendarStepToggleBtn) {
         updateCalendarStepToggleButton();
@@ -2324,15 +2629,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Close modal
             closeModal();
 
-            // Refresh data
-            if (currentView === 'calendar' && calendar) {
-                calendar.refetchEvents();
-            }
             if (!isEditing) {
                 currentPage = 1;
             }
-            fetchTasks(currentPage);
-            if (calendar) calendar.refetchEvents();
+            refreshCurrentTaskView();
         })
         .catch(err => {
             alert(err.message || 'Ошибка при сохранении задачи');
@@ -2586,10 +2886,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirm('Удалить эту задачу?')) return;
             const id = deleteBtn.dataset.id;
             fetch(`/api/tasks/${id}`, { method: 'DELETE' })
-                .then(() => {
-                    if (isListVisible) fetchTasks();
-                    if (calendar) calendar.refetchEvents();
-                });
+                .then(() => refreshCurrentTaskView());
         }
     });
 

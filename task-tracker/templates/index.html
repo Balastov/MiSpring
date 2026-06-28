@@ -78,13 +78,25 @@
                     <button id="filter-apply-btn" class="btn-filter-apply">Применить</button>
                     <button id="filter-reset-btn" class="btn-filter-reset">Сбросить</button>
                 </div>
-                <div class="filter-group">
-                    <button id="view-toggle-btn" class="btn-view-toggle">Таблица</button>
-                    <button id="calendar-step-toggle-btn" class="btn-view-toggle">Добавить шаг в 15 минут</button>
-                    <button id="calendar-range-toggle-btn" class="btn-view-toggle">Рабочий день</button>
+                <div class="filters-bar-spacer"></div>
+                <div class="filter-group filter-group--calendar-tools" id="calendar-tools-group">
+                    <button type="button" id="calendar-step-toggle-btn" class="btn-view-toggle">Добавить шаг в 15 минут</button>
+                    <button type="button" id="calendar-range-toggle-btn" class="btn-view-toggle">Рабочий день</button>
+                </div>
+                <div class="view-switcher" id="view-switcher" role="tablist" aria-label="Режим отображения задач">
+                    <button type="button" class="view-switcher-btn" data-view="table" role="tab">Таблица</button>
+                    <button type="button" class="view-switcher-btn view-switcher-btn--active" data-view="calendar" role="tab">Календарь</button>
+                    <button type="button" class="view-switcher-btn" data-view="kanban" role="tab">Kanban</button>
                 </div>
             </div>
             <div id="calendar-container"></div>
+            <div id="kanban-view" class="hidden">
+                <div class="kanban-toolbar">
+                    <button type="button" id="kanban-columns-settings-btn" class="btn-secondary btn-compact">Колонки</button>
+                    <button type="button" id="kanban-refresh-btn" class="btn-secondary btn-compact">Обновить</button>
+                </div>
+                <div id="kanban-board" class="kanban-board"></div>
+            </div>
             <div id="table-view" class="hidden">
             <div id="pagination-info" class="pagination-info"></div>
             <div class="table-wrapper">
@@ -344,6 +356,24 @@
                 <div id="task-delete-simple-options" class="form-actions" style="margin-top:20px;padding-top:0;border-top:none;justify-content:flex-end;">
                     <button type="button" class="btn-danger" id="task-delete-confirm-yes">Да</button>
                     <button type="button" class="btn-secondary" id="task-delete-confirm-no">Нет</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kanban: настройка колонок -->
+    <div id="kanban-columns-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>Колонки Kanban</h2>
+                <button type="button" class="modal-close" id="kanban-columns-modal-close" aria-label="Закрыть">&times;</button>
+            </div>
+            <div style="padding:16px 24px 24px;">
+                <p class="hint" style="margin-top:0;">Выберите статусы, которые будут отображаться как колонки на доске.</p>
+                <div id="kanban-columns-checklist" class="kanban-columns-checklist"></div>
+                <div class="form-actions" style="margin-top:16px;padding-top:0;border-top:none;justify-content:flex-end;">
+                    <button type="button" class="btn-secondary" id="kanban-columns-cancel-btn">Отмена</button>
+                    <button type="button" class="btn-primary" id="kanban-columns-save-btn">Сохранить</button>
                 </div>
             </div>
         </div>
