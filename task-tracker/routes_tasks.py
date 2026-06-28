@@ -846,6 +846,251 @@ def get_tasks():
     })
 
 
+def _bulk_tasks_teacher_query():
+    query = db.select(Task)
+    if not user_has_role('admin', 'owner'):
+        if user_has_role('teacher'):
+            query = query.where(Task.user_id == current_user.id)
+        else:
+            return None
+    return query
+
+
+def _apply_bulk_search_filters(query):
+    student_raw = request.args.get('student_id')
+    if student_raw == '__empty__':
+        query = query.where(Task.student_id.is_(None))
+    elif student_raw:
+        try:
+            query = query.where(Task.student_id == int(student_raw))
+        except (TypeError, ValueError):
+            pass
+
+    status_raw = request.args.get('status_id')
+    if status_raw == '__empty__':
+        query = query.where(Task.status_id.is_(None))
+    elif status_raw:
+        try:
+            query = query.where(Task.status_id == int(status_raw))
+        except (TypeError, ValueError):
+            pass
+
+    type_raw = request.args.get('task_type_id')
+    if type_raw == '__empty__':
+        query = query.where(Task.task_type_id.is_(None))
+    elif type_raw:
+        try:
+            query = query.where(Task.task_type_id == int(type_raw))
+        except (TypeError, ValueError):
+            pass
+
+    created_from = request.args.get('created_from')
+    if created_from:
+        try:
+            dt_from = datetime.strptime(str(created_from).strip()[:10], '%Y-%m-%d')
+            query = query.where(Task.created_at >= dt_from)
+        except ValueError:
+            pass
+
+    created_to = request.args.get('created_to')
+    if created_to:
+        try:
+            dt_to = datetime.strptime(str(created_to).strip()[:10], '%Y-%m-%d').replace(
+                hour=23, minute=59, second=59, microsecond=999999,
+            )
+            query = query.where(Task.created_at <= dt_to)
+        except ValueError:
+            pass
+
+    is_paid = request.args.get('is_paid')
+    if is_paid == '1':
+        query = query.where(Task.is_paid == True)
+    elif is_paid == '0':
+        query = query.where(Task.is_paid == False)
+
+    return query
+
+
+def _tasks_rows_to_json(tasks):
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    student_ids = {t.student_id for t in tasks if t.student_id}
+    type_ids = {t.task_type_id for t in tasks if t.task_type_id}
+    homework_ids = {t.homework_id for t in tasks if t.homework_id}
+    status_map = {}
+    student_map = {}
+    type_map = {}
+    homework_map = {}
+    if status_ids:
+        status_map = {s.id: s.name for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+    if student_ids:
+        student_map = {u.id: u.display_name for u in User.query.filter(User.id.in_(student_ids)).all()}
+    if type_ids:
+        type_map = {tt.id: tt.name for tt in TaskType.query.filter(TaskType.id.in_(type_ids)).all()}
+    if homework_ids:
+        homework_map = {hw.id: hw.name for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()}
+
+    task_ids = [t.id for t in tasks]
+    lesson_homeworks = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
+        LessonHomework.task_id.asc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
+    ).all() if task_ids else []
+    homework_ids_by_task = {}
+    for lh in lesson_homeworks:
+        homework_ids_by_task.setdefault(lh.task_id, []).append(lh.homework_id)
+
+    rows = []
+    for t in tasks:
+        d = t.to_dict()
+        d['status_name'] = status_map.get(t.status_id)
+        d['student_name'] = student_map.get(t.student_id)
+        d['task_type_name'] = type_map.get(t.task_type_id)
+        if getattr(t, 'homework_unique', False):
+            d['homework_name'] = 'Уникальное ДЗ'
+        else:
+            d['homework_name'] = homework_map.get(t.homework_id)
+        d['homework_ids'] = homework_ids_by_task.get(t.id, ([t.homework_id] if t.homework_id else []))
+        rows.append(d)
+    return rows
+
+
+@tasks_bp.route('/api/tasks/bulk-search', methods=['GET'])
+@login_required
+def bulk_search_tasks():
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    base = _bulk_tasks_teacher_query()
+    if base is None:
+        return jsonify({'tasks': [], 'total': 0, 'pages': 0, 'current_page': 1})
+
+    page = request.args.get('page', 1, type=int)
+    per_page = min(max(request.args.get('per_page', 100, type=int), 1), 200)
+
+    query = _apply_bulk_search_filters(base).order_by(Task.created_at.desc())
+    paginator = db.paginate(query, page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        'tasks': _tasks_rows_to_json(paginator.items),
+        'total': paginator.total,
+        'pages': paginator.pages,
+        'current_page': paginator.page,
+    })
+
+
+BULK_UPDATE_ALLOWED = {
+    'student_id', 'status_id', 'task_type_id', 'is_paid', 'payment_date',
+    'start_date', 'end_date', 'duration', 'comment', 'closing_date',
+    'description', 'homework_required',
+}
+
+
+@tasks_bp.route('/api/tasks/bulk-update', methods=['POST'])
+@login_required
+def bulk_update_tasks():
+    if not user_has_role('admin', 'owner', 'teacher'):
+        return jsonify({'error': 'Недостаточно прав'}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    task_ids = data.get('task_ids') or []
+    changes = data.get('changes') or {}
+
+    if not isinstance(task_ids, list) or not task_ids:
+        return jsonify({'error': 'Укажите задачи для изменения'}), 400
+    if not isinstance(changes, dict) or not changes:
+        return jsonify({'error': 'Укажите реквизиты для изменения'}), 400
+
+    changes = {k: v for k, v in changes.items() if k in BULK_UPDATE_ALLOWED}
+    if not changes:
+        return jsonify({'error': 'Нет допустимых реквизитов для изменения'}), 400
+
+    try:
+        ids = [int(x) for x in task_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Некорректный список задач'}), 400
+
+    tasks = Task.query.filter(Task.id.in_(ids)).all()
+    skipped_status_ids = _skipped_lesson_status_ids()
+    students_to_sync = set()
+    updated = 0
+
+    for task in tasks:
+        if not user_has_role('admin', 'owner') and task.user_id != current_user.id:
+            continue
+
+        old_status_id = task.status_id
+
+        if 'student_id' in changes:
+            sid = changes['student_id']
+            task.student_id = int(sid) if sid not in (None, '', '__empty__') else None
+
+        if 'status_id' in changes:
+            sid = changes['status_id']
+            task.status_id = int(sid) if sid not in (None, '', '__empty__') else None
+
+        if 'task_type_id' in changes:
+            tid = changes['task_type_id']
+            task.task_type_id = int(tid) if tid not in (None, '', '__empty__') else None
+
+        if 'is_paid' in changes:
+            new_paid = bool(changes['is_paid'])
+            if new_paid != bool(task.is_paid):
+                task.is_paid_manual = True
+            task.is_paid = new_paid
+
+        if 'homework_required' in changes:
+            task.homework_required = bool(changes['homework_required'])
+
+        if 'duration' in changes:
+            val = changes['duration']
+            task.duration = int(val) if val not in (None, '', '__empty__') else None
+
+        for date_key in ('payment_date', 'start_date', 'end_date', 'closing_date'):
+            if date_key in changes:
+                val = changes[date_key]
+                parsed = parse_datetime(val) if val not in (None, '', '__empty__') else None
+                setattr(task, date_key, parsed)
+
+        for text_key in ('comment', 'description'):
+            if text_key in changes:
+                val = changes[text_key]
+                if val in (None, '', '__empty__'):
+                    setattr(task, text_key, None)
+                else:
+                    text = str(val).strip() or None
+                    limit = 500 if text_key == 'comment' else 100
+                    if text and len(text) > limit:
+                        return jsonify({'error': f'{text_key}: не более {limit} символов'}), 400
+                    setattr(task, text_key, text)
+
+        new_status_id = task.status_id
+        if new_status_id and new_status_id in skipped_status_ids:
+            task.is_paid = False
+            task.is_paid_manual = False
+            if task.student_id:
+                students_to_sync.add(task.student_id)
+
+        if old_status_id != new_status_id and task.student_id:
+            students_to_sync.add(task.student_id)
+
+        if any(k in changes for k in ('start_date', 'end_date', 'duration')):
+            _sync_task_start_end_duration(task)
+
+        updated += 1
+
+    if updated == 0:
+        return jsonify({'error': 'Нет задач для обновления (проверьте права)'}), 403
+
+    db.session.commit()
+
+    if students_to_sync:
+        from routes_payments import sync_prepaid_marks
+        for sid in students_to_sync:
+            student = db.session.get(User, sid)
+            if student:
+                sync_prepaid_marks(student)
+
+    return jsonify({'updated': updated})
+
+
 @tasks_bp.route('/api/tasks/<int:task_id>/homeworks', methods=['GET'])
 @login_required
 def get_task_homeworks(task_id):

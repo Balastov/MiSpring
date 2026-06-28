@@ -355,6 +355,65 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportPlanScheduleLoadBtn = document.getElementById('report-plan-schedule-load-btn');
     let incomeReportSplitOpen = false;
     let lastIncomeReportData = null;
+
+    // Processings page elements
+    const processingsPage = document.getElementById('processings-page');
+    const processingsPageTitle = document.getElementById('processings-page-title');
+    const processingsMenu = document.getElementById('processings-menu');
+    const bulkEditView = document.getElementById('bulk-edit-view');
+    const backToProcessingsMenuBtn = document.getElementById('back-to-processings-menu-btn');
+    const backToMainFromProcessingsBtn = document.getElementById('back-to-main-from-processings-btn');
+    const openBulkEditBtn = document.getElementById('open-bulk-edit-btn');
+    const bulkFilterStudent = document.getElementById('bulk-filter-student');
+    const bulkFilterStatus = document.getElementById('bulk-filter-status');
+    const bulkFilterTaskType = document.getElementById('bulk-filter-task-type');
+    const bulkFilterCreatedFrom = document.getElementById('bulk-filter-created-from');
+    const bulkFilterCreatedTo = document.getElementById('bulk-filter-created-to');
+    const bulkFilterIsPaid = document.getElementById('bulk-filter-is-paid');
+    const bulkFilterApplyBtn = document.getElementById('bulk-filter-apply-btn');
+    const bulkFilterResetBtn = document.getElementById('bulk-filter-reset-btn');
+    const bulkEditTbody = document.getElementById('bulk-edit-tbody');
+    const bulkEditPaginationInfo = document.getElementById('bulk-edit-pagination-info');
+    const bulkEditPaginationControls = document.getElementById('bulk-edit-pagination-controls');
+    const bulkSelectAllPage = document.getElementById('bulk-select-all-page');
+    const bulkSelectedCount = document.getElementById('bulk-selected-count');
+    const bulkSelectFieldsBtn = document.getElementById('bulk-select-fields-btn');
+    const bulkApplyBtn = document.getElementById('bulk-apply-btn');
+    const bulkFieldsSummary = document.getElementById('bulk-fields-summary');
+    const bulkFieldsModal = document.getElementById('bulk-fields-modal');
+    const bulkFieldsModalClose = document.getElementById('bulk-fields-modal-close');
+    const bulkFieldsCancelBtn = document.getElementById('bulk-fields-cancel-btn');
+    const bulkFieldsSaveBtn = document.getElementById('bulk-fields-save-btn');
+    const bulkFieldsForm = document.getElementById('bulk-fields-form');
+    const bulkConfirmModal = document.getElementById('bulk-confirm-modal');
+    const bulkConfirmModalClose = document.getElementById('bulk-confirm-modal-close');
+    const bulkConfirmText = document.getElementById('bulk-confirm-text');
+    const bulkConfirmYes = document.getElementById('bulk-confirm-yes');
+    const bulkConfirmNo = document.getElementById('bulk-confirm-no');
+
+    const BULK_EMPTY = '__empty__';
+    const BULK_EDIT_FIELDS = [
+        { key: 'status_id', label: 'Статус', type: 'status', nullable: true },
+        { key: 'student_id', label: 'Ученик', type: 'student', nullable: true },
+        { key: 'task_type_id', label: 'Тип задачи', type: 'task_type', nullable: true },
+        { key: 'is_paid', label: 'Оплачено', type: 'boolean', nullable: false },
+        { key: 'start_date', label: 'Дата начала', type: 'datetime', nullable: true },
+        { key: 'end_date', label: 'Дата окончания', type: 'datetime', nullable: true },
+        { key: 'duration', label: 'Продолжительность (мин)', type: 'number', nullable: true },
+        { key: 'payment_date', label: 'Дата оплаты', type: 'datetime', nullable: true },
+        { key: 'closing_date', label: 'Дата закрытия', type: 'datetime', nullable: true },
+        { key: 'comment', label: 'Комментарий', type: 'text', nullable: true },
+        { key: 'description', label: 'Описание', type: 'text', nullable: true },
+        { key: 'homework_required', label: 'Д/З обязательно', type: 'boolean', nullable: false },
+    ];
+    let bulkCurrentPage = 1;
+    let bulkSelectedTaskIds = new Set();
+    let bulkPendingChanges = null;
+    let bulkFilterStudentsCache = [];
+    let bulkFilterStatusesCache = [];
+    let bulkFilterTaskTypesCache = [];
+    let bulkLastPageTaskIds = [];
+
     const homeworkReviewPage = document.getElementById('homework-review-page');
     const backToMainFromHomeworkReviewBtn = document.getElementById('back-to-main-from-homework-review-btn');
     const homeworkReviewRefreshBtn = document.getElementById('homework-review-refresh-btn');
@@ -441,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pageKey === 'homework') return showHomeworkPage();
         if (pageKey === 'telegram') return showTelegramPage();
         if (pageKey === 'reports') return showReportsPage();
+        if (pageKey === 'processings') return showProcessingsPage();
         if (pageKey === 'homework-review') return showHomeworkReviewPage();
         if (pageKey === 'plan-templates') return showPlanTemplatesPage();
         return showMainPage();
@@ -3000,6 +3060,7 @@ document.addEventListener('DOMContentLoaded', () => {
         usersPage.classList.add('hidden');
         flashcardsPage.classList.add('hidden');
         if (reportsPage) reportsPage.classList.add('hidden');
+        if (processingsPage) processingsPage.classList.add('hidden');
         if (telegramPage) telegramPage.classList.add('hidden');
         if (myPlanPage) myPlanPage.classList.add('hidden');
         if (planTemplatesPage) planTemplatesPage.classList.add('hidden');
@@ -6147,5 +6208,546 @@ document.addEventListener('DOMContentLoaded', () => {
 
         html += '</div>';
         reportContent.innerHTML = html;
+    }
+
+    // ========== Processings / Bulk edit ==========
+
+    function showProcessingsMenu() {
+        if (processingsPageTitle) processingsPageTitle.textContent = 'Обработки';
+        if (processingsMenu) processingsMenu.classList.remove('hidden');
+        if (bulkEditView) bulkEditView.classList.add('hidden');
+        if (backToProcessingsMenuBtn) backToProcessingsMenuBtn.classList.add('hidden');
+    }
+
+    function showProcessingsPage() {
+        hideAllPages();
+        if (processingsPage) processingsPage.classList.remove('hidden');
+        showProcessingsMenu();
+    }
+
+    function fillBulkSelectOptions(selectEl, items, getValue, getLabel, { withAll = true, withEmpty = false } = {}) {
+        if (!selectEl) return;
+        selectEl.innerHTML = '';
+        if (withAll) {
+            const allOpt = document.createElement('option');
+            allOpt.value = '';
+            allOpt.textContent = 'Все';
+            selectEl.appendChild(allOpt);
+        }
+        if (withEmpty) {
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = BULK_EMPTY;
+            emptyOpt.textContent = 'Не заполнено';
+            selectEl.appendChild(emptyOpt);
+        }
+        (items || []).forEach((item) => {
+            const opt = document.createElement('option');
+            opt.value = String(getValue(item));
+            opt.textContent = getLabel(item);
+            selectEl.appendChild(opt);
+        });
+    }
+
+    function loadBulkFilterOptions() {
+        return Promise.all([
+            fetch('/api/students/all').then((r) => r.json()),
+            fetch('/api/task-statuses/all').then((r) => r.json()),
+            fetch('/api/task-types/all').then((r) => r.json()),
+        ]).then(([studentsData, statusData, typesData]) => {
+            bulkFilterStudentsCache = studentsData.students || [];
+            bulkFilterStatusesCache = statusData.statuses || [];
+            bulkFilterTaskTypesCache = typesData.task_types || [];
+            fillBulkSelectOptions(
+                bulkFilterStudent,
+                bulkFilterStudentsCache,
+                (s) => s.id,
+                (s) => s.display_name,
+                { withAll: true, withEmpty: true },
+            );
+            fillBulkSelectOptions(
+                bulkFilterStatus,
+                bulkFilterStatusesCache,
+                (s) => s.id,
+                (s) => s.name,
+                { withAll: true, withEmpty: true },
+            );
+            fillBulkSelectOptions(
+                bulkFilterTaskType,
+                bulkFilterTaskTypesCache,
+                (t) => t.id,
+                (t) => t.name,
+                { withAll: true, withEmpty: true },
+            );
+            const lessonType = bulkFilterTaskTypesCache.find((t) => t.name === 'Урок');
+            if (lessonType && bulkFilterTaskType) {
+                bulkFilterTaskType.value = String(lessonType.id);
+            }
+        });
+    }
+
+    function buildBulkSearchParams() {
+        const params = new URLSearchParams();
+        params.set('page', String(bulkCurrentPage));
+        params.set('per_page', '100');
+        if (bulkFilterStudent && bulkFilterStudent.value) {
+            params.set('student_id', bulkFilterStudent.value);
+        }
+        if (bulkFilterStatus && bulkFilterStatus.value) {
+            params.set('status_id', bulkFilterStatus.value);
+        }
+        if (bulkFilterTaskType && bulkFilterTaskType.value) {
+            params.set('task_type_id', bulkFilterTaskType.value);
+        }
+        if (bulkFilterCreatedFrom && bulkFilterCreatedFrom.value) {
+            params.set('created_from', bulkFilterCreatedFrom.value);
+        }
+        if (bulkFilterCreatedTo && bulkFilterCreatedTo.value) {
+            params.set('created_to', bulkFilterCreatedTo.value);
+        }
+        if (bulkFilterIsPaid && bulkFilterIsPaid.value) {
+            params.set('is_paid', bulkFilterIsPaid.value);
+        }
+        return params.toString();
+    }
+
+    function updateBulkSelectionUi() {
+        const n = bulkSelectedTaskIds.size;
+        if (bulkSelectedCount) bulkSelectedCount.textContent = `Выбрано: ${n}`;
+        const hasFields = bulkPendingChanges && Object.keys(bulkPendingChanges).length > 0;
+        if (bulkApplyBtn) bulkApplyBtn.disabled = !(n > 0 && hasFields);
+        if (bulkSelectAllPage && bulkLastPageTaskIds.length) {
+            const allOnPage = bulkLastPageTaskIds.every((id) => bulkSelectedTaskIds.has(id));
+            bulkSelectAllPage.checked = allOnPage;
+            bulkSelectAllPage.indeterminate = !allOnPage && bulkLastPageTaskIds.some((id) => bulkSelectedTaskIds.has(id));
+        }
+    }
+
+    function updateBulkFieldsSummary() {
+        if (!bulkFieldsSummary) return;
+        if (!bulkPendingChanges || !Object.keys(bulkPendingChanges).length) {
+            bulkFieldsSummary.classList.add('hidden');
+            bulkFieldsSummary.textContent = '';
+            return;
+        }
+        const parts = BULK_EDIT_FIELDS.filter((f) => f.key in bulkPendingChanges).map((f) => {
+            const val = bulkPendingChanges[f.key];
+            let display = '—';
+            if (val === BULK_EMPTY || val === null || val === '') {
+                display = 'Не заполнено';
+            } else if (f.type === 'boolean') {
+                display = val ? 'Да' : 'Нет';
+            } else if (f.type === 'status') {
+                const st = bulkFilterStatusesCache.find((s) => String(s.id) === String(val));
+                display = st ? st.name : val;
+            } else if (f.type === 'student') {
+                const st = bulkFilterStudentsCache.find((s) => String(s.id) === String(val));
+                display = st ? st.display_name : val;
+            } else if (f.type === 'task_type') {
+                const st = bulkFilterTaskTypesCache.find((t) => String(t.id) === String(val));
+                display = st ? st.name : val;
+            } else {
+                display = String(val);
+            }
+            return `${f.label}: ${display}`;
+        });
+        bulkFieldsSummary.textContent = `Будут изменены: ${parts.join('; ')}`;
+        bulkFieldsSummary.classList.remove('hidden');
+    }
+
+    function renderBulkEditTable(tasks) {
+        if (!bulkEditTbody) return;
+        bulkEditTbody.innerHTML = '';
+        bulkLastPageTaskIds = (tasks || []).map((t) => t.id);
+        if (!tasks || tasks.length === 0) {
+            bulkEditTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Задач не найдено</td></tr>';
+            updateBulkSelectionUi();
+            return;
+        }
+        tasks.forEach((task) => {
+            const tr = document.createElement('tr');
+            const checked = bulkSelectedTaskIds.has(task.id) ? 'checked' : '';
+            tr.innerHTML = `
+                <td class="bulk-check-col"><input type="checkbox" class="bulk-row-check" data-id="${task.id}" ${checked}></td>
+                <td>${task.id}</td>
+                <td>${escapeHtml(task.student_name || '—')}</td>
+                <td>${escapeHtml(task.task_type_name || '—')}</td>
+                <td>${task.created_at || '—'}</td>
+                <td>${task.start_date || '—'}</td>
+                <td>${task.end_date || '—'}</td>
+                <td>${formatDuration(task.duration)}</td>
+                <td>${escapeHtml(task.author || '—')}</td>
+                <td class="cell-bool">${task.is_paid ? '✓' : '✗'}</td>
+                <td>${task.payment_date || '—'}</td>
+                <td>${escapeHtml(task.homework_name || '—')}</td>
+                <td>${escapeHtml(task.status_name || '—')}</td>
+                <td class="col-comment" title="${escapeAttr(task.comment || '')}">${escapeHtml(task.comment || '—')}</td>
+                <td>${task.closing_date || '—'}</td>
+            `;
+            bulkEditTbody.appendChild(tr);
+        });
+        bulkEditTbody.querySelectorAll('.bulk-row-check').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const id = parseInt(cb.dataset.id, 10);
+                if (cb.checked) bulkSelectedTaskIds.add(id);
+                else bulkSelectedTaskIds.delete(id);
+                updateBulkSelectionUi();
+            });
+        });
+        updateBulkSelectionUi();
+    }
+
+    function renderBulkPagination(data) {
+        if (!bulkEditPaginationControls || !bulkEditPaginationInfo) return;
+        bulkEditPaginationControls.innerHTML = '';
+        if (!data.total) {
+            bulkEditPaginationInfo.textContent = '';
+            return;
+        }
+        bulkEditPaginationInfo.textContent = `Страница ${data.current_page} из ${data.pages} (всего ${data.total} задач)`;
+        const addBtn = (label, page, active = false) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-page' + (active ? ' active' : '');
+            btn.textContent = label;
+            btn.addEventListener('click', () => {
+                bulkCurrentPage = page;
+                fetchBulkEditTasks();
+            });
+            bulkEditPaginationControls.appendChild(btn);
+        };
+        if (data.current_page > 1) addBtn('← Пред', data.current_page - 1);
+        const start = Math.max(1, data.current_page - 2);
+        const end = Math.min(data.pages, data.current_page + 2);
+        for (let i = start; i <= end; i++) addBtn(String(i), i, i === data.current_page);
+        if (data.current_page < data.pages) addBtn('След →', data.current_page + 1);
+    }
+
+    function fetchBulkEditTasks() {
+        if (!bulkEditTbody) return;
+        bulkEditTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Загрузка…</td></tr>';
+        fetch(`/api/tasks/bulk-search?${buildBulkSearchParams()}`)
+            .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    bulkEditTbody.innerHTML = `<tr><td colspan="15" class="empty-msg">${escapeHtml(data.error || 'Ошибка')}</td></tr>`;
+                    return;
+                }
+                renderBulkEditTable(data.tasks || []);
+                renderBulkPagination(data);
+            })
+            .catch(() => {
+                bulkEditTbody.innerHTML = '<tr><td colspan="15" class="empty-msg">Ошибка загрузки</td></tr>';
+            });
+    }
+
+    function openBulkEditView() {
+        if (processingsMenu) processingsMenu.classList.add('hidden');
+        if (bulkEditView) bulkEditView.classList.remove('hidden');
+        if (backToProcessingsMenuBtn) backToProcessingsMenuBtn.classList.remove('hidden');
+        if (processingsPageTitle) processingsPageTitle.textContent = 'Групповое изменение реквизитов';
+        bulkCurrentPage = 1;
+        bulkSelectedTaskIds = new Set();
+        bulkPendingChanges = null;
+        updateBulkFieldsSummary();
+        loadBulkFilterOptions().then(() => fetchBulkEditTasks());
+    }
+
+    function resetBulkFilters() {
+        if (bulkFilterStudent) bulkFilterStudent.value = '';
+        if (bulkFilterStatus) bulkFilterStatus.value = '';
+        if (bulkFilterCreatedFrom) bulkFilterCreatedFrom.value = '';
+        if (bulkFilterCreatedTo) bulkFilterCreatedTo.value = '';
+        if (bulkFilterIsPaid) bulkFilterIsPaid.value = '';
+        const lessonType = bulkFilterTaskTypesCache.find((t) => t.name === 'Урок');
+        if (bulkFilterTaskType) {
+            bulkFilterTaskType.value = lessonType ? String(lessonType.id) : '';
+        }
+        bulkCurrentPage = 1;
+        bulkSelectedTaskIds = new Set();
+        fetchBulkEditTasks();
+    }
+
+    function buildBulkFieldValueInput(fieldDef) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bulk-field-value-wrap hidden';
+        wrap.dataset.fieldKey = fieldDef.key;
+
+        if (fieldDef.type === 'status') {
+            const sel = document.createElement('select');
+            sel.className = 'filter-control bulk-field-value-input';
+            if (fieldDef.nullable) {
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = BULK_EMPTY;
+                emptyOpt.textContent = 'Не заполнено';
+                sel.appendChild(emptyOpt);
+            }
+            bulkFilterStatusesCache.forEach((s) => {
+                const opt = document.createElement('option');
+                opt.value = String(s.id);
+                opt.textContent = s.name;
+                sel.appendChild(opt);
+            });
+            wrap.appendChild(sel);
+        } else if (fieldDef.type === 'student') {
+            const sel = document.createElement('select');
+            sel.className = 'filter-control bulk-field-value-input';
+            if (fieldDef.nullable) {
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = BULK_EMPTY;
+                emptyOpt.textContent = 'Не заполнено';
+                sel.appendChild(emptyOpt);
+            }
+            bulkFilterStudentsCache.forEach((s) => {
+                const opt = document.createElement('option');
+                opt.value = String(s.id);
+                opt.textContent = s.display_name;
+                sel.appendChild(opt);
+            });
+            wrap.appendChild(sel);
+        } else if (fieldDef.type === 'task_type') {
+            const sel = document.createElement('select');
+            sel.className = 'filter-control bulk-field-value-input';
+            if (fieldDef.nullable) {
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = BULK_EMPTY;
+                emptyOpt.textContent = 'Не заполнено';
+                sel.appendChild(emptyOpt);
+            }
+            bulkFilterTaskTypesCache.forEach((t) => {
+                const opt = document.createElement('option');
+                opt.value = String(t.id);
+                opt.textContent = t.name;
+                sel.appendChild(opt);
+            });
+            wrap.appendChild(sel);
+        } else if (fieldDef.type === 'boolean') {
+            const sel = document.createElement('select');
+            sel.className = 'filter-control bulk-field-value-input';
+            sel.innerHTML = '<option value="1">Да</option><option value="0">Нет</option>';
+            wrap.appendChild(sel);
+        } else if (fieldDef.type === 'datetime') {
+            const inp = document.createElement('input');
+            inp.type = 'datetime-local';
+            inp.className = 'filter-control bulk-field-value-input';
+            wrap.appendChild(inp);
+            if (fieldDef.nullable) {
+                const clearLbl = document.createElement('label');
+                clearLbl.style.display = 'flex';
+                clearLbl.style.gap = '6px';
+                clearLbl.style.marginTop = '6px';
+                clearLbl.style.fontSize = '13px';
+                const clearCb = document.createElement('input');
+                clearCb.type = 'checkbox';
+                clearCb.className = 'bulk-field-clear-cb';
+                clearLbl.appendChild(clearCb);
+                clearLbl.appendChild(document.createTextNode('Очистить (не заполнено)'));
+                wrap.appendChild(clearLbl);
+            }
+        } else if (fieldDef.type === 'number') {
+            const inp = document.createElement('input');
+            inp.type = 'number';
+            inp.min = '0';
+            inp.className = 'filter-control bulk-field-value-input';
+            wrap.appendChild(inp);
+            if (fieldDef.nullable) {
+                const clearLbl = document.createElement('label');
+                clearLbl.style.display = 'flex';
+                clearLbl.style.gap = '6px';
+                clearLbl.style.marginTop = '6px';
+                clearLbl.style.fontSize = '13px';
+                const clearCb = document.createElement('input');
+                clearCb.type = 'checkbox';
+                clearCb.className = 'bulk-field-clear-cb';
+                clearLbl.appendChild(clearCb);
+                clearLbl.appendChild(document.createTextNode('Очистить (не заполнено)'));
+                wrap.appendChild(clearLbl);
+            }
+        } else {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.className = 'filter-control bulk-field-value-input';
+            wrap.appendChild(inp);
+            if (fieldDef.nullable) {
+                const clearLbl = document.createElement('label');
+                clearLbl.style.display = 'flex';
+                clearLbl.style.gap = '6px';
+                clearLbl.style.marginTop = '6px';
+                clearLbl.style.fontSize = '13px';
+                const clearCb = document.createElement('input');
+                clearCb.type = 'checkbox';
+                clearCb.className = 'bulk-field-clear-cb';
+                clearLbl.appendChild(clearCb);
+                clearLbl.appendChild(document.createTextNode('Очистить (не заполнено)'));
+                wrap.appendChild(clearLbl);
+            }
+        }
+        return wrap;
+    }
+
+    function renderBulkFieldsForm() {
+        if (!bulkFieldsForm) return;
+        bulkFieldsForm.innerHTML = '';
+        BULK_EDIT_FIELDS.forEach((fieldDef) => {
+            const row = document.createElement('div');
+            row.className = 'bulk-field-row';
+            const head = document.createElement('div');
+            head.className = 'bulk-field-row-head';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'bulk-field-enable-cb';
+            cb.dataset.fieldKey = fieldDef.key;
+            const checked = bulkPendingChanges && fieldDef.key in bulkPendingChanges;
+            cb.checked = !!checked;
+            head.appendChild(cb);
+            head.appendChild(document.createTextNode(fieldDef.label));
+            row.appendChild(head);
+            const valueWrap = buildBulkFieldValueInput(fieldDef);
+            if (checked) valueWrap.classList.remove('hidden');
+            row.appendChild(valueWrap);
+            cb.addEventListener('change', () => {
+                valueWrap.classList.toggle('hidden', !cb.checked);
+            });
+            bulkFieldsForm.appendChild(row);
+        });
+        if (bulkPendingChanges) {
+            BULK_EDIT_FIELDS.forEach((fieldDef) => {
+                if (!(fieldDef.key in bulkPendingChanges)) return;
+                const wrap = bulkFieldsForm.querySelector(`.bulk-field-value-wrap[data-field-key="${fieldDef.key}"]`);
+                if (!wrap) return;
+                const val = bulkPendingChanges[fieldDef.key];
+                const clearCb = wrap.querySelector('.bulk-field-clear-cb');
+                const input = wrap.querySelector('.bulk-field-value-input');
+                if (val === BULK_EMPTY || val === null) {
+                    if (clearCb) clearCb.checked = true;
+                } else if (input) {
+                    if (fieldDef.type === 'boolean') input.value = val ? '1' : '0';
+                    else if (fieldDef.type === 'datetime' && val) input.value = toDatetimeLocalInputValue(val);
+                    else input.value = val;
+                }
+            });
+        }
+    }
+
+    function collectBulkFieldsFromModal() {
+        const changes = {};
+        BULK_EDIT_FIELDS.forEach((fieldDef) => {
+            const enableCb = bulkFieldsForm.querySelector(`.bulk-field-enable-cb[data-field-key="${fieldDef.key}"]`);
+            if (!enableCb || !enableCb.checked) return;
+            const wrap = bulkFieldsForm.querySelector(`.bulk-field-value-wrap[data-field-key="${fieldDef.key}"]`);
+            if (!wrap) return;
+            const clearCb = wrap.querySelector('.bulk-field-clear-cb');
+            if (clearCb && clearCb.checked) {
+                changes[fieldDef.key] = BULK_EMPTY;
+                return;
+            }
+            const input = wrap.querySelector('.bulk-field-value-input');
+            if (!input) return;
+            if (fieldDef.type === 'boolean') {
+                changes[fieldDef.key] = input.value === '1';
+            } else if (fieldDef.type === 'number') {
+                changes[fieldDef.key] = input.value === '' ? BULK_EMPTY : parseInt(input.value, 10);
+            } else {
+                changes[fieldDef.key] = input.value === '' ? BULK_EMPTY : input.value;
+            }
+        });
+        return changes;
+    }
+
+    function openBulkFieldsModal() {
+        renderBulkFieldsForm();
+        if (bulkFieldsModal) bulkFieldsModal.classList.remove('hidden');
+    }
+
+    function saveBulkFieldsFromModal() {
+        const changes = collectBulkFieldsFromModal();
+        if (!Object.keys(changes).length) {
+            showAppToast('Выберите хотя бы один реквизит', true);
+            return;
+        }
+        bulkPendingChanges = changes;
+        updateBulkFieldsSummary();
+        updateBulkSelectionUi();
+        if (bulkFieldsModal) bulkFieldsModal.classList.add('hidden');
+    }
+
+    function executeBulkUpdate() {
+        const taskIds = Array.from(bulkSelectedTaskIds);
+        const changes = { ...bulkPendingChanges };
+        Object.keys(changes).forEach((k) => {
+            if (changes[k] === BULK_EMPTY) changes[k] = null;
+        });
+        fetch('/api/tasks/bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_ids: taskIds, changes }),
+        })
+            .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    showAppToast(data.error || 'Ошибка обновления', true);
+                    return;
+                }
+                showAppToast(`Обновлено задач: ${data.updated}`);
+                bulkSelectedTaskIds = new Set();
+                if (bulkConfirmModal) bulkConfirmModal.classList.add('hidden');
+                fetchBulkEditTasks();
+                refreshCurrentTaskView();
+            })
+            .catch(() => showAppToast('Ошибка обновления', true));
+    }
+
+    function promptBulkUpdateConfirm() {
+        if (!bulkPendingChanges || !bulkSelectedTaskIds.size) return;
+        const n = bulkSelectedTaskIds.size;
+        const fieldCount = Object.keys(bulkPendingChanges).length;
+        if (bulkConfirmText) {
+            bulkConfirmText.textContent = `Изменить ${fieldCount} реквизит(ов) у ${n} выбранных задач?`;
+        }
+        if (bulkConfirmModal) bulkConfirmModal.classList.remove('hidden');
+    }
+
+    if (backToMainFromProcessingsBtn) {
+        backToMainFromProcessingsBtn.addEventListener('click', showMainPage);
+    }
+    if (backToProcessingsMenuBtn) {
+        backToProcessingsMenuBtn.addEventListener('click', showProcessingsMenu);
+    }
+    if (openBulkEditBtn) {
+        openBulkEditBtn.addEventListener('click', openBulkEditView);
+    }
+    if (bulkFilterApplyBtn) {
+        bulkFilterApplyBtn.addEventListener('click', () => {
+            bulkCurrentPage = 1;
+            fetchBulkEditTasks();
+        });
+    }
+    if (bulkFilterResetBtn) bulkFilterResetBtn.addEventListener('click', resetBulkFilters);
+    if (bulkSelectAllPage) {
+        bulkSelectAllPage.addEventListener('change', () => {
+            const checked = bulkSelectAllPage.checked;
+            bulkLastPageTaskIds.forEach((id) => {
+                if (checked) bulkSelectedTaskIds.add(id);
+                else bulkSelectedTaskIds.delete(id);
+            });
+            bulkEditTbody.querySelectorAll('.bulk-row-check').forEach((cb) => {
+                cb.checked = checked;
+            });
+            updateBulkSelectionUi();
+        });
+    }
+    if (bulkSelectFieldsBtn) bulkSelectFieldsBtn.addEventListener('click', openBulkFieldsModal);
+    if (bulkFieldsSaveBtn) bulkFieldsSaveBtn.addEventListener('click', saveBulkFieldsFromModal);
+    if (bulkFieldsCancelBtn && bulkFieldsModal) {
+        bulkFieldsCancelBtn.addEventListener('click', () => bulkFieldsModal.classList.add('hidden'));
+    }
+    if (bulkFieldsModalClose && bulkFieldsModal) {
+        bulkFieldsModalClose.addEventListener('click', () => bulkFieldsModal.classList.add('hidden'));
+    }
+    if (bulkApplyBtn) bulkApplyBtn.addEventListener('click', promptBulkUpdateConfirm);
+    if (bulkConfirmYes) bulkConfirmYes.addEventListener('click', executeBulkUpdate);
+    if (bulkConfirmNo && bulkConfirmModal) {
+        bulkConfirmNo.addEventListener('click', () => bulkConfirmModal.classList.add('hidden'));
+    }
+    if (bulkConfirmModalClose && bulkConfirmModal) {
+        bulkConfirmModalClose.addEventListener('click', () => bulkConfirmModal.classList.add('hidden'));
     }
 });

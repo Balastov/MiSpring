@@ -543,6 +543,76 @@ select.filter-control {
     font-size: 14px;
 }
 
+/* ========== Bulk edit / Processings ========== */
+.bulk-edit-filters {
+    flex-wrap: wrap;
+}
+
+.bulk-edit-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 8px;
+}
+
+.bulk-selected-count {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    min-width: 120px;
+}
+
+.bulk-fields-summary {
+    margin: 0 0 12px;
+}
+
+.bulk-edit-table-wrap {
+    max-height: calc(100vh - 380px);
+    overflow: auto;
+}
+
+.bulk-check-col {
+    width: 36px;
+    text-align: center;
+}
+
+.bulk-fields-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.bulk-field-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.bulk-field-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.bulk-field-row-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.bulk-field-value-wrap {
+    padding-left: 24px;
+}
+
+.bulk-field-value-wrap.hidden {
+    display: none;
+}
+
 #calendar-container .fc-event {
     cursor: pointer;
     font-size: 11px;

@@ -396,6 +396,7 @@
                 <button class="settings-option-btn" data-option="users">Пользователи</button>
                 <button class="settings-option-btn" data-option="telegram">Ссылки и интеграции</button>
                 <button class="settings-option-btn" data-option="reports">Отчёты</button>
+                <button class="settings-option-btn" data-option="processings">Обработки</button>
                 <button class="settings-option-btn" data-option="plan-templates" id="plan-templates-settings-btn">Планы обучения</button>
             </div>
         </div>
@@ -1073,6 +1074,131 @@
                     <button type="button" id="report-plan-schedule-load-btn" class="btn-primary">Обновить</button>
                 </div>
                 <div id="report-plan-schedule-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processings Page -->
+    <div id="processings-page" class="page hidden">
+        <div class="page-header">
+            <h2 id="processings-page-title">Обработки</h2>
+            <div class="page-actions">
+                <button type="button" id="back-to-processings-menu-btn" class="btn-secondary hidden">К списку обработок</button>
+                <button type="button" id="back-to-main-from-processings-btn" class="btn-secondary">Назад к задачам</button>
+            </div>
+        </div>
+        <div class="reports-section processings-section">
+            <div id="processings-menu" class="reports-menu">
+                <button type="button" id="open-bulk-edit-btn" class="report-option-btn">Групповое изменение реквизитов</button>
+            </div>
+
+            <div id="bulk-edit-view" class="report-view hidden">
+                <p class="report-income-desc">Отберите задачи по фильтрам, отметьте нужные и измените выбранные реквизиты.</p>
+                <div class="report-filters bulk-edit-filters">
+                    <div class="filter-group">
+                        <label for="bulk-filter-student">Ученик</label>
+                        <select id="bulk-filter-student" class="filter-control"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="bulk-filter-status">Статус</label>
+                        <select id="bulk-filter-status" class="filter-control"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="bulk-filter-task-type">Тип задачи</label>
+                        <select id="bulk-filter-task-type" class="filter-control"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="bulk-filter-created-from">Создано с</label>
+                        <input type="date" id="bulk-filter-created-from" class="filter-control">
+                    </div>
+                    <div class="filter-group">
+                        <label for="bulk-filter-created-to">Создано по</label>
+                        <input type="date" id="bulk-filter-created-to" class="filter-control">
+                    </div>
+                    <div class="filter-group">
+                        <label for="bulk-filter-is-paid">Оплачено</label>
+                        <select id="bulk-filter-is-paid" class="filter-control">
+                            <option value="">Все</option>
+                            <option value="1">Да</option>
+                            <option value="0">Нет</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <button type="button" id="bulk-filter-apply-btn" class="btn-filter-apply">Применить</button>
+                        <button type="button" id="bulk-filter-reset-btn" class="btn-filter-reset">Сбросить</button>
+                    </div>
+                </div>
+
+                <div class="bulk-edit-toolbar">
+                    <span id="bulk-selected-count" class="bulk-selected-count">Выбрано: 0</span>
+                    <button type="button" id="bulk-select-fields-btn" class="btn-secondary">Выбрать реквизиты</button>
+                    <button type="button" id="bulk-apply-btn" class="btn-primary" disabled>Изменить реквизиты</button>
+                </div>
+                <p id="bulk-fields-summary" class="hint bulk-fields-summary hidden"></p>
+
+                <div id="bulk-edit-pagination-info" class="pagination-info"></div>
+                <div class="table-wrapper bulk-edit-table-wrap">
+                    <table id="bulk-edit-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th class="bulk-check-col">
+                                    <input type="checkbox" id="bulk-select-all-page" title="Выбрать все на странице">
+                                </th>
+                                <th>№</th>
+                                <th>Ученик</th>
+                                <th>Тип задачи</th>
+                                <th>Дата создания</th>
+                                <th>Дата начала</th>
+                                <th>Дата окончания</th>
+                                <th>Продолжительность</th>
+                                <th>Автор</th>
+                                <th>Оплачено</th>
+                                <th>Дата оплаты</th>
+                                <th>Д/З</th>
+                                <th>Статус</th>
+                                <th>Комментарий</th>
+                                <th>Дата закрытия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulk-edit-tbody"></tbody>
+                    </table>
+                </div>
+                <div id="bulk-edit-pagination-controls" class="pagination-controls"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk edit: выбор реквизитов -->
+    <div id="bulk-fields-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <h2>Выбор реквизитов</h2>
+                <button type="button" class="modal-close" id="bulk-fields-modal-close">&times;</button>
+            </div>
+            <div style="padding:16px 24px 24px;">
+                <p class="hint" style="margin-top:0;">Отметьте реквизиты и укажите новые значения. Для необязательных полей можно выбрать «Не заполнено».</p>
+                <div id="bulk-fields-form" class="bulk-fields-form"></div>
+                <div class="form-actions" style="margin-top:16px;padding-top:0;border-top:none;justify-content:flex-end;">
+                    <button type="button" class="btn-secondary" id="bulk-fields-cancel-btn">Отмена</button>
+                    <button type="button" class="btn-primary" id="bulk-fields-save-btn">Сохранить выбор</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk edit: подтверждение -->
+    <div id="bulk-confirm-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>Подтверждение</h2>
+                <button type="button" class="modal-close" id="bulk-confirm-modal-close">&times;</button>
+            </div>
+            <div style="padding:20px 24px 24px;">
+                <p id="bulk-confirm-text" style="margin:0;font-size:15px;line-height:1.5;"></p>
+                <div class="form-actions" style="margin-top:20px;padding-top:0;border-top:none;justify-content:flex-end;">
+                    <button type="button" class="btn-danger" id="bulk-confirm-yes">Да</button>
+                    <button type="button" class="btn-secondary" id="bulk-confirm-no">Нет</button>
+                </div>
             </div>
         </div>
     </div>
