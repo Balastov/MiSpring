@@ -787,12 +787,14 @@
     <!-- Telegram Page (hidden by default) -->
     <div id="telegram-page" class="page hidden">
         <div class="page-header">
-            <h2>Telegram интеграция</h2>
+            <h2>Ссылки и интеграции</h2>
             <div class="page-actions">
                 <button id="back-to-main-from-telegram-btn" class="btn-secondary">Назад к задачам</button>
             </div>
         </div>
         <div class="telegram-section">
+            <div class="telegram-card" id="teacher-web-push-settings"></div>
+
             <div class="telegram-status-card">
                 <h3>Статус привязки</h3>
                 <div id="telegram-status-info">
@@ -1373,6 +1375,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='script.js', v=cache_bust('script.js')) }}"></script>
+    <script src="{{ url_for('static', filename='web_push_settings.js', v=cache_bust('web_push_settings.js')) }}"></script>
     <script src="{{ url_for('static', filename='chat_widget.js', v=cache_bust('chat_widget.js')) }}"></script>
     <script>
       if ('serviceWorker' in navigator) {

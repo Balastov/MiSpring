@@ -32,6 +32,31 @@ document.addEventListener('DOMContentLoaded', () => {
     let pushEnabled = false;
     let hasPushSubscription = false;
 
+    function hasPushSubscriptionActive() {
+        return window.MiSpringWebPush && window.MiSpringWebPush.hasPushSubscription;
+    }
+
+    function syncPushSubscription() {
+        if (!isAllowedForChat()) return Promise.resolve(false);
+        if (window.MiSpringWebPush) {
+            return window.MiSpringWebPush.syncSubscription().then((ok) => {
+                hasPushSubscription = !!ok || hasPushSubscriptionActive();
+                return ok;
+            });
+        }
+        return Promise.resolve(false);
+    }
+
+    function fetchPushPublicKey() {
+        if (window.MiSpringWebPush) {
+            return window.MiSpringWebPush.fetchPushPublicKey().then((data) => {
+                pushEnabled = !!(data && data.enabled);
+                pushPublicKey = pushEnabled ? String(data.public_key || '') : '';
+            });
+        }
+        return Promise.resolve();
+    }
+
     function ensureAudioCtx() {
         if (!window.AudioContext && !window.webkitAudioContext) return null;
         if (!unreadAudioCtx) {
@@ -120,76 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (perm === 'granted') syncPushSubscription();
             }).catch(() => {});
         }
-    }
-
-    function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const raw = window.atob(base64);
-        const out = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; ++i) out[i] = raw.charCodeAt(i);
-        return out;
-    }
-
-    function sendPushSubscribe(subscription) {
-        if (!subscription) return Promise.resolve();
-        const json = subscription.toJSON ? subscription.toJSON() : subscription;
-        return fetch('/api/chat/push/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                endpoint: json.endpoint,
-                keys: json.keys || {},
-            }),
-        }).catch(() => {});
-    }
-
-    function sendPushUnsubscribe(endpoint) {
-        if (!endpoint) return Promise.resolve();
-        return fetch('/api/chat/push/unsubscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint }),
-        }).catch(() => {});
-    }
-
-    function fetchPushPublicKey() {
-        return fetch('/api/chat/push/public-key')
-            .then(r => r.json())
-            .then((data) => {
-                pushEnabled = !!(data && data.enabled && data.public_key);
-                pushPublicKey = pushEnabled ? String(data.public_key) : '';
-            })
-            .catch(() => {
-                pushEnabled = false;
-                pushPublicKey = '';
-            });
-    }
-
-    function syncPushSubscription() {
-        if (!isAllowedForChat()) return Promise.resolve(false);
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve(false);
-        if (!('Notification' in window)) return Promise.resolve(false);
-        if (Notification.permission !== 'granted') return Promise.resolve(false);
-
-        return fetchPushPublicKey().then(() => {
-            if (!pushEnabled || !pushPublicKey) return false;
-            return navigator.serviceWorker.ready.then((reg) => {
-                return reg.pushManager.getSubscription().then((current) => {
-                    if (current) {
-                        hasPushSubscription = true;
-                        return sendPushSubscribe(current).then(() => true);
-                    }
-                    return reg.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array(pushPublicKey),
-                    }).then((sub) => {
-                        hasPushSubscription = true;
-                        return sendPushSubscribe(sub).then(() => true);
-                    });
-                });
-            });
-        }).catch(() => false);
     }
 
     function hasRole(name) {

@@ -3090,10 +3090,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const integrationMeetingLinkInput = document.getElementById('integration-meeting-link-input');
     const integrationSaveMeetingLinkBtn = document.getElementById('integration-save-meeting-link-btn');
     const integrationMeetingLinkStatus = document.getElementById('integration-meeting-link-status');
+    const teacherWebPushSettings = document.getElementById('teacher-web-push-settings');
+    let teacherWebPushController = null;
 
     function showTelegramPage() {
         hideAllPages();
         telegramPage.classList.remove('hidden');
+        if (teacherWebPushSettings && window.MiSpringWebPush) {
+            if (!teacherWebPushController) {
+                teacherWebPushController = window.MiSpringWebPush.mount(teacherWebPushSettings);
+            } else {
+                teacherWebPushController.refresh();
+            }
+        }
         loadTelegramStatus();
         loadIntegrationMeetingLink();
     }

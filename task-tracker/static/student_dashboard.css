@@ -1041,6 +1041,10 @@
     box-shadow: 0 8px 30px rgba(0,0,0,0.18);
 }
 
+.sd-modal-content--wide {
+    max-width: 520px;
+}
+
 .sd-modal-close {
     position: absolute;
     top: 12px;

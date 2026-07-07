@@ -484,6 +484,49 @@ def get_push_public_key():
     return jsonify({'enabled': cfg['enabled'], 'public_key': cfg['public_key']})
 
 
+@chat_bp.route('/api/chat/push/status', methods=['GET'])
+@login_required
+def get_push_status():
+    if not _is_chat_role_allowed():
+        return jsonify({'server_enabled': False, 'subscribed': False, 'subscription_count': 0})
+    cfg = _webpush_config()
+    count = ChatPushSubscription.query.filter_by(user_id=current_user.id).count()
+    return jsonify({
+        'server_enabled': cfg['enabled'],
+        'subscribed': count > 0,
+        'subscription_count': count,
+    })
+
+
+@chat_bp.route('/api/chat/push/unsubscribe-all', methods=['POST'])
+@login_required
+def unsubscribe_all_push():
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Недоступно для текущей роли'}), 403
+    ChatPushSubscription.query.filter_by(user_id=current_user.id).delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@chat_bp.route('/api/chat/push/test', methods=['POST'])
+@login_required
+def test_push():
+    if not _is_chat_role_allowed():
+        return jsonify({'error': 'Недоступно для текущей роли'}), 403
+    cfg = _webpush_config()
+    if not cfg['enabled']:
+        return jsonify({'error': 'Push-уведомления не настроены на сервере'}), 400
+    sent = _send_push_to_user(current_user.id, {
+        'title': 'MiSpring: тестовое уведомление',
+        'body': 'Уведомления работают на этом устройстве',
+        'url': '/',
+        'tag': 'mispring-push-test',
+    })
+    if sent <= 0:
+        return jsonify({'error': 'Не удалось отправить. Включите уведомления на этом устройстве.'}), 400
+    return jsonify({'ok': True, 'sent': sent})
+
+
 @chat_bp.route('/api/chat/push/subscribe', methods=['POST'])
 @login_required
 def subscribe_push():

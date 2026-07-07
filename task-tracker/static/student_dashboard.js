@@ -38,6 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sdProfileModal = document.getElementById('sd-profile-modal');
     const sdProfileModalClose = document.getElementById('sd-profile-modal-close');
     const sdLogoutBtn = document.getElementById('sd-logout-btn');
+    const sdNotificationsBtn = document.getElementById('sd-notifications-btn');
+    const sdNotificationsModal = document.getElementById('sd-notifications-modal');
+    const sdNotificationsModalClose = document.getElementById('sd-notifications-modal-close');
+    const sdWebPushSettings = document.getElementById('sd-web-push-settings');
     const sdTelegramBtn = document.getElementById('sd-telegram-btn');
     const sdChangePasswordBtn = document.getElementById('sd-change-password-btn');
 
@@ -814,6 +818,27 @@ document.addEventListener('DOMContentLoaded', () => {
         closeModal(sdProfileModal);
         window.location.href = '/?section=telegram';
     });
+
+    let sdWebPushController = null;
+    if (sdNotificationsBtn && sdNotificationsModal) {
+        sdNotificationsBtn.addEventListener('click', () => {
+            closeModal(sdProfileModal);
+            if (sdWebPushSettings && window.MiSpringWebPush) {
+                if (!sdWebPushController) {
+                    sdWebPushController = window.MiSpringWebPush.mount(sdWebPushSettings);
+                } else {
+                    sdWebPushController.refresh();
+                }
+            }
+            openModal(sdNotificationsModal);
+        });
+        if (sdNotificationsModalClose) {
+            sdNotificationsModalClose.addEventListener('click', () => closeModal(sdNotificationsModal));
+        }
+        sdNotificationsModal.addEventListener('click', e => {
+            if (e.target === sdNotificationsModal) closeModal(sdNotificationsModal);
+        });
+    }
 
     sdChangePasswordBtn.addEventListener('click', () => {
         closeModal(sdProfileModal);
