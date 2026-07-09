@@ -312,12 +312,44 @@
         return { refresh };
     }
 
+    async function getDevicePushState() {
+        const server = await fetchServerStatus();
+        if (!server.server_enabled) {
+            return {
+                active: false,
+                shouldPrompt: false,
+                serverEnabled: false,
+                supported: isBrowserSupported(),
+            };
+        }
+        if (!isBrowserSupported()) {
+            return {
+                active: false,
+                shouldPrompt: false,
+                serverEnabled: true,
+                supported: false,
+            };
+        }
+        const permission = getPermission();
+        const localSub = await getLocalSubscription();
+        const active = permission === 'granted' && !!localSub;
+        return {
+            active,
+            shouldPrompt: !active,
+            serverEnabled: true,
+            supported: true,
+            permission,
+            localSubscribed: !!localSub,
+        };
+    }
+
     global.MiSpringWebPush = {
         mount,
         enable: enablePush,
         disable: disablePush,
         syncSubscription,
         fetchPushPublicKey,
+        getDevicePushState,
         isBrowserSupported,
         get hasPushSubscription() { return hasPushSubscription; },
     };

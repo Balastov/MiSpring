@@ -809,6 +809,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function initPushPromptBanner() {
+        if (!window.MiSpringPushBanner || !currentUserData) return;
+        if (!hasRole('student', 'teacher', 'admin', 'owner')) return;
+        const variant = hasRole('teacher', 'admin', 'owner') ? 'teacher' : 'student';
+        const run = () => window.MiSpringPushBanner.init({ variant });
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(run).catch(run);
+        } else {
+            run();
+        }
+    }
+
     initTaskExtraFieldsControls();
 
     fetch('/api/auth/me')
@@ -863,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (startupSection === 'telegram') {
                 showTelegramPage();
                 try { history.replaceState({ appPage: 'telegram' }, '', window.location.href); } catch (_) {}
+                initPushPromptBanner();
                 return;
             }
             // Load task list immediately
@@ -876,6 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchTasks();
                 }
             });
+            initPushPromptBanner();
         })
         .catch(() => {
             window.location.href = '/login';
@@ -3217,6 +3231,15 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTelegramStatus();
         loadIntegrationMeetingLink();
     }
+
+    window.MiSpringOpenPushSettings = function () {
+        showTelegramPage();
+        try {
+            history.pushState({ appPage: 'telegram' }, '', '/?section=telegram');
+        } catch (_) {
+            // ignore
+        }
+    };
 
     function loadIntegrationMeetingLink() {
         if (!integrationMeetingLinkInput) return;

@@ -820,23 +820,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     let sdWebPushController = null;
+    function openStudentPushSettings() {
+        if (sdWebPushSettings && window.MiSpringWebPush) {
+            if (!sdWebPushController) {
+                sdWebPushController = window.MiSpringWebPush.mount(sdWebPushSettings);
+            } else {
+                sdWebPushController.refresh();
+            }
+        }
+        if (sdNotificationsModal) openModal(sdNotificationsModal);
+    }
+    window.MiSpringOpenPushSettings = openStudentPushSettings;
+
     if (sdNotificationsBtn && sdNotificationsModal) {
         sdNotificationsBtn.addEventListener('click', () => {
             closeModal(sdProfileModal);
-            if (sdWebPushSettings && window.MiSpringWebPush) {
-                if (!sdWebPushController) {
-                    sdWebPushController = window.MiSpringWebPush.mount(sdWebPushSettings);
-                } else {
-                    sdWebPushController.refresh();
-                }
-            }
-            openModal(sdNotificationsModal);
+            openStudentPushSettings();
         });
         if (sdNotificationsModalClose) {
-            sdNotificationsModalClose.addEventListener('click', () => closeModal(sdNotificationsModal));
+            sdNotificationsModalClose.addEventListener('click', () => {
+                closeModal(sdNotificationsModal);
+                if (window.MiSpringPushBanner) {
+                    window.MiSpringPushBanner.refresh({ variant: 'student' });
+                }
+            });
         }
         sdNotificationsModal.addEventListener('click', e => {
-            if (e.target === sdNotificationsModal) closeModal(sdNotificationsModal);
+            if (e.target === sdNotificationsModal) {
+                closeModal(sdNotificationsModal);
+                if (window.MiSpringPushBanner) {
+                    window.MiSpringPushBanner.refresh({ variant: 'student' });
+                }
+            }
         });
     }
 
@@ -1014,6 +1029,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 sdHistoryMoreBtn.addEventListener('click', () => loadLessonsHistory(false));
             }
             setHistoryFilter('all');
+            if (window.MiSpringPushBanner) {
+                const runBanner = () => window.MiSpringPushBanner.init({ variant: 'student' });
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(runBanner).catch(runBanner);
+                } else {
+                    runBanner();
+                }
+            }
         })
         .catch(() => {
             window.location.href = '/login';
