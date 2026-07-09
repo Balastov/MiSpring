@@ -185,52 +185,50 @@
                         <option value="120">2 часа</option>
                     </select>
                 </div>
-                <div class="form-row" id="task-field-row-series">
-                    <label>Серия уроков</label>
-                    <div class="series-repeat-block">
-                        <label class="series-repeat-main">
-                            <span>Повторять</span>
-                            <select id="form-recurrence-rule" class="form-select" style="width:220px;">
-                                <option value="">Не повторять</option>
-                                <option value="WEEKLY">Раз в неделю</option>
-                                <option value="WEEKLY_MULTI">Несколько раз в неделю</option>
-                                <option value="BIWEEKLY">Через неделю</option>
-                                <option value="MONTHLY">Каждый месяц</option>
-                            </select>
-                        </label>
-                        <label class="series-repeat-until">
-                            <span>До даты</span>
-                            <input type="date" id="form-series-until-date" style="width:155px;">
-                        </label>
-                        <div id="form-weekly-multi-days" class="weekly-multi-days hidden">
-                            <div class="weekly-multi-day" data-weekday="0">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Пн</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
-                            <div class="weekly-multi-day" data-weekday="1">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Вт</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
-                            <div class="weekly-multi-day" data-weekday="2">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Ср</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
-                            <div class="weekly-multi-day" data-weekday="3">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Чт</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
-                            <div class="weekly-multi-day" data-weekday="4">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Пт</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
-                            <div class="weekly-multi-day" data-weekday="5">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Сб</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
-                            <div class="weekly-multi-day" data-weekday="6">
-                                <label><input type="checkbox" class="weekly-multi-day-cb"> Вс</label>
-                                <input type="time" class="weekly-multi-day-time" disabled>
-                            </div>
+                <div class="form-row" id="task-field-row-recurrence">
+                    <label>Повторять</label>
+                    <select id="form-recurrence-rule" class="form-select">
+                        <option value="">Не повторять</option>
+                        <option value="WEEKLY">Раз в неделю</option>
+                        <option value="WEEKLY_MULTI">Несколько раз в неделю</option>
+                        <option value="BIWEEKLY">Через неделю</option>
+                        <option value="MONTHLY">Каждый месяц</option>
+                    </select>
+                </div>
+                <div class="form-row hidden" id="task-field-row-series-until">
+                    <label>До даты</label>
+                    <input type="date" id="form-series-until-date">
+                </div>
+                <div class="form-row hidden form-row--compact-label" id="task-field-row-weekly-multi">
+                    <label></label>
+                    <div id="form-weekly-multi-days" class="weekly-multi-days">
+                        <div class="weekly-multi-day" data-weekday="0">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Пн</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
+                        </div>
+                        <div class="weekly-multi-day" data-weekday="1">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Вт</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
+                        </div>
+                        <div class="weekly-multi-day" data-weekday="2">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Ср</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
+                        </div>
+                        <div class="weekly-multi-day" data-weekday="3">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Чт</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
+                        </div>
+                        <div class="weekly-multi-day" data-weekday="4">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Пт</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
+                        </div>
+                        <div class="weekly-multi-day" data-weekday="5">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Сб</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
+                        </div>
+                        <div class="weekly-multi-day" data-weekday="6">
+                            <label><input type="checkbox" class="weekly-multi-day-cb"> Вс</label>
+                            <input type="time" class="weekly-multi-day-time" disabled>
                         </div>
                     </div>
                 </div>
@@ -263,20 +261,16 @@
                 </div>
                 <div class="form-row" id="task-field-row-homework">
                     <label>Домашнее задание</label>
-                    <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+                    <div class="homework-field-stack">
                         <select id="form-homework-id" class="form-select">
                             <option value="">-- Выберите --</option>
                         </select>
                         <div id="form-extra-homeworks"></div>
+                        <div class="homework-field-actions">
+                            <button type="button" class="btn-secondary btn-compact" id="task-add-homework-btn">Добавить ДЗ</button>
+                            <button type="button" class="btn-secondary btn-compact hidden" id="apply-series-homework-btn">Назначить ДЗ на следующие уроки</button>
+                        </div>
                     </div>
-                </div>
-                <div class="form-row" id="task-field-row-add-homework">
-                    <label></label>
-                    <button type="button" class="btn-secondary btn-compact" id="task-add-homework-btn">Добавить ДЗ</button>
-                </div>
-                <div class="form-row hidden" id="task-field-row-series-apply">
-                    <label></label>
-                    <button type="button" class="btn-secondary" id="apply-series-homework-btn">Назначить ДЗ на следующие уроки</button>
                 </div>
                 <div class="form-row" id="task-field-row-status">
                     <label>Статус</label>

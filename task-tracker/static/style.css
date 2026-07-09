@@ -916,21 +916,6 @@ select.filter-control {
     display: none;
 }
 
-.series-repeat-block {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 100%;
-}
-
-.series-repeat-main,
-.series-repeat-until {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-}
-
 .weekly-multi-days {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -939,6 +924,9 @@ select.filter-control {
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
     background: var(--color-bg-secondary, #f8f9fa);
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .weekly-multi-days.hidden {
@@ -1050,6 +1038,29 @@ select.filter-control {
 
 .form-row.hidden {
     display: none;
+}
+
+.form-row--compact-label > label:empty {
+    display: none;
+}
+
+.form-row--compact-label > label:empty + * {
+    flex: 1;
+    width: 100%;
+}
+
+.homework-field-stack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.homework-field-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .form-row label {

@@ -80,11 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const formHomeworkId = document.getElementById('form-homework-id');
     const formExtraHomeworks = document.getElementById('form-extra-homeworks');
     const taskAddHomeworkBtn = document.getElementById('task-add-homework-btn');
+    const applySeriesHomeworkBtn = document.getElementById('apply-series-homework-btn');
     const formHomeworkRequired = document.getElementById('form-homework-required');
     const homeworkRequiredRow = document.getElementById('task-field-row-homework-required');
     const homeworkRow = document.getElementById('task-field-row-homework');
-    const addHomeworkRow = document.getElementById('task-field-row-add-homework');
-    const seriesApplyRow = document.getElementById('task-field-row-series-apply');
     const homeworkUniqueRow = document.getElementById('task-field-row-homework-unique');
     const formHomeworkUnique = document.getElementById('form-homework-unique');
     const homeworkCustomTextRow = document.getElementById('task-field-row-homework-custom-text');
@@ -110,7 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskFieldRowCreatedAt = document.getElementById('task-field-row-created-at');
     const taskFieldRowStartDate = document.getElementById('task-field-row-start-date');
     const taskFieldRowDuration = document.getElementById('task-field-row-duration');
-    const taskFieldRowSeries = document.getElementById('task-field-row-series');
+    const taskFieldRowRecurrence = document.getElementById('task-field-row-recurrence');
+    const taskFieldRowSeriesUntil = document.getElementById('task-field-row-series-until');
+    const taskFieldRowWeeklyMulti = document.getElementById('task-field-row-weekly-multi');
     const taskFieldRowEndDate = document.getElementById('task-field-row-end-date');
     const taskFieldRowAuthor = document.getElementById('task-field-row-author');
     const taskFieldRowIsPaid = document.getElementById('task-field-row-is-paid');
@@ -556,15 +557,15 @@ document.addEventListener('DOMContentLoaded', () => {
             { key: 'student', label: 'Ученик', row: studentRow, logic: () => isLessonTaskSelected() },
             { key: 'start_date', label: 'Дата начала', row: taskFieldRowStartDate },
             { key: 'duration', label: 'Продолжительность', row: taskFieldRowDuration },
-            { key: 'series', label: 'Серия уроков', row: taskFieldRowSeries, logic: () => isLessonTaskSelected() },
+            { key: 'series', label: 'Серия уроков', row: taskFieldRowRecurrence, logic: () => isLessonTaskSelected() },
             { key: 'end_date', label: 'Дата окончания', row: taskFieldRowEndDate },
             { key: 'plan_step', label: 'Этап плана', row: planStepRow, logic: () => isLessonTaskSelected() },
             { key: 'homework_required', label: 'ДЗ обязательно', row: homeworkRequiredRow, logic: () => isLessonTaskSelected() },
             { key: 'homework_unique', label: 'Уникальное ДЗ', row: homeworkUniqueRow, logic: () => isLessonTaskSelected() },
             { key: 'homework_custom_text', label: 'Текст уникального ДЗ', row: homeworkCustomTextRow, logic: () => isLessonTaskSelected() && !!(formHomeworkUnique && formHomeworkUnique.checked) },
             { key: 'homework', label: 'Домашнее задание', row: homeworkRow, logic: () => isLessonTaskSelected() && !(formHomeworkUnique && formHomeworkUnique.checked) },
-            { key: 'homework_add', label: 'Добавить ДЗ', row: addHomeworkRow, logic: () => isLessonTaskSelected() && !(formHomeworkUnique && formHomeworkUnique.checked) },
-            { key: 'series_apply', label: 'Назначить ДЗ на следующие уроки', row: seriesApplyRow, logic: () => !!currentSeriesId && isLessonTaskSelected() && !(formHomeworkUnique && formHomeworkUnique.checked) },
+            { key: 'homework_add', label: 'Добавить ДЗ', row: taskAddHomeworkBtn, logic: () => isLessonTaskSelected() && !(formHomeworkUnique && formHomeworkUnique.checked) },
+            { key: 'series_apply', label: 'Назначить ДЗ на следующие уроки', row: applySeriesHomeworkBtn, logic: () => !!currentSeriesId && isLessonTaskSelected() && !(formHomeworkUnique && formHomeworkUnique.checked) },
             { key: 'status', label: 'Статус', row: taskFieldRowStatus },
             { key: 'is_paid', label: 'Оплачено', row: taskFieldRowIsPaid },
             { key: 'payment_date', label: 'Дата оплаты', row: taskFieldRowPaymentDate },
@@ -619,8 +620,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const enabledByFlag = taskFieldVisibilityPrefs[cfg.key] !== false;
             const allowedByLogic = typeof cfg.logic === 'function' ? !!cfg.logic() : true;
             const shouldShow = enabledByFlag && allowedByLogic;
+            const target = cfg.row;
+            if (target.classList && target.classList.contains('btn-secondary')) {
+                target.classList.toggle('hidden', !shouldShow);
+                return;
+            }
             cfg.row.classList.toggle('hidden', !shouldShow);
         });
+        syncSeriesRowsVisibility();
+    }
+
+    function syncSeriesRowsVisibility() {
+        const seriesHidden = !taskFieldRowRecurrence
+            || taskFieldRowRecurrence.classList.contains('hidden');
+        if (taskFieldRowSeriesUntil && seriesHidden) {
+            taskFieldRowSeriesUntil.classList.add('hidden');
+        }
+        if (taskFieldRowWeeklyMulti && seriesHidden) {
+            taskFieldRowWeeklyMulti.classList.add('hidden');
+        }
+        if (!seriesHidden) {
+            updateSeriesUntilState();
+        }
     }
 
     function syncUniqueHomeworkUI() {
@@ -993,7 +1014,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateWeeklyMultiDaysVisibility() {
         if (!formWeeklyMultiDays || !formRecurrenceRule) return;
         const show = formRecurrenceRule.value === 'WEEKLY_MULTI';
-        formWeeklyMultiDays.classList.toggle('hidden', !show);
+        if (taskFieldRowWeeklyMulti) {
+            const seriesHidden = taskFieldRowRecurrence.classList.contains('hidden');
+            taskFieldRowWeeklyMulti.classList.toggle('hidden', seriesHidden || !show);
+        }
         if (!show) resetWeeklyMultiDays();
     }
 
@@ -1019,13 +1043,17 @@ document.addEventListener('DOMContentLoaded', () => {
             formRecurrenceRule.value = '';
             resetWeeklyMultiDays();
         }
-        const enabled = hasStartDate && !!formRecurrenceRule.value;
-        formSeriesUntilDate.disabled = !enabled;
+        const recurrenceSelected = hasStartDate && !!formRecurrenceRule.value;
+        formSeriesUntilDate.disabled = !recurrenceSelected;
         const maxAllowed = new Date();
         maxAllowed.setFullYear(maxAllowed.getFullYear() + 1);
         formSeriesUntilDate.max = new Date(maxAllowed.getTime() - maxAllowed.getTimezoneOffset() * 60000)
             .toISOString().slice(0, 10);
-        if (!enabled) formSeriesUntilDate.value = '';
+        if (!recurrenceSelected) formSeriesUntilDate.value = '';
+        if (taskFieldRowSeriesUntil) {
+            const seriesRowHidden = taskFieldRowRecurrence && taskFieldRowRecurrence.classList.contains('hidden');
+            taskFieldRowSeriesUntil.classList.toggle('hidden', seriesRowHidden || !recurrenceSelected);
+        }
         updateWeeklyMultiDaysVisibility();
     }
     if (formRecurrenceRule) formRecurrenceRule.addEventListener('change', updateSeriesUntilState);
@@ -1733,7 +1761,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const applySeriesHomeworkBtn = document.getElementById('apply-series-homework-btn');
     if (applySeriesHomeworkBtn) {
         applySeriesHomeworkBtn.addEventListener('click', () => {
             if (!currentSeriesId || !editingTaskId) return;
