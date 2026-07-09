@@ -159,21 +159,17 @@
                     <label>Описание</label>
                     <input type="text" id="form-description" maxlength="100">
                 </div> -->
-                <div class="form-row" id="task-field-row-student">
-                    <label>Ученик*</label>
-                    <select id="form-student-id" class="form-select">
-                        <option value="">-- Выберите ученика --</option>
-                    </select>
-                </div>
                 <div class="form-row" id="task-field-row-task-type">
                     <label>Тип задачи*</label>
                     <select id="form-task-type-id" class="form-select">
                         <option value="">-- Выберите тип --</option>
                     </select>
                 </div>
-                <div class="form-row" id="task-field-row-created-at">
-                    <label>Дата создания</label>
-                    <input type="datetime-local" id="form-created-at" readonly>
+                <div class="form-row" id="task-field-row-student">
+                    <label>Ученик*</label>
+                    <select id="form-student-id" class="form-select">
+                        <option value="">-- Выберите ученика --</option>
+                    </select>
                 </div>
                 <div class="form-row" id="task-field-row-start-date">
                     <label>Дата начала*</label>
@@ -242,17 +238,16 @@
                     <label>Дата окончания</label>
                     <input type="datetime-local" id="form-end-date" readonly>
                 </div>
-                <div class="form-row" id="task-field-row-author">
-                    <label>Автор</label>
-                    <input type="text" id="form-author" maxlength="100" value="Система" readonly>
-                </div>
-                <div class="form-row" id="task-field-row-is-paid">
-                    <label>Оплачено</label>
-                    <input type="checkbox" id="form-is-paid">
-                </div>
-                <div class="form-row" id="task-field-row-payment-date">
-                    <label>Дата оплаты</label>
-                    <input type="datetime-local" id="form-payment-date">
+                <div class="form-row" id="task-field-row-plan-step">
+                    <label>Этап плана</label>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                        <select id="form-plan-step-id" class="form-select">
+                            <option value="">-- Выберите этап --</option>
+                        </select>
+                        <span id="plan-step-warning" class="hidden" style="color:var(--color-warning);font-size:13px;">
+                            Необходимо назначить план обучения этому ученику
+                        </span>
+                    </div>
                 </div>
                 <div class="form-row" id="task-field-row-homework-required">
                     <label>ДЗ обязательно</label>
@@ -283,22 +278,27 @@
                     <label></label>
                     <button type="button" class="btn-secondary" id="apply-series-homework-btn">Назначить ДЗ на следующие уроки</button>
                 </div>
-                <div class="form-row" id="task-field-row-plan-step">
-                    <label>Этап плана</label>
-                    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
-                        <select id="form-plan-step-id" class="form-select">
-                            <option value="">-- Выберите этап --</option>
-                        </select>
-                        <span id="plan-step-warning" class="hidden" style="color:var(--color-warning);font-size:13px;">
-                            Необходимо назначить план обучения этому ученику
-                        </span>
-                    </div>
-                </div>
                 <div class="form-row" id="task-field-row-status">
                     <label>Статус</label>
                     <select id="form-status-id" class="form-select">
                         <option value="">-- Выберите статус --</option>
                     </select>
+                </div>
+                <div class="form-row" id="task-field-row-is-paid">
+                    <label>Оплачено</label>
+                    <input type="checkbox" id="form-is-paid">
+                </div>
+                <div class="form-row" id="task-field-row-payment-date">
+                    <label>Дата оплаты</label>
+                    <input type="datetime-local" id="form-payment-date">
+                </div>
+                <div class="form-row" id="task-field-row-created-at">
+                    <label>Дата создания</label>
+                    <input type="datetime-local" id="form-created-at" readonly>
+                </div>
+                <div class="form-row" id="task-field-row-author">
+                    <label>Автор</label>
+                    <input type="text" id="form-author" maxlength="100" value="Система" readonly>
                 </div>
                 <div class="form-row" id="task-field-row-comment">
                     <label>Комментарий</label>
