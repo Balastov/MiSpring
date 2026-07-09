@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formStatusId = document.getElementById('form-status-id');
     const formRecurrenceRule = document.getElementById('form-recurrence-rule');
     const formSeriesUntilDate = document.getElementById('form-series-until-date');
+    const formWeeklyMultiDays = document.getElementById('form-weekly-multi-days');
     const formTaskTypeId = document.getElementById('form-task-type-id');
     const formDuration = document.getElementById('form-duration');
     const formComment = document.getElementById('form-comment');
@@ -959,23 +960,93 @@ document.addEventListener('DOMContentLoaded', () => {
     formStartDate.addEventListener('change', () => {
         updateDurationState();
         recalcEndDate();
+        updateSeriesUntilState();
     });
 
     formDuration.addEventListener('change', () => {
         recalcEndDate();
     });
 
+    function resetWeeklyMultiDays() {
+        if (!formWeeklyMultiDays) return;
+        formWeeklyMultiDays.querySelectorAll('.weekly-multi-day').forEach((row) => {
+            const cb = row.querySelector('.weekly-multi-day-cb');
+            const timeInput = row.querySelector('.weekly-multi-day-time');
+            if (cb) cb.checked = false;
+            if (timeInput) {
+                timeInput.value = '';
+                timeInput.disabled = true;
+            }
+        });
+    }
+
+    function defaultWeeklyMultiTimeForWeekday(weekday) {
+        if (formStartDate && formStartDate.value) {
+            const start = new Date(formStartDate.value);
+            if (!Number.isNaN(start.getTime()) && start.getDay() === ((weekday + 1) % 7)) {
+                return formStartDate.value.slice(11, 16);
+            }
+        }
+        return '09:00';
+    }
+
+    function updateWeeklyMultiDaysVisibility() {
+        if (!formWeeklyMultiDays || !formRecurrenceRule) return;
+        const show = formRecurrenceRule.value === 'WEEKLY_MULTI';
+        formWeeklyMultiDays.classList.toggle('hidden', !show);
+        if (!show) resetWeeklyMultiDays();
+    }
+
+    function collectWeeklyScheduleFromForm() {
+        if (!formWeeklyMultiDays || !formRecurrenceRule || formRecurrenceRule.value !== 'WEEKLY_MULTI') {
+            return null;
+        }
+        const schedule = {};
+        formWeeklyMultiDays.querySelectorAll('.weekly-multi-day').forEach((row) => {
+            const cb = row.querySelector('.weekly-multi-day-cb');
+            const timeInput = row.querySelector('.weekly-multi-day-time');
+            if (!cb || !cb.checked || !timeInput || !timeInput.value) return;
+            schedule[String(row.dataset.weekday)] = timeInput.value.slice(0, 5);
+        });
+        return Object.keys(schedule).length ? schedule : null;
+    }
+
     function updateSeriesUntilState() {
         if (!formRecurrenceRule || !formSeriesUntilDate) return;
-        const enabled = !!formRecurrenceRule.value;
+        const hasStartDate = !!(formStartDate && formStartDate.value);
+        formRecurrenceRule.disabled = !hasStartDate;
+        if (!hasStartDate) {
+            formRecurrenceRule.value = '';
+            resetWeeklyMultiDays();
+        }
+        const enabled = hasStartDate && !!formRecurrenceRule.value;
         formSeriesUntilDate.disabled = !enabled;
         const maxAllowed = new Date();
         maxAllowed.setFullYear(maxAllowed.getFullYear() + 1);
         formSeriesUntilDate.max = new Date(maxAllowed.getTime() - maxAllowed.getTimezoneOffset() * 60000)
             .toISOString().slice(0, 10);
         if (!enabled) formSeriesUntilDate.value = '';
+        updateWeeklyMultiDaysVisibility();
     }
     if (formRecurrenceRule) formRecurrenceRule.addEventListener('change', updateSeriesUntilState);
+    if (formWeeklyMultiDays) {
+        formWeeklyMultiDays.querySelectorAll('.weekly-multi-day').forEach((row) => {
+            const cb = row.querySelector('.weekly-multi-day-cb');
+            const timeInput = row.querySelector('.weekly-multi-day-time');
+            if (!cb || !timeInput) return;
+            cb.addEventListener('change', () => {
+                if (cb.checked) {
+                    timeInput.disabled = false;
+                    if (!timeInput.value) {
+                        timeInput.value = defaultWeeklyMultiTimeForWeekday(Number(row.dataset.weekday || 0));
+                    }
+                } else {
+                    timeInput.value = '';
+                    timeInput.disabled = true;
+                }
+            });
+        });
+    }
     updateSeriesUntilState();
 
     function populateHomeworkSelectOptions(homeworkItems, selectedHomeworkId = null) {
@@ -1372,6 +1443,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (planStepWarning) planStepWarning.classList.add('hidden');
                 if (formRecurrenceRule) formRecurrenceRule.value = '';
                 if (formSeriesUntilDate) formSeriesUntilDate.value = '';
+                resetWeeklyMultiDays();
                 updateSeriesUntilState();
 
                 // Fetch and populate student, status, task type, and homework dropdowns
@@ -1444,6 +1516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTaskExtraFieldsPanelVisible(false);
         if (formRecurrenceRule) formRecurrenceRule.value = '';
         if (formSeriesUntilDate) formSeriesUntilDate.value = '';
+        resetWeeklyMultiDays();
         updateSeriesUntilState();
         applyTaskFieldVisibility();
     }
@@ -1612,7 +1685,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const ruleVal = seriesRecurrenceRuleInput ? seriesRecurrenceRuleInput.value : 'WEEKLY';
                     const recurrenceLabels = {
-                        WEEKLY: 'каждую неделю',
+                        WEEKLY: 'раз в неделю',
+                        WEEKLY_MULTI: 'несколько раз в неделю',
                         BIWEEKLY: 'через неделю',
                         MONTHLY: 'каждый месяц',
                     };
@@ -1623,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         calendar.refetchEvents();
                     }
                     fetchTasks(currentPage);
-                    showAppToast(`Серия обновлена: ${recurrenceLabels[ruleVal] || 'каждую неделю'}, до ${untilLabel}`);
+                    showAppToast(`Серия обновлена: ${recurrenceLabels[ruleVal] || 'раз в неделю'}, до ${untilLabel}`);
                 })
                 .catch(() => alert('Не удалось сохранить серию'));
         });
@@ -2628,6 +2702,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Укажите дату окончания серии');
                 return;
             }
+            if (formRecurrenceRule.value === 'WEEKLY_MULTI' && !collectWeeklyScheduleFromForm()) {
+                alert('Выберите хотя бы один день недели и укажите время начала урока');
+                return;
+            }
             const startDateOnly = taskData.start_date ? String(taskData.start_date).slice(0, 10) : '';
             if (startDateOnly && untilVal < startDateOnly) {
                 alert('Дата окончания серии должна быть не раньше даты начала');
@@ -2663,12 +2741,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 status_id: taskData.status_id,
                 plan_step_id: taskData.plan_step_id,
             };
+            if (formRecurrenceRule.value === 'WEEKLY_MULTI') {
+                payload.weekly_schedule = collectWeeklyScheduleFromForm();
+            }
         } else if (isEditing && !currentSeriesId && recurrenceSelected) {
             payload = {
                 ...taskData,
                 recurrence_rule: formRecurrenceRule.value,
                 repeat_until: untilVal,
             };
+            if (formRecurrenceRule.value === 'WEEKLY_MULTI') {
+                payload.weekly_schedule = collectWeeklyScheduleFromForm();
+            }
         }
 
         fetch(url, {

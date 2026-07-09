@@ -191,20 +191,51 @@
                 </div>
                 <div class="form-row" id="task-field-row-series">
                     <label>Серия уроков</label>
-                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+                    <div class="series-repeat-block">
+                        <label class="series-repeat-main">
                             <span>Повторять</span>
-                            <select id="form-recurrence-rule" class="form-select" style="width:190px;">
+                            <select id="form-recurrence-rule" class="form-select" style="width:220px;">
                                 <option value="">Не повторять</option>
-                                <option value="WEEKLY">Каждую неделю</option>
+                                <option value="WEEKLY">Раз в неделю</option>
+                                <option value="WEEKLY_MULTI">Несколько раз в неделю</option>
                                 <option value="BIWEEKLY">Через неделю</option>
                                 <option value="MONTHLY">Каждый месяц</option>
                             </select>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;font-size:14px;">
+                        <label class="series-repeat-until">
                             <span>До даты</span>
                             <input type="date" id="form-series-until-date" style="width:155px;">
                         </label>
+                        <div id="form-weekly-multi-days" class="weekly-multi-days hidden">
+                            <div class="weekly-multi-day" data-weekday="0">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Пн</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                            <div class="weekly-multi-day" data-weekday="1">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Вт</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                            <div class="weekly-multi-day" data-weekday="2">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Ср</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                            <div class="weekly-multi-day" data-weekday="3">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Чт</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                            <div class="weekly-multi-day" data-weekday="4">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Пт</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                            <div class="weekly-multi-day" data-weekday="5">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Сб</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                            <div class="weekly-multi-day" data-weekday="6">
+                                <label><input type="checkbox" class="weekly-multi-day-cb"> Вс</label>
+                                <input type="time" class="weekly-multi-day-time" disabled>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-row" id="task-field-row-end-date">
@@ -319,7 +350,7 @@
                 <div class="form-row">
                     <label>Повторять</label>
                     <select id="series-recurrence-rule" class="form-select">
-                        <option value="WEEKLY">Каждую неделю</option>
+                        <option value="WEEKLY">Раз в неделю</option>
                         <option value="BIWEEKLY">Через неделю</option>
                         <option value="MONTHLY">Каждый месяц</option>
                     </select>

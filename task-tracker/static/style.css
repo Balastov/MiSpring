@@ -916,6 +916,55 @@ select.filter-control {
     display: none;
 }
 
+.series-repeat-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.series-repeat-main,
+.series-repeat-until {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.weekly-multi-days {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px 14px;
+    padding: 12px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary, #f8f9fa);
+}
+
+.weekly-multi-days.hidden {
+    display: none;
+}
+
+.weekly-multi-day {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.weekly-multi-day label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 44px;
+    margin: 0;
+}
+
+.weekly-multi-day-time {
+    flex: 1;
+    min-width: 0;
+}
+
 .btn-compact {
     padding: 6px 12px;
     font-size: 13px;

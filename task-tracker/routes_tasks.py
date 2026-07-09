@@ -547,8 +547,92 @@ def _recalculate_future_homework_for_student(student_id):
 
 def _normalize_recurrence_rule(raw):
     value = (raw or '').strip().upper()
-    allowed = {'WEEKLY', 'BIWEEKLY', 'MONTHLY'}
+    if value.startswith('WEEKLY_MULTI'):
+        return 'WEEKLY_MULTI'
+    allowed = {'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'WEEKLY_MULTI'}
     return value if value in allowed else None
+
+
+def _parse_weekly_schedule_time(raw_time):
+    if not raw_time:
+        return None
+    value = str(raw_time).strip()
+    for fmt in ('%H:%M', '%H:%M:%S'):
+        try:
+            parsed = datetime.strptime(value[:len(fmt)], fmt)
+            return parsed.hour, parsed.minute
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_weekly_schedule_payload(raw_schedule):
+    if not isinstance(raw_schedule, dict):
+        return None
+    result = {}
+    for key, raw_time in raw_schedule.items():
+        try:
+            weekday = int(key)
+        except (TypeError, ValueError):
+            continue
+        if weekday < 0 or weekday > 6:
+            continue
+        parsed_time = _parse_weekly_schedule_time(raw_time)
+        if not parsed_time:
+            continue
+        hour, minute = parsed_time
+        result[weekday] = f'{hour:02d}:{minute:02d}'
+    return result or None
+
+
+def _parse_weekly_schedule_from_rule(raw_rule):
+    value = (raw_rule or '').strip()
+    if not value.upper().startswith('WEEKLY_MULTI'):
+        return None
+    _, _, payload = value.partition(':')
+    if not payload:
+        return None
+    result = {}
+    for chunk in payload.split(','):
+        chunk = chunk.strip()
+        if not chunk or '=' not in chunk:
+            continue
+        day_raw, time_raw = chunk.split('=', 1)
+        try:
+            weekday = int(day_raw.strip())
+        except ValueError:
+            continue
+        if weekday < 0 or weekday > 6:
+            continue
+        parsed_time = _parse_weekly_schedule_time(time_raw)
+        if not parsed_time:
+            continue
+        hour, minute = parsed_time
+        result[weekday] = f'{hour:02d}:{minute:02d}'
+    return result or None
+
+
+def _encode_stored_recurrence_rule(rule, weekly_schedule=None):
+    base = _normalize_recurrence_rule(rule) or 'WEEKLY'
+    if base != 'WEEKLY_MULTI':
+        return base
+    schedule = weekly_schedule or {}
+    if not schedule:
+        return None
+    parts = []
+    for weekday in sorted(int(day) for day in schedule.keys()):
+        if weekday < 0 or weekday > 6:
+            continue
+        parts.append(f'{weekday}={schedule[weekday]}')
+    if not parts:
+        return None
+    return 'WEEKLY_MULTI:' + ','.join(parts)
+
+
+def _weekly_schedule_for_rule(recurrence_rule, weekly_schedule=None):
+    if weekly_schedule:
+        return weekly_schedule
+    return _parse_weekly_schedule_from_rule(recurrence_rule)
 
 
 def _parse_repeat_until(raw_value):
@@ -585,6 +669,8 @@ def _add_months(dt, months):
 
 def _next_series_date(dt, recurrence_rule):
     rule = _normalize_recurrence_rule(recurrence_rule) or 'WEEKLY'
+    if rule == 'WEEKLY_MULTI':
+        return dt + timedelta(days=1)
     if rule == 'BIWEEKLY':
         return dt + timedelta(weeks=2)
     if rule == 'MONTHLY':
@@ -592,9 +678,37 @@ def _next_series_date(dt, recurrence_rule):
     return dt + timedelta(weeks=1)
 
 
-def _build_series_starts(start_date, repeat_until, recurrence_rule, max_points=260):
+def _build_weekly_multi_starts(start_date, repeat_until, weekly_schedule, max_points=260):
+    if not start_date or not repeat_until or not weekly_schedule:
+        return []
+    result = []
+    current_day = start_date.date()
+    end_day = repeat_until.date()
+    while current_day <= end_day and len(result) < max_points:
+        weekday = current_day.weekday()
+        if weekday in weekly_schedule:
+            hour, minute = _parse_weekly_schedule_time(weekly_schedule[weekday])
+            if hour is not None:
+                dt_start = datetime(
+                    current_day.year,
+                    current_day.month,
+                    current_day.day,
+                    hour,
+                    minute,
+                )
+                if start_date <= dt_start <= repeat_until:
+                    result.append(dt_start)
+        current_day += timedelta(days=1)
+    return result
+
+
+def _build_series_starts(start_date, repeat_until, recurrence_rule, weekly_schedule=None, max_points=260):
     if not start_date or not repeat_until:
         return []
+    rule = _normalize_recurrence_rule(recurrence_rule) or 'WEEKLY'
+    if rule == 'WEEKLY_MULTI':
+        schedule = _weekly_schedule_for_rule(recurrence_rule, weekly_schedule)
+        return _build_weekly_multi_starts(start_date, repeat_until, schedule, max_points=max_points)
     result = []
     current = start_date
     for _ in range(max_points):
@@ -1229,6 +1343,7 @@ def create_lesson_series():
             homework_ids = []
     comment = (data.get('comment') or '').strip() or None
     recurrence_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or 'WEEKLY'
+    weekly_schedule = _parse_weekly_schedule_payload(data.get('weekly_schedule'))
     repeat_until_raw = data.get('repeat_until') or data.get('end_date')
 
     if not student_id:
@@ -1238,6 +1353,11 @@ def create_lesson_series():
     start_date = parse_datetime(start_date_raw)
     if not start_date:
         return jsonify({'error': 'Некорректная дата начала'}), 400
+    if recurrence_rule == 'WEEKLY_MULTI' and not weekly_schedule:
+        return jsonify({'error': 'Выберите хотя бы один день недели и укажите время начала урока'}), 400
+    stored_recurrence_rule = _encode_stored_recurrence_rule(recurrence_rule, weekly_schedule)
+    if recurrence_rule == 'WEEKLY_MULTI' and not stored_recurrence_rule:
+        return jsonify({'error': 'Некорректное расписание по дням недели'}), 400
     repeat_until = _parse_repeat_until(repeat_until_raw)
     if not repeat_until:
         return jsonify({'error': 'Укажите дату окончания серии'}), 400
@@ -1276,7 +1396,12 @@ def create_lesson_series():
             return jsonify({'error': 'Домашнее задание не найдено'}), 400
 
     try:
-        starts = _build_series_starts(start_date, repeat_until, recurrence_rule)
+        starts = _build_series_starts(
+            start_date,
+            repeat_until,
+            recurrence_rule,
+            weekly_schedule=weekly_schedule,
+        )
         if not starts:
             return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
 
@@ -1284,9 +1409,9 @@ def create_lesson_series():
             student_id=student_id,
             teacher_id=current_user.id,
             task_type_id=task_type_id,
-            start_date=start_date,
+            start_date=starts[0],
             end_date=starts[-1],
-            recurrence_rule=recurrence_rule,
+            recurrence_rule=stored_recurrence_rule or recurrence_rule,
             occurrences_count=len(starts),
             first_homework_id=(homework_ids[0] if homework_required and homework_ids else None),
             homework_required_default=homework_required,
@@ -1431,6 +1556,12 @@ def update_lesson_series(series_id):
     if limit_error:
         return jsonify({'error': limit_error}), 400
     new_rule = _normalize_recurrence_rule(data.get('recurrence_rule')) or _normalize_recurrence_rule(series.recurrence_rule) or 'WEEKLY'
+    weekly_schedule = _parse_weekly_schedule_payload(data.get('weekly_schedule'))
+    if weekly_schedule is None and new_rule == 'WEEKLY_MULTI':
+        weekly_schedule = _parse_weekly_schedule_from_rule(series.recurrence_rule)
+    if new_rule == 'WEEKLY_MULTI' and not weekly_schedule:
+        return jsonify({'error': 'Выберите хотя бы один день недели и укажите время начала урока'}), 400
+    stored_recurrence_rule = _encode_stored_recurrence_rule(new_rule, weekly_schedule) or new_rule
 
     try:
         existing_tasks = Task.query.filter_by(series_id=series.id).order_by(
@@ -1460,7 +1591,12 @@ def update_lesson_series(series_id):
         else:
             first_start = anchor_start
 
-        desired_starts = _build_series_starts(first_start, repeat_until, new_rule)
+        desired_starts = _build_series_starts(
+            first_start,
+            repeat_until,
+            new_rule,
+            weekly_schedule=weekly_schedule,
+        )
         if not desired_starts:
             return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
 
@@ -1496,7 +1632,7 @@ def update_lesson_series(series_id):
         series.occurrences_count = len(refreshed)
         series.start_date = refreshed[0].start_date if refreshed else anchor_start
         series.end_date = refreshed[-1].start_date if refreshed else desired_starts[-1]
-        series.recurrence_rule = new_rule
+        series.recurrence_rule = stored_recurrence_rule
 
         db.session.commit()
         _recalculate_future_homework_for_student(series.student_id)
@@ -1661,6 +1797,7 @@ def update_task(task_id):
             task.plan_step_id = data['plan_step_id']
 
         recurrence_rule = _normalize_recurrence_rule(data.get('recurrence_rule'))
+        weekly_schedule = _parse_weekly_schedule_payload(data.get('weekly_schedule'))
         repeat_until = _parse_repeat_until(data.get('repeat_until')) if ('repeat_until' in data or recurrence_rule) else None
         lesson_type_for_recurrence = TaskType.query.filter_by(name='Урок').first()
         if recurrence_rule and not task.series_id:
@@ -1668,6 +1805,8 @@ def update_task(task_id):
                 return jsonify({'error': 'Повтор можно включить только для типа задачи "Урок"'}), 400
             if not task.start_date:
                 return jsonify({'error': 'Для создания серии укажите дату начала урока'}), 400
+            if recurrence_rule == 'WEEKLY_MULTI' and not weekly_schedule:
+                return jsonify({'error': 'Выберите хотя бы один день недели и укажите время начала урока'}), 400
             if not repeat_until:
                 return jsonify({'error': 'Укажите дату окончания серии'}), 400
             if repeat_until < task.start_date:
@@ -1676,7 +1815,13 @@ def update_task(task_id):
             if limit_error:
                 return jsonify({'error': limit_error}), 400
 
-            starts = _build_series_starts(task.start_date, repeat_until, recurrence_rule)
+            stored_recurrence_rule = _encode_stored_recurrence_rule(recurrence_rule, weekly_schedule) or recurrence_rule
+            starts = _build_series_starts(
+                task.start_date,
+                repeat_until,
+                recurrence_rule,
+                weekly_schedule=weekly_schedule,
+            )
             if not starts:
                 return jsonify({'error': 'Не удалось построить серию по заданным параметрам'}), 400
 
@@ -1684,9 +1829,9 @@ def update_task(task_id):
                 student_id=task.student_id,
                 teacher_id=task.user_id or current_user.id,
                 task_type_id=task.task_type_id,
-                start_date=task.start_date,
+                start_date=starts[0],
                 end_date=starts[-1],
-                recurrence_rule=recurrence_rule,
+                recurrence_rule=stored_recurrence_rule,
                 occurrences_count=len(starts),
                 first_homework_id=(
                     task.homework_id if (task.homework_required and not getattr(task, 'homework_unique', False)) else None
@@ -1699,7 +1844,9 @@ def update_task(task_id):
             task.series_id = new_series.id
             task.series_index = 0
             task.series_exception = False
-            if task.duration:
+            if recurrence_rule == 'WEEKLY_MULTI':
+                _apply_series_task_datetime(task, starts[0], task.duration or 60)
+            elif task.duration:
                 task.end_date = task.start_date + timedelta(minutes=task.duration)
 
             current_hw_id = task.homework_id if task.homework_required else None
