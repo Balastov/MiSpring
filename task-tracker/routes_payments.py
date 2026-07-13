@@ -22,8 +22,8 @@ def sync_prepaid_marks(student):
     - Всего оплачено N уроков (сумма всех StudentPayment).
     - Берём все уроки ученика с start_date >= prepaid_since (кроме отменённых),
       сортируем по дате.
-    - Первые N уроков (по дате, без отменённых и неявок) помечаем is_paid=True.
-    - При пересчёте сбрасываем is_paid_manual (ручные исключения не сохраняются между синками).
+    - Первые N уроков без ручной отметки помечаем is_paid=True.
+    - Уроки с is_paid_manual=True сохраняют ручной статус оплаты.
     - Отменённые и неявки не входят в очередь и не тратят предоплату.
     - Обновляем кеш prepaid_lessons = N − кол-во проведённых среди оплаченных.
     """
@@ -73,12 +73,19 @@ def sync_prepaid_marks(student):
     ]
 
     conducted_in_paid = 0
-    for i, t in enumerate(active):
-        paid = i < total_paid
+    auto_slots_used = 0
+    for t in active:
+        if getattr(t, 'is_paid_manual', False):
+            if t.is_paid and conducted_id and t.status_id == conducted_id:
+                conducted_in_paid += 1
+            continue
+
+        paid = auto_slots_used < total_paid
         t.is_paid = paid
-        t.is_paid_manual = False
-        if paid and conducted_id and t.status_id == conducted_id:
-            conducted_in_paid += 1
+        if paid:
+            auto_slots_used += 1
+            if conducted_id and t.status_id == conducted_id:
+                conducted_in_paid += 1
 
     remaining = max(0, total_paid - conducted_in_paid)
     student.prepaid_lessons = remaining

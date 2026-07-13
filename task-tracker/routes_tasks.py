@@ -1735,11 +1735,10 @@ def update_task(task_id):
             task.student_id = data['student_id']
         if 'is_paid' in data:
             new_paid = bool(data['is_paid'])
-            if new_paid != bool(task.is_paid):
-                task.is_paid = new_paid
+            old_paid = bool(task.is_paid)
+            task.is_paid = new_paid
+            if new_paid != old_paid or (new_paid and 'payment_date' in data):
                 task.is_paid_manual = True
-            elif not getattr(task, 'is_paid_manual', False):
-                task.is_paid = new_paid
         if 'payment_date' in data:
             task.payment_date = parse_datetime(data['payment_date'])
         if 'homework_unique' in data:
