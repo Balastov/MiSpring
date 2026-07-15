@@ -2199,8 +2199,7 @@ def _build_task_display_payload(t, student_map, type_map, status_obj_map, hw_ids
     st_row = status_obj_map.get(t.status_id)
     status_name = st_row.name if st_row else ''
     status_group = (st_row.group or '').lower() if st_row and st_row.group else ''
-    title_parts = [p for p in [student_name, type_name] if p]
-    title = ' — '.join(title_parts) or f'Задача #{t.id}'
+    title = student_name or f'Задача #{t.id}'
     if status_name:
         title += f' [{status_name}]'
     props = t.to_dict()
