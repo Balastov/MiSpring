@@ -277,6 +277,40 @@ def _sync_task_start_end_duration(task):
     task.end_date = task.start_date + timedelta(hours=1)
 
 
+def _get_in_progress_status():
+    """Статус «В работе» (для уроков с ДЗ / значение по умолчанию при создании)."""
+    in_progress = TaskStatus.query.filter_by(name='В работе').first()
+    if not in_progress:
+        in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
+    return in_progress
+
+
+def _ensure_in_progress_status(task):
+    """Если у урока нет статуса — ставим «В работе»."""
+    if not task or task.status_id:
+        return
+    in_progress = _get_in_progress_status()
+    if in_progress:
+        task.status_id = in_progress.id
+
+
+def _default_lesson_status_id(requested_status_id=None, force_in_progress=False):
+    """
+    Статус для нового урока:
+    - при ДЗ / уникальном ДЗ — «В работе»;
+    - иначе — переданный status_id или «В работе» как значение по умолчанию.
+    """
+    in_progress = _get_in_progress_status()
+    if force_in_progress and in_progress:
+        return in_progress.id
+    if requested_status_id not in (None, '', 0, '0'):
+        try:
+            return int(requested_status_id)
+        except (TypeError, ValueError):
+            pass
+    return in_progress.id if in_progress else None
+
+
 def _set_task_homeworks(task, homework_ids):
     # Keep legacy single-homework fields in sync.
     cleaned = [int(h) for h in (homework_ids or []) if h]
@@ -285,6 +319,7 @@ def _set_task_homeworks(task, homework_ids):
         task.homework_id = None
         task.homework_required = False
         return
+    _ensure_in_progress_status(task)
     due = _homework_due_datetime_for_task(task)
     for idx, hw_id in enumerate(cleaned):
         db.session.add(LessonHomework(
@@ -1272,11 +1307,11 @@ def add_task():
                 return jsonify({'error': 'Не удалось подобрать следующее ДЗ автоматически — выберите ДЗ вручную'}), 400
 
     if homework_ids:
-        in_progress = TaskStatus.query.filter_by(name='В работе').first()
-        if not in_progress:
-            in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
-        if in_progress:
-            status_id = in_progress.id
+        status_id = _default_lesson_status_id(status_id, force_in_progress=True)
+    elif homework_unique and is_lesson_create:
+        status_id = _default_lesson_status_id(status_id, force_in_progress=True)
+    elif is_lesson_create:
+        status_id = _default_lesson_status_id(status_id)
 
     task = Task(
         description=description,
@@ -1419,15 +1454,10 @@ def create_lesson_series():
         db.session.add(series)
         db.session.flush()  # get series.id
 
-        in_progress = None
-        if homework_required and homework_ids:
-            in_progress = TaskStatus.query.filter_by(name='В работе').first()
-            if not in_progress:
-                in_progress = TaskStatus.query.filter_by(group='in_progress').order_by(TaskStatus.id).first()
-
-        status_id_first = data.get('status_id')
-        if homework_ids and in_progress:
-            status_id_first = in_progress.id
+        default_status_id = _default_lesson_status_id(
+            data.get('status_id'),
+            force_in_progress=bool(homework_required and homework_ids),
+        )
 
         plan_step_id_first = None
         ps_raw = data.get('plan_step_id')
@@ -1451,7 +1481,7 @@ def create_lesson_series():
                 payment_date=payment_date,
                 homework_id=((homework_ids[0] if homework_ids else None) if (idx == 0 and homework_required) else None),
                 homework_required=homework_required if idx == 0 else homework_required,
-                status_id=status_id_first if idx == 0 else None,
+                status_id=default_status_id,
                 task_type_id=task_type_id,
                 duration=duration,
                 comment=comment if idx == 0 else None,
@@ -1515,6 +1545,7 @@ def _apply_series_task_datetime(task, start_dt, duration):
 
 def _clone_series_task(template_task, series, start_dt, duration):
     dt_end = start_dt + timedelta(minutes=duration)
+    hw_required = bool(getattr(series, 'homework_required_default', False))
     return Task(
         description=template_task.description or '',
         created_at=datetime.now(),
@@ -1523,11 +1554,11 @@ def _clone_series_task(template_task, series, start_dt, duration):
         author=template_task.author,
         user_id=template_task.user_id,
         student_id=template_task.student_id,
-        is_paid=template_task.is_paid,
-        payment_date=template_task.payment_date,
+        is_paid=False,
+        payment_date=None,
         homework_id=None,
-        homework_required=False,
-        status_id=None,
+        homework_required=hw_required,
+        status_id=_default_lesson_status_id(force_in_progress=hw_required),
         task_type_id=series.task_type_id,
         duration=duration,
         comment=None,
@@ -1868,7 +1899,9 @@ def update_task(task_id):
                     payment_date=task.payment_date,
                     homework_id=current_hw_id if task.homework_required else None,
                     homework_required=task.homework_required if (task.homework_required and current_hw_id) else False,
-                    status_id=None,
+                    status_id=_default_lesson_status_id(
+                        force_in_progress=bool(task.homework_required and current_hw_id),
+                    ),
                     task_type_id=task.task_type_id,
                     duration=task.duration,
                     comment=None,
@@ -1911,6 +1944,7 @@ def update_task(task_id):
             task.homework_required = True
             LessonHomework.query.filter_by(task_id=task.id).delete()
             task.homework_id = None
+            _ensure_in_progress_status(task)
 
         lesson_row_validate = TaskType.query.filter_by(name='Урок').first()
         if (
