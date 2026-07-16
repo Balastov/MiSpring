@@ -1778,12 +1778,44 @@ document.addEventListener('DOMContentLoaded', () => {
     if (applySeriesHomeworkBtn) {
         applySeriesHomeworkBtn.addEventListener('click', () => {
             if (!currentSeriesId || !editingTaskId) return;
-            fetch(`/api/lesson-series/${currentSeriesId}/recalculate-homework-from/${editingTaskId}`, {
-                method: 'POST',
+            const seriesId = currentSeriesId;
+            const taskId = editingTaskId;
+            const unique = !!(formHomeworkUnique && formHomeworkUnique.checked);
+            const savePayload = {
+                homework_required: !!(formHomeworkRequired && formHomeworkRequired.checked) || unique,
+                homework_unique: unique,
+                homework_custom_text: unique
+                    ? ((formHomeworkCustomText && formHomeworkCustomText.value.trim()) || null)
+                    : null,
+                homework_ids: unique ? [] : collectHomeworkIdsFromForm(),
+                homework_id: unique
+                    ? null
+                    : (formHomeworkId && formHomeworkId.value ? parseInt(formHomeworkId.value, 10) : null),
+            };
+            // Сначала сохраняем ДЗ текущего урока — иначе якорь цепочки берётся из старых данных БД.
+            fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(savePayload),
             })
                 .then(r => r.json().then(data => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
+                    if (!ok) {
+                        alert((data && data.error) || 'Не удалось сохранить ДЗ текущего урока');
+                        return null;
+                    }
+                    return fetch(`/api/lesson-series/${seriesId}/recalculate-homework-from/${taskId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                })
+                .then(r => {
+                    if (!r) return null;
+                    return r.json().then(data => ({ ok: r.ok, data }));
+                })
+                .then(result => {
+                    if (!result) return;
+                    const { ok, data } = result;
                     if (!ok) {
                         alert(data.error || 'Не удалось пересчитать ДЗ для ученика');
                         return;
