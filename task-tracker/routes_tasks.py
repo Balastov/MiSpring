@@ -369,22 +369,59 @@ def _task_status_terminal(st):
     return name in ('Проведён', 'Отменён', 'Неявка') or group in ('done', 'cancelled', 'no_show')
 
 
-def _student_homework_lesson_eligible(task, status_row, lesson_homework_row=None):
+def _student_homework_lesson_eligible(task, task_status_row, lesson_homework_row=None, hw_status_row=None):
     """
-    ДЗ в кабинете ученика — только после проведения урока.
-    «В работе» на будущих уроках (цепочка ДЗ) не показываем.
+    ДЗ в кабинете ученика — после проведения урока.
+
+    Доступность определяется статусом УРОКА (task). Статус строки ДЗ (LessonHomework)
+    сам по себе не скрывает задание: у LH часто остаётся «В работе», пока ученик
+    не отправил работу, хотя урок уже «Проведён».
     """
-    if not status_row:
+    task_st = task_status_row
+    hw_st = hw_status_row
+    if hw_st is None and lesson_homework_row is not None:
+        # статус строки ДЗ может отличаться от статуса урока
+        sid = getattr(lesson_homework_row, 'status_id', None)
+        if sid:
+            hw_st = db.session.get(TaskStatus, sid)
+
+    if not task_st and not hw_st:
         return False
-    name = status_row.name or ''
-    group = (status_row.group or '').lower()
-    if name in ('Отменён', 'Неявка') or group in ('cancelled', 'no_show'):
+
+    task_name = (task_st.name or '') if task_st else ''
+    task_group = ((task_st.group or '').lower() if task_st and task_st.group else '')
+    if task_name in ('Отменён', 'Неявка') or task_group in ('cancelled', 'no_show'):
         return False
-    if name == 'Проведён':
+
+    # Урок проведён — ДЗ доступно независимо от статуса строки LessonHomework
+    if task_name == 'Проведён':
         return True
-    if name in ('На проверке', 'Выполнено') or group in ('in_review', 'done', 'completed'):
+
+    # Урок/задача уже в workflow проверки или выполнено
+    if task_name in ('На проверке', 'Выполнено') or task_group in ('in_review', 'done', 'completed'):
         return True
-    if name == 'В работе' or group == 'in_progress':
+
+    # Строка ДЗ уже на проверке / выполнена (мульти-ДЗ: статус урока может остаться «Проведён»)
+    if hw_st:
+        hw_name = hw_st.name or ''
+        hw_group = (hw_st.group or '').lower() if hw_st.group else ''
+        if hw_name in ('На проверке', 'Выполнено') or hw_group in ('in_review', 'done', 'completed'):
+            return True
+        if hw_name == 'В работе' or hw_group == 'in_progress':
+            # «В работе» на ДЗ без проведённого урока — только если есть сдача/замечания
+            # (старый кейс цепочки); при проведённом уроке уже вернули True выше
+            sub_at = getattr(lesson_homework_row, 'submitted_at', None) if lesson_homework_row else None
+            remarks = getattr(lesson_homework_row, 'teacher_remarks', None) if lesson_homework_row else None
+            if not sub_at:
+                sub_at = task.homework_submitted_at
+            if remarks is None or not str(remarks).strip():
+                remarks = task.homework_teacher_remarks
+            if sub_at or (remarks and str(remarks).strip()):
+                return True
+
+    # Статус урока «В работе» — ДЗ будущих уроков не показываем,
+    # кроме случая сдачи/замечаний (возврат на доработку и т.п.)
+    if task_name == 'В работе' or task_group == 'in_progress':
         sub_at = None
         remarks = None
         if lesson_homework_row and getattr(lesson_homework_row, 'id', None):
@@ -397,7 +434,21 @@ def _student_homework_lesson_eligible(task, status_row, lesson_homework_row=None
         if sub_at or (remarks and str(remarks).strip()):
             return True
         return False
+
     return False
+
+
+def _homework_item_is_done(status_row):
+    """Выполненное ДЗ (не путать с «Проведён» у урока)."""
+    if not status_row:
+        return False
+    name = status_row.name or ''
+    group = (status_row.group or '').lower() if status_row.group else ''
+    if name == 'Проведён':
+        return False
+    if name == 'Выполнено':
+        return True
+    return group in ('done', 'completed', 'готово')
 
 
 def _next_active_lesson_after(skipped_task):
@@ -3039,20 +3090,18 @@ def get_my_homework():
     from datetime import datetime
     show_done = request.args.get('show_done', '0') == '1'
 
-    done_status = TaskStatus.query.filter(TaskStatus.group == 'done').all()
-    done_ids = [s.id for s in done_status]
-
+    # Не фильтруем по Task.status group=done: у «Проведён» часто group=done,
+    # и тогда все проведённые уроки пропадали из списка ДЗ.
     q = Task.query.filter(
         Task.student_id == current_user.id,
         or_(
             Task.homework_id.isnot(None),
             Task.homework_unique.is_(True),
+            Task.homework_required.is_(True),
         ),
     )
-    if not show_done and done_ids:
-        q = q.filter(or_(Task.status_id.is_(None), ~Task.status_id.in_(done_ids)))
 
-    tasks = q.order_by(Task.start_date.desc()).limit(50).all()
+    tasks = q.order_by(Task.start_date.desc()).limit(100).all()
     task_ids = [t.id for t in tasks]
     lesson_homeworks = LessonHomework.query.filter(LessonHomework.task_id.in_(task_ids)).order_by(
         LessonHomework.task_id.desc(), LessonHomework.order_index.asc(), LessonHomework.id.asc()
@@ -3061,13 +3110,35 @@ def get_my_homework():
     for lh in lesson_homeworks:
         by_task.setdefault(lh.task_id, []).append(lh)
 
-    homework_ids = {lh.homework_id for lh in lesson_homeworks if lh.homework_id}
+    # Уроки, у которых ДЗ только в LessonHomework (без legacy homework_id)
+    if task_ids:
+        extra_lh_q = LessonHomework.query.join(Task, Task.id == LessonHomework.task_id).filter(
+            Task.student_id == current_user.id,
+            ~Task.id.in_(task_ids),
+        )
+    else:
+        extra_lh_q = LessonHomework.query.join(Task, Task.id == LessonHomework.task_id).filter(
+            Task.student_id == current_user.id,
+        )
+    extra_lh = extra_lh_q.order_by(LessonHomework.id.desc()).limit(100).all()
+    if extra_lh:
+        extra_task_ids = {lh.task_id for lh in extra_lh}
+        missing_ids = extra_task_ids - set(task_ids)
+        if missing_ids:
+            extra_tasks = Task.query.filter(Task.id.in_(missing_ids)).all()
+            tasks = list(tasks) + extra_tasks
+            task_ids = [t.id for t in tasks]
+            for lh in extra_lh:
+                by_task.setdefault(lh.task_id, []).append(lh)
+
+    homework_ids = {lh.homework_id for rows in by_task.values() for lh in rows if lh.homework_id}
     if not homework_ids:
         homework_ids = {t.homework_id for t in tasks if t.homework_id}
     status_ids = {t.status_id for t in tasks if t.status_id}
-    for lh in lesson_homeworks:
-        if lh.status_id:
-            status_ids.add(lh.status_id)
+    for rows in by_task.values():
+        for lh in rows:
+            if lh.status_id:
+                status_ids.add(lh.status_id)
     step_ids = {t.plan_step_id for t in tasks if t.plan_step_id}
     homework_map = {hw.id: hw for hw in Homework.query.filter(Homework.id.in_(homework_ids)).all()} if homework_ids else {}
     status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()} if status_ids else {}
@@ -3095,16 +3166,28 @@ def get_my_homework():
         task_st = status_map.get(t.status_id)
         rows = by_task.get(t.id) or []
         if not rows and t.homework_id:
-            rows = [type('X', (), {'id': None, 'homework_id': t.homework_id})()]
+            rows = [type('X', (), {
+                'id': None,
+                'homework_id': t.homework_id,
+                'status_id': t.status_id,
+                'submitted_at': t.homework_submitted_at,
+                'teacher_remarks': t.homework_teacher_remarks,
+            })()]
         elif not rows and getattr(t, 'homework_unique', False):
-            rows = [type('X', (), {'id': None, 'homework_id': None})()]
+            rows = [type('X', (), {
+                'id': None,
+                'homework_id': None,
+                'status_id': t.status_id,
+                'submitted_at': t.homework_submitted_at,
+                'teacher_remarks': t.homework_teacher_remarks,
+            })()]
         for lh in rows:
             hw = homework_map.get(lh.homework_id) if lh.homework_id else None
             due = _homework_due_datetime_for_task(
                 t, ordered_lessons=due_lessons, status_map=due_status_map
             )
             is_uq = bool(getattr(t, 'homework_unique', False))
-            if lh.id:
+            if getattr(lh, 'id', None):
                 eff_sid = lh.status_id if lh.status_id is not None else t.status_id
                 sub_at = lh.submitted_at
                 if len(rows) <= 1 and not sub_at:
@@ -3119,21 +3202,24 @@ def get_my_homework():
                 remarks = t.homework_teacher_remarks
             st_row = status_map.get(eff_sid)
             lh_for_eligibility = lh if getattr(lh, 'id', None) else None
-            if not _student_homework_lesson_eligible(t, st_row or task_st, lh_for_eligibility):
+            # Доступность — по статусу УРОКА; статус строки ДЗ — отдельно
+            if not _student_homework_lesson_eligible(t, task_st, lh_for_eligibility, st_row):
+                continue
+            if not show_done and _homework_item_is_done(st_row):
                 continue
             is_overdue_row = bool(
                 due and due < now and
-                (not st_row or (st_row.group or '').lower() not in ('done', 'completed', 'готово'))
+                not _homework_item_is_done(st_row)
             )
             result.append({
                 'task_id': t.id,
-                'lesson_homework_id': lh.id,
+                'lesson_homework_id': getattr(lh, 'id', None),
                 'homework_name': 'Уникальное ДЗ' if is_uq else (hw.name if hw else None),
                 'homework_comment': (t.homework_custom_text if is_uq else (hw.comment if hw else None)),
                 'homework_unique': is_uq,
                 'topic_title': step_map.get(t.plan_step_id) if t.plan_step_id else None,
-                'status_name': st_row.name if st_row else None,
-                'status_group': st_row.group if st_row else None,
+                'status_name': st_row.name if st_row else (task_st.name if task_st else None),
+                'status_group': st_row.group if st_row else (task_st.group if task_st else None),
                 'lesson_date': t.start_date.strftime('%d.%m.%Y') if t.start_date else None,
                 'lesson_date_iso': t.start_date.strftime('%Y-%m-%dT%H:%M') if t.start_date else None,
                 'due_date': due.strftime('%d.%m.%Y %H:%M') if due else None,
@@ -3143,20 +3229,10 @@ def get_my_homework():
                 'homework_submitted_at_iso': sub_at.strftime('%Y-%m-%dT%H:%M') if sub_at else None,
                 'homework_teacher_remarks': remarks,
             })
-    _rows = []
-    for t in tasks[:8]:
-        st = status_map.get(t.status_id)
-        _rows.append({
-            'task_id': t.id,
-            'status_id': t.status_id,
-            'status_name': st.name if st else None,
-            'status_group': st.group if st else None,
-            'has_remarks': bool(t.homework_teacher_remarks),
-        })
-    _agent_debug_log('H5', 'routes_tasks.get_my_homework', 'rows', {
-        'student_id': current_user.id,
-        'show_done': show_done,
-        'rows': _rows,
-    })
+    # Свежие сверху по дате урока
+    result.sort(
+        key=lambda r: r.get('lesson_date_iso') or '',
+        reverse=True,
+    )
     return jsonify({'homework': result})
 
