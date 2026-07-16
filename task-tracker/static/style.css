@@ -648,9 +648,31 @@ select.filter-control {
     font-size: 11px;
 }
 
-/* Высота шага шкалы: ~52.5% от дефолта FullCalendar (1.5em) */
-#calendar-container .fc .fc-timegrid-slot {
-    height: 0.7875em !important;
+/* Высота слота: на десктопе задаёт FullCalendar (expandRows), на мобильных — фикс. */
+@media (max-width: 720px) {
+    #calendar-container .fc .fc-timegrid-slot {
+        height: 1.05em !important;
+    }
+}
+
+/* Десктоп: вся шкала времени вписывается в экран без вертикального скролла */
+@media (min-width: 721px) {
+    #calendar-container {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #calendar-container .fc {
+        flex: 1;
+        min-height: 0;
+        height: 100% !important;
+    }
+
+    #calendar-container .fc .fc-scroller,
+    #calendar-container .fc .fc-scroller-liquid-absolute {
+        overflow-y: hidden !important;
+    }
 }
 
 /* Полоса события строго по слотам шкалы (без «просветов» сверху/снизу и без min-height) */

@@ -1942,7 +1942,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (view === 'calendar') {
             if (!calendar) initCalendar();
             else {
-                calendar.updateSize();
+                applyCalendarFitOptions();
                 calendar.refetchEvents();
             }
         } else if (view === 'kanban') {
@@ -2038,6 +2038,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function isCalendarMobileLayout() {
+        return window.matchMedia('(max-width: 720px)').matches;
+    }
+
+    function applyCalendarFitOptions() {
+        if (!calendar) return;
+        // Десктоп: растянуть слоты на высоту экрана. Мобильные — обычный скролл.
+        calendar.setOption('expandRows', !isCalendarMobileLayout());
+        calendar.updateSize();
+    }
+
     function initCalendar() {
         const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
         const slotMinTime = useFullDayRange ? '00:00:00' : '07:00:00';
@@ -2060,7 +2071,7 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResizableFromStart: true,
             forceEventDuration: true,
             defaultTimedEventDuration: '01:00:00',
-            expandRows: false,
+            expandRows: !isCalendarMobileLayout(),
             longPressDelay: 300,
             eventLongPressDelay: 300,
             selectLongPressDelay: 300,
@@ -2178,7 +2189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         calendar.render();
 
         window.addEventListener('resize', () => {
-            if (calendar) calendar.updateSize();
+            applyCalendarFitOptions();
         });
     }
 
@@ -2200,7 +2211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!calendar) return;
         calendar.setOption('slotMinTime', useFullDayRange ? '00:00:00' : '07:00:00');
         calendar.setOption('slotMaxTime', useFullDayRange ? '24:00:00' : '23:00:00');
-        calendar.updateSize();
+        applyCalendarFitOptions();
     }
 
     function openEditFromCalendar(event) {
@@ -2587,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
             calendar.setOption('snapDuration', step);
             calendar.setOption('slotDuration', step);
-            calendar.updateSize();
+            applyCalendarFitOptions();
         });
     }
 
