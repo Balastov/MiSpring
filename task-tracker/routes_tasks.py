@@ -961,15 +961,6 @@ def _homework_evidence_query(task_id, lesson_homework_id_param=None):
 def get_tasks():
     page = request.args.get('page', 1, type=int)
     per_page = 50
-    _agent_debug_log('DBG-TABLE-1', 'routes_tasks.get_tasks', 'request_params', {
-        'page': page,
-        'student_id': request.args.get('student_id'),
-        'task_type_id': request.args.get('task_type_id'),
-        'date_from': request.args.get('date_from'),
-        'date_to': request.args.get('date_to'),
-        'is_paid': request.args.get('is_paid'),
-        'user_id': getattr(current_user, 'id', None),
-    })
 
     query = db.select(Task).order_by(Task.created_at.desc())
     if not user_has_role('admin', 'owner'):
@@ -1049,15 +1040,6 @@ def get_tasks():
             d['homework_name'] = homework_map.get(t.homework_id)
         d['homework_ids'] = homework_ids_by_task.get(t.id, ([t.homework_id] if t.homework_id else []))
         tasks.append(d)
-
-    _agent_debug_log('DBG-TABLE-1', 'routes_tasks.get_tasks', 'response_meta', {
-        'page': page,
-        'returned_count': len(tasks),
-        'returned_ids': [t.get('id') for t in tasks[:15]],
-        'total': paginator.total,
-        'pages': paginator.pages,
-        'current_page': paginator.page,
-    })
 
     return jsonify({
         'tasks': tasks,
@@ -2894,22 +2876,8 @@ def review_homework(task_id):
             task.homework_teacher_remarks = remarks_stored if remarks else None
         task.status_id = target_status.id
 
-    _agent_debug_log('H1', 'routes_tasks.review_homework', 'before_commit', {
-        'task_id': task.id,
-        'lesson_homework_id': getattr(lh, 'id', None),
-        'action': action,
-        'old_status_id': old_status_id,
-        'target_status_id': target_status.id,
-        'target_status_name': target_status.name,
-        'target_status_group': target_status.group,
-    })
     db.session.commit()
     db.session.refresh(task)
-    _agent_debug_log('H1', 'routes_tasks.review_homework', 'after_commit', {
-        'task_id': task.id,
-        'persisted_status_id': task.status_id,
-        'remarks_len': len((task.homework_teacher_remarks or '')),
-    })
     return jsonify(task.to_dict())
 
 
@@ -3100,19 +3068,6 @@ def get_homework_review_list():
                 'submitted_at': sub_at.strftime('%d.%m.%Y %H:%M') if sub_at else None,
                 'homework_teacher_remarks': remarks,
             })
-    _sample = [{
-        'task_id': x['task_id'],
-        'lesson_homework_id': x.get('lesson_homework_id'),
-        'status_id': x['status_id'],
-        'status_name': x['status_name'],
-        'status_group': x['status_group'],
-        'has_remarks': bool(x.get('homework_teacher_remarks')),
-    } for x in items[:10]]
-    _agent_debug_log('H2', 'routes_tasks.get_homework_review_list', 'response_shape', {
-        'query_status_filter': status_id,
-        'n_items': len(items),
-        'sample': _sample,
-    })
     return jsonify({'items': items})
 
 
