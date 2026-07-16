@@ -648,9 +648,9 @@ select.filter-control {
     font-size: 11px;
 }
 
-/* Высота шага шкалы: 70% от дефолта FullCalendar (1.5em) — плашка на 2 строки */
+/* Высота шага шкалы: ~52.5% от дефолта FullCalendar (1.5em) */
 #calendar-container .fc .fc-timegrid-slot {
-    height: 1.05em !important;
+    height: 0.7875em !important;
 }
 
 /* Полоса события строго по слотам шкалы (без «просветов» сверху/снизу и без min-height) */
