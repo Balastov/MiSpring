@@ -2108,18 +2108,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sg = (props.status_group || '').toLowerCase();
                 const isNoShow = props.status_name === 'Неявка' || sg === 'no_show';
                 const isCancelled = props.status_name === 'Отменён' || sg === 'cancelled';
-                if (isNoShow) {
-                    classes.push('fc-event-no-show');
-                } else if (isCancelled) {
-                    classes.push('fc-event-cancelled');
-                } else if (props.is_paid) {
-                    classes.push('fc-event-paid');
-                } else if (props.unpaid_overdue_7d) {
-                    classes.push('fc-event-unpaid-overdue');
-                } else {
-                    classes.push('fc-event-unpaid');
-                }
+                const isConducted = props.status_name === 'Проведён';
+                if (isNoShow) classes.push('fc-event-status-no-show');
+                else if (isCancelled) classes.push('fc-event-status-cancelled');
+                else if (isConducted) classes.push('fc-event-status-conducted');
+                else classes.push('fc-event-status-in-progress');
+
+                const mark = props.payment_mark
+                    || (props.unpaid_overdue_7d ? 'overdue' : (props.is_paid ? 'paid' : 'unpaid'));
+                if (mark === 'overdue') classes.push('fc-event-pay-overdue');
+                else if (mark === 'paid') classes.push('fc-event-pay-paid');
+                else classes.push('fc-event-pay-unpaid');
                 return classes;
+            },
+            eventContent: function(arg) {
+                const props = arg.event.extendedProps || {};
+                const mark = props.payment_mark
+                    || (props.unpaid_overdue_7d ? 'overdue' : (props.is_paid ? 'paid' : 'unpaid'));
+                let payHtml;
+                if (mark === 'overdue') {
+                    payHtml = '<span class="fc-pay-mark fc-pay-mark--overdue" aria-hidden="true">!!</span>';
+                } else if (mark === 'paid') {
+                    payHtml = '<span class="fc-pay-mark fc-pay-mark--paid" aria-hidden="true">✓</span>';
+                } else {
+                    payHtml = '<span class="fc-pay-mark fc-pay-mark--unpaid" aria-hidden="true">✓</span>';
+                }
+                const title = arg.event.title || '';
+                const timeText = arg.timeText ? `<div class="fc-event-time">${escapeHtml(arg.timeText)}</div>` : '';
+                return {
+                    html: `${timeText}<div class="fc-event-title-row">${payHtml}<span class="fc-event-title-text">${escapeHtml(title)}</span></div>`,
+                };
             },
             height: '100%',
             eventDisplay: 'block',
@@ -2263,11 +2281,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const sg = (props.status_group || '').toLowerCase();
         const isNoShow = props.status_name === 'Неявка' || sg === 'no_show';
         const isCancelled = props.status_name === 'Отменён' || sg === 'cancelled';
-        if (isNoShow) classes.push('kanban-card--no-show');
-        else if (isCancelled) classes.push('kanban-card--cancelled');
-        else if (props.is_paid) classes.push('kanban-card--paid');
-        else if (props.unpaid_overdue_7d) classes.push('kanban-card--unpaid-overdue');
+        const isConducted = props.status_name === 'Проведён';
+        if (isNoShow) classes.push('kanban-card--status-no-show');
+        else if (isCancelled) classes.push('kanban-card--status-cancelled');
+        else if (isConducted) classes.push('kanban-card--status-conducted');
+        else classes.push('kanban-card--status-in-progress');
+
+        const mark = props.payment_mark
+            || (props.unpaid_overdue_7d ? 'overdue' : (props.is_paid ? 'paid' : 'unpaid'));
+        if (mark === 'overdue') classes.push('kanban-card--pay-overdue');
+        else if (mark === 'paid') classes.push('kanban-card--pay-paid');
+        else classes.push('kanban-card--pay-unpaid');
         return classes;
+    }
+
+    function paymentMarkHtml(props) {
+        const mark = props.payment_mark
+            || (props.unpaid_overdue_7d ? 'overdue' : (props.is_paid ? 'paid' : 'unpaid'));
+        if (mark === 'overdue') {
+            return '<span class="fc-pay-mark fc-pay-mark--overdue" aria-hidden="true">!!</span>';
+        }
+        if (mark === 'paid') {
+            return '<span class="fc-pay-mark fc-pay-mark--paid" aria-hidden="true">✓</span>';
+        }
+        return '<span class="fc-pay-mark fc-pay-mark--unpaid" aria-hidden="true">✓</span>';
     }
 
     function formatKanbanTimeRange(startIso, endIso) {
@@ -2292,7 +2329,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.draggable = true;
         card.dataset.taskId = String(task.id);
         card.innerHTML = `
-            <div class="kanban-card-title">${escapeHtml(task.title || `Задача #${task.id}`)}</div>
+            <div class="kanban-card-title">${paymentMarkHtml(props)}<span>${escapeHtml(task.title || `Задача #${task.id}`)}</span></div>
             <div class="kanban-card-time">${escapeHtml(formatKanbanTimeRange(task.start, task.end))}</div>
         `;
         card.addEventListener('click', () => {

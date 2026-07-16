@@ -2262,6 +2262,7 @@ def _build_task_display_payload(t, student_map, type_map, status_obj_map, hw_ids
         props['homework_ids'] = hw_ids_map.get(t.id, ([t.homework_id] if t.homework_id else []))
     is_no_show = status_name == 'Неявка' or status_group == 'no_show'
     is_cancelled = status_name == 'Отменён' or status_group == 'cancelled'
+    is_conducted = status_name == 'Проведён'
     now = datetime.now()
     overdue_unpaid = (
         not t.is_paid
@@ -2270,15 +2271,22 @@ def _build_task_display_payload(t, student_map, type_map, status_obj_map, hw_ids
         and not is_no_show
         and not is_cancelled
     )
-    if is_no_show or is_cancelled:
-        event_color = '#9ca3af'
-    elif t.is_paid:
-        event_color = '#38a169'
-    elif overdue_unpaid:
-        event_color = '#b85c5c'
+    # Цвет заливки — по статусу урока (оплата показывается отдельным маркером)
+    if is_no_show:
+        event_color = '#4b5563'  # тёмно-серый
+    elif is_cancelled:
+        event_color = '#9ca3af'  # серый
+    elif is_conducted:
+        event_color = '#38a169'  # ярко-зелёный
     else:
-        event_color = '#1A515F'
+        event_color = '#1A515F'  # фирменный (В работе и прочие)
     props['unpaid_overdue_7d'] = overdue_unpaid
+    if overdue_unpaid:
+        props['payment_mark'] = 'overdue'
+    elif t.is_paid:
+        props['payment_mark'] = 'paid'
+    else:
+        props['payment_mark'] = 'unpaid'
     end_dt = _task_event_end_dt(t)
     return {
         'id': t.id,

@@ -494,6 +494,9 @@ select.filter-control {
 }
 
 .kanban-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-weight: 600;
     font-size: 13px;
     margin-bottom: 4px;
@@ -505,19 +508,46 @@ select.filter-control {
     color: var(--color-text-secondary);
 }
 
-.kanban-card.kanban-card--paid::before {
-    content: "₽";
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #4ade80;
+/* Заливка kanban-карточки по статусу урока */
+.kanban-card.kanban-card--status-in-progress {
+    background: #1A515F;
+    border-color: #164852;
+    color: #fff;
+}
+.kanban-card.kanban-card--status-in-progress .kanban-card-title,
+.kanban-card.kanban-card--status-in-progress .kanban-card-time {
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.kanban-card.kanban-card--cancelled,
-.kanban-card.kanban-card--no-show {
-    opacity: 0.92;
+.kanban-card.kanban-card--status-conducted {
+    background: #38a169;
+    border-color: #2f855a;
+    color: #fff;
+}
+.kanban-card.kanban-card--status-conducted .kanban-card-title,
+.kanban-card.kanban-card--status-conducted .kanban-card-time {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.kanban-card.kanban-card--status-cancelled {
+    background: #9ca3af;
+    border-color: #8b929e;
+    color: #fff;
+    opacity: 0.95;
+}
+.kanban-card.kanban-card--status-cancelled .kanban-card-title,
+.kanban-card.kanban-card--status-cancelled .kanban-card-time {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.kanban-card.kanban-card--status-no-show {
+    background: #4b5563;
+    border-color: #374151;
+    color: #fff;
+}
+.kanban-card.kanban-card--status-no-show .kanban-card-title,
+.kanban-card.kanban-card--status-no-show .kanban-card-time {
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .kanban-columns-checklist {
@@ -676,26 +706,81 @@ select.filter-control {
     text-shadow: 0 0 2px rgba(0,0,0,0.7);
 }
 
-.fc-event.fc-event-paid {
-    position: relative;
+/* Маркер оплаты в начале плашки (перед именем ученика) */
+.fc-event-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
 }
 
-.fc-event.fc-event-paid::before {
-    content: "₽";
-    position: absolute;
-    top: 2px;
-    left: 4px;
-    font-size: 11px;
+.fc-event-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fc-pay-mark {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.fc-pay-mark--paid,
+.fc-pay-mark--unpaid {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    font-size: 9px;
     font-weight: 700;
-    color: #4ade80;
-    text-shadow: 0 0 2px rgba(0,0,0,0.7);
-    z-index: 1;
+    color: #fff;
 }
 
-#calendar-container .fc-event.fc-event-unpaid-overdue,
-#calendar-container .fc-event.fc-event-unpaid-overdue .fc-event-main {
-    background-color: #b85c5c !important;
-    border-color: #a04f4f !important;
+.fc-pay-mark--paid {
+    /* темнее фона «Проведён» (#38a169), светлее фона «В работе» (#1A515F) */
+    background: #2f855a;
+}
+
+.fc-pay-mark--unpaid {
+    /* светлее фона неявки (#4b5563), темнее фона отменённого (#9ca3af) */
+    background: #6b7280;
+}
+
+.fc-pay-mark--overdue {
+    font-size: 11px;
+    font-weight: 800;
+    color: #ef4444;
+    letter-spacing: -1px;
+    text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* Заливка календарной плашки по статусу (дубль к color с бэкенда) */
+#calendar-container .fc-event.fc-event-status-in-progress,
+#calendar-container .fc-event.fc-event-status-in-progress .fc-event-main {
+    background-color: #1A515F !important;
+    border-color: #164852 !important;
+}
+
+#calendar-container .fc-event.fc-event-status-conducted,
+#calendar-container .fc-event.fc-event-status-conducted .fc-event-main {
+    background-color: #38a169 !important;
+    border-color: #2f855a !important;
+}
+
+#calendar-container .fc-event.fc-event-status-cancelled,
+#calendar-container .fc-event.fc-event-status-cancelled .fc-event-main {
+    background-color: #9ca3af !important;
+    border-color: #8b929e !important;
+    opacity: 0.95;
+}
+
+#calendar-container .fc-event.fc-event-status-no-show,
+#calendar-container .fc-event.fc-event-status-no-show .fc-event-main {
+    background-color: #4b5563 !important;
+    border-color: #374151 !important;
 }
 
 #calendar-container .fc-now-indicator {
@@ -1804,19 +1889,6 @@ select.filter-control {
     box-shadow: var(--shadow-sm);
 }
 
-#calendar-container .fc-event.fc-event-no-show,
-#calendar-container .fc-event.fc-event-no-show .fc-event-main,
-#calendar-container .fc-event.fc-event-cancelled,
-#calendar-container .fc-event.fc-event-cancelled .fc-event-main {
-    background-color: #9ca3af !important;
-    border-color: #9ca3af !important;
-    opacity: 0.92;
-}
-
-#calendar-container .fc-event.fc-event-no-show.fc-event-paid::before,
-#calendar-container .fc-event.fc-event-cancelled.fc-event-paid::before {
-    display: none;
-}
 
 .form-actions {
     display: flex;
