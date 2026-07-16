@@ -655,7 +655,7 @@ select.filter-control {
     }
 }
 
-/* Десктоп: вся шкала времени вписывается в экран без вертикального скролла */
+/* Десктоп: календарь занимает оставшуюся высоту окна */
 @media (min-width: 721px) {
     body.calendar-fit-no-scroll {
         overflow: hidden;
@@ -679,26 +679,33 @@ select.filter-control {
         height: 100% !important;
     }
 
-    #calendar-container .fc .fc-view-harness,
-    #calendar-container .fc .fc-view-harness-active,
-    #calendar-container .fc .fc-scroller,
-    #calendar-container .fc .fc-scroller-liquid,
-    #calendar-container .fc .fc-scroller-liquid-absolute {
+    /* «Рабочий день»: вся шкала без вертикального скролла */
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-view-harness,
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-view-harness-active,
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller,
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller-liquid,
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller-liquid-absolute {
         overflow: hidden !important;
         overflow-x: hidden !important;
         overflow-y: hidden !important;
     }
 
-    /* Windows/Yandex: убрать gutter скроллбара, из‑за которого слоты не влезают */
-    #calendar-container .fc .fc-scroller {
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller {
         scrollbar-width: none;
         -ms-overflow-style: none;
     }
 
-    #calendar-container .fc .fc-scroller::-webkit-scrollbar {
+    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller::-webkit-scrollbar {
         width: 0 !important;
         height: 0 !important;
         display: none !important;
+    }
+
+    /* «Сутки»: разрешаем вертикальный скролл шкалы */
+    body:not(.calendar-fit-no-scroll) #calendar-container .fc .fc-scroller,
+    body:not(.calendar-fit-no-scroll) #calendar-container .fc .fc-scroller-liquid,
+    body:not(.calendar-fit-no-scroll) #calendar-container .fc .fc-scroller-liquid-absolute {
+        overflow-y: auto !important;
     }
 }
 

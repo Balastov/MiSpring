@@ -2055,19 +2055,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function unlockCalendarScrollers() {
+        if (!calendarContainer) return;
+        calendarContainer.querySelectorAll('.fc-scroller, .fc-scroller-liquid, .fc-scroller-liquid-absolute').forEach((el) => {
+            el.style.removeProperty('overflow');
+            el.style.removeProperty('overflow-x');
+            el.style.removeProperty('overflow-y');
+        });
+    }
+
     function applyCalendarFitOptions() {
         if (!calendar) return;
         const mobile = isCalendarMobileLayout();
-        const fitDesktop = !mobile && currentView === 'calendar';
+        // Вписывать без скролла только «Рабочий день» на десктопе.
+        // «Сутки» и мобильные — обычный скролл по шкале.
+        const fitDesktop = !mobile && currentView === 'calendar' && !useFullDayRange;
         document.body.classList.toggle('calendar-fit-no-scroll', fitDesktop);
-        // Десктоп: растянуть слоты на высоту экрана. Мобильные — обычный скролл.
-        calendar.setOption('expandRows', !mobile);
-        calendar.updateSize();
+        calendar.setOption('expandRows', fitDesktop);
         if (fitDesktop) {
+            calendar.updateSize();
             // Windows: сначала прячем скроллбар (он съедает высоту), потом пересчитываем слоты.
             lockCalendarScrollers();
             calendar.updateSize();
             lockCalendarScrollers();
+        } else {
+            unlockCalendarScrollers();
+            calendar.updateSize();
+            if (useFullDayRange && !mobile) {
+                // После переключения на сутки показать рабочий диапазон, дальше можно скроллить.
+                calendar.scrollToTime('08:00:00');
+            }
         }
     }
 
@@ -2093,7 +2110,7 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResizableFromStart: true,
             forceEventDuration: true,
             defaultTimedEventDuration: '01:00:00',
-            expandRows: !isCalendarMobileLayout(),
+            expandRows: !isCalendarMobileLayout() && !useFullDayRange,
             longPressDelay: 300,
             eventLongPressDelay: 300,
             selectLongPressDelay: 300,
