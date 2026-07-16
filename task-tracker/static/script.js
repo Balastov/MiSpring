@@ -2060,7 +2060,7 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResizableFromStart: true,
             forceEventDuration: true,
             defaultTimedEventDuration: '01:00:00',
-            expandRows: true,
+            expandRows: false,
             longPressDelay: 300,
             eventLongPressDelay: 300,
             selectLongPressDelay: 300,

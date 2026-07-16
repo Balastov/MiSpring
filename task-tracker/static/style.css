@@ -648,6 +648,11 @@ select.filter-control {
     font-size: 11px;
 }
 
+/* Высота шага шкалы: 70% от дефолта FullCalendar (1.5em) — плашка на 2 строки */
+#calendar-container .fc .fc-timegrid-slot {
+    height: 1.05em !important;
+}
+
 /* Полоса события строго по слотам шкалы (без «просветов» сверху/снизу и без min-height) */
 #calendar-container .fc .fc-timegrid-event-harness {
     min-height: 0 !important;
@@ -673,23 +678,26 @@ select.filter-control {
 
 /* Не раздувать блок выше длительности на таймлайне (min-height в опциях убран) */
 #calendar-container .fc-timegrid-event .fc-event-main {
-    padding: 2px 4px 3px;
+    padding: 1px 4px 1px;
     font-size: 11px;
     line-height: 1.2;
 }
 
-#calendar-container .fc-timegrid-event .fc-event-title {
+#calendar-container .fc-timegrid-event .fc-event-title,
+#calendar-container .fc-timegrid-event .fc-event-title-text {
     font-weight: 600;
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 1;
     word-break: break-word;
 }
 
 #calendar-container .fc-timegrid-event .fc-event-time {
     font-size: 11px;
     opacity: 0.95;
+    line-height: 1.2;
+    white-space: nowrap;
 }
 
 .fc-event.fc-event-series {
