@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
 
-# Нужно, чтобы job «bump» мог пушить коммит и теги в репозиторий (GITHUB_TOKEN).
+# Нужно, чтобы job «bump» мог пушить теги в репозиторий (GITHUB_TOKEN).
 permissions:
   contents: write
 
@@ -13,7 +13,6 @@ jobs:
     name: Bump version
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    continue-on-error: true
 
     steps:
       - name: Checkout code
@@ -24,16 +23,15 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
-          CURRENT=$(cat VERSION)
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
-
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-          if [ -z "$LAST_TAG" ]; then
-            RANGE="HEAD"
-          else
+          if [ -n "$LAST_TAG" ]; then
+            CURRENT="${LAST_TAG#v}"
             RANGE="${LAST_TAG}..HEAD"
+          else
+            CURRENT=$(cat VERSION 2>/dev/null || echo "0.0.0")
+            RANGE="HEAD"
           fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
 
           COMMITS=$(git log "$RANGE" --pretty=format:"%s" 2>/dev/null || echo "")
 
@@ -57,21 +55,20 @@ jobs:
           echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
           echo "Version: $CURRENT -> $NEW_VERSION ($BUMP)"
 
-      - name: Update VERSION and tag
+      - name: Create release tag
         run: |
-          echo "${{ steps.bump.outputs.new }}" > VERSION
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }} [skip ci]"
           git tag "v${{ steps.bump.outputs.new }}"
-          git push origin HEAD:main --tags
+          git push origin --tags
 
   deploy:
     name: SSH deploy
     runs-on: ubuntu-latest
-    # Не зависим от bump: при ошибке push тега/коммита деплой всё равно выполняется.
-    # Коммиты с [skip ci] тоже деплоятся — на сервер подтягивается обновлённый VERSION.
+    needs: version-bump
+    if: ${{ always() }}
+    # Деплой ждёт тега, чтобы сервер получил актуальный VERSION без служебного коммита в main.
+    # Коммиты с [skip ci] тоже деплоятся: для них job version-bump будет skipped.
 
     steps:
       - name: Deploy via SSH
@@ -82,5 +79,10 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             cd ~/projects/MiSpring
+            git fetch --tags origin
             git pull origin main
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+            if [ -n "$LATEST_TAG" ]; then
+              printf "%s" "${LATEST_TAG#v}" > VERSION
+            fi
             sudo systemctl restart task-tracker
