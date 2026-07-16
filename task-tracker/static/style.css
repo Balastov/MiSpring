@@ -657,6 +657,16 @@ select.filter-control {
 
 /* Десктоп: вся шкала времени вписывается в экран без вертикального скролла */
 @media (min-width: 721px) {
+    body.calendar-fit-no-scroll {
+        overflow: hidden;
+    }
+
+    #task-list-section.view-calendar {
+        /* dvh точнее на Windows (панели браузера / масштаб) */
+        height: calc(100dvh - 170px);
+        max-height: calc(100dvh - 170px);
+    }
+
     #calendar-container {
         display: flex;
         flex-direction: column;
@@ -669,9 +679,26 @@ select.filter-control {
         height: 100% !important;
     }
 
+    #calendar-container .fc .fc-view-harness,
+    #calendar-container .fc .fc-view-harness-active,
     #calendar-container .fc .fc-scroller,
+    #calendar-container .fc .fc-scroller-liquid,
     #calendar-container .fc .fc-scroller-liquid-absolute {
+        overflow: hidden !important;
+        overflow-x: hidden !important;
         overflow-y: hidden !important;
+    }
+
+    /* Windows/Yandex: убрать gutter скроллбара, из‑за которого слоты не влезают */
+    #calendar-container .fc .fc-scroller {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    #calendar-container .fc .fc-scroller::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
     }
 }
 

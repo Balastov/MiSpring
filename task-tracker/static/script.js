@@ -1938,6 +1938,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         if (view === 'table') {
+            document.body.classList.remove('calendar-fit-no-scroll');
             fetchTasks();
         } else if (view === 'calendar') {
             if (!calendar) initCalendar();
@@ -1946,6 +1947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 calendar.refetchEvents();
             }
         } else if (view === 'kanban') {
+            document.body.classList.remove('calendar-fit-no-scroll');
             loadKanban();
         }
     }
@@ -2042,11 +2044,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.matchMedia('(max-width: 720px)').matches;
     }
 
+    function lockCalendarScrollers() {
+        if (!calendarContainer) return;
+        calendarContainer.querySelectorAll('.fc-scroller, .fc-scroller-liquid, .fc-scroller-liquid-absolute').forEach((el) => {
+            el.style.setProperty('overflow', 'hidden', 'important');
+            el.style.setProperty('overflow-x', 'hidden', 'important');
+            el.style.setProperty('overflow-y', 'hidden', 'important');
+            el.scrollTop = 0;
+            el.scrollLeft = 0;
+        });
+    }
+
     function applyCalendarFitOptions() {
         if (!calendar) return;
+        const mobile = isCalendarMobileLayout();
+        const fitDesktop = !mobile && currentView === 'calendar';
+        document.body.classList.toggle('calendar-fit-no-scroll', fitDesktop);
         // Десктоп: растянуть слоты на высоту экрана. Мобильные — обычный скролл.
-        calendar.setOption('expandRows', !isCalendarMobileLayout());
+        calendar.setOption('expandRows', !mobile);
         calendar.updateSize();
+        if (fitDesktop) {
+            // Windows: сначала прячем скроллбар (он съедает высоту), потом пересчитываем слоты.
+            lockCalendarScrollers();
+            calendar.updateSize();
+            lockCalendarScrollers();
+        }
     }
 
     function initCalendar() {
@@ -2187,6 +2209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dayMaxEvents: 4,
         });
         calendar.render();
+        applyCalendarFitOptions();
 
         window.addEventListener('resize', () => {
             applyCalendarFitOptions();
