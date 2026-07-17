@@ -648,10 +648,34 @@ select.filter-control {
     font-size: 11px;
 }
 
-/* Высота слота: на десктопе задаёт FullCalendar (expandRows), на мобильных — фикс. */
+/* Высота слота и скролл шкалы на мобильных */
 @media (max-width: 720px) {
+    #calendar-container {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #calendar-container .fc {
+        flex: 1;
+        min-height: 0;
+        height: 100% !important;
+    }
+
     #calendar-container .fc .fc-timegrid-slot {
         height: 1.05em !important;
+    }
+
+    #calendar-container .fc .fc-scroller,
+    #calendar-container .fc .fc-scroller-liquid,
+    #calendar-container .fc .fc-scroller-liquid-absolute {
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-x pan-y;
     }
 }
 

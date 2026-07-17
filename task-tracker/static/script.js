@@ -2064,6 +2064,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function enableMobileCalendarScrollers() {
+        if (!calendarContainer) return;
+        calendarContainer.querySelectorAll('.fc-scroller, .fc-scroller-liquid, .fc-scroller-liquid-absolute').forEach((el) => {
+            el.style.setProperty('overflow-x', 'auto', 'important');
+            el.style.setProperty('overflow-y', 'auto', 'important');
+            el.style.setProperty('-webkit-overflow-scrolling', 'touch');
+            el.style.setProperty('touch-action', 'pan-x pan-y');
+        });
+    }
+
     function applyCalendarFitOptions() {
         if (!calendar) return;
         const mobile = isCalendarMobileLayout();
@@ -2072,6 +2082,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const fitDesktop = !mobile && currentView === 'calendar' && !useFullDayRange;
         document.body.classList.toggle('calendar-fit-no-scroll', fitDesktop);
         calendar.setOption('expandRows', fitDesktop);
+        // На телефоне обычный свайп должен скроллить шкалу, а не начинать drag.
+        const pressDelay = mobile ? 650 : 300;
+        calendar.setOption('longPressDelay', pressDelay);
+        calendar.setOption('eventLongPressDelay', pressDelay);
+        calendar.setOption('selectLongPressDelay', pressDelay);
         if (fitDesktop) {
             calendar.updateSize();
             // Windows: сначала прячем скроллбар (он съедает высоту), потом пересчитываем слоты.
@@ -2081,6 +2096,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             unlockCalendarScrollers();
             calendar.updateSize();
+            if (mobile) {
+                enableMobileCalendarScrollers();
+            }
             if (useFullDayRange && !mobile) {
                 // После переключения на сутки показать рабочий диапазон, дальше можно скроллить.
                 calendar.scrollToTime('08:00:00');
@@ -2111,9 +2129,9 @@ document.addEventListener('DOMContentLoaded', () => {
             forceEventDuration: true,
             defaultTimedEventDuration: '01:00:00',
             expandRows: !isCalendarMobileLayout() && !useFullDayRange,
-            longPressDelay: 300,
-            eventLongPressDelay: 300,
-            selectLongPressDelay: 300,
+            longPressDelay: isCalendarMobileLayout() ? 650 : 300,
+            eventLongPressDelay: isCalendarMobileLayout() ? 650 : 300,
+            selectLongPressDelay: isCalendarMobileLayout() ? 650 : 300,
             nowIndicator: true,
             snapDuration: step,
             slotDuration: step,
