@@ -1938,16 +1938,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         if (view === 'table') {
-            document.body.classList.remove('calendar-fit-no-scroll');
             fetchTasks();
         } else if (view === 'calendar') {
             if (!calendar) initCalendar();
             else {
-                applyCalendarFitOptions();
+                applyCalendarLayoutMode();
+                calendar.updateSize();
                 calendar.refetchEvents();
             }
         } else if (view === 'kanban') {
-            document.body.classList.remove('calendar-fit-no-scroll');
             loadKanban();
         }
     }
@@ -2044,72 +2043,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.matchMedia('(max-width: 720px)').matches;
     }
 
-    function lockCalendarScrollers() {
-        if (!calendarContainer) return;
-        calendarContainer.querySelectorAll('.fc-scroller, .fc-scroller-liquid, .fc-scroller-liquid-absolute').forEach((el) => {
-            el.style.setProperty('overflow', 'hidden', 'important');
-            el.style.setProperty('overflow-x', 'hidden', 'important');
-            el.style.setProperty('overflow-y', 'hidden', 'important');
-            el.scrollTop = 0;
-            el.scrollLeft = 0;
-        });
-    }
-
-    function unlockCalendarScrollers() {
-        if (!calendarContainer) return;
-        calendarContainer.querySelectorAll('.fc-scroller, .fc-scroller-liquid, .fc-scroller-liquid-absolute').forEach((el) => {
-            el.style.removeProperty('overflow');
-            el.style.removeProperty('overflow-x');
-            el.style.removeProperty('overflow-y');
-        });
-    }
-
-    function enableMobileCalendarScrollers() {
-        if (!calendarContainer) return;
-        calendarContainer.querySelectorAll('.fc-scroller, .fc-scroller-liquid, .fc-scroller-liquid-absolute').forEach((el) => {
-            el.style.setProperty('overflow-x', 'auto', 'important');
-            el.style.setProperty('overflow-y', 'auto', 'important');
-            el.style.setProperty('-webkit-overflow-scrolling', 'touch');
-            el.style.setProperty('touch-action', 'pan-x pan-y');
-        });
-    }
-
-    function applyCalendarFitOptions() {
+    // Десктоп «Рабочий день» — как раньше (слоты растягиваются).
+    // «Сутки» и мобильные — обычная высота слотов и скролл шкалы.
+    function applyCalendarLayoutMode() {
         if (!calendar) return;
         const mobile = isCalendarMobileLayout();
-        // Вписывать без скролла только «Рабочий день» на десктопе.
-        // «Сутки» и мобильные — обычный скролл по шкале.
-        const fitDesktop = !mobile && currentView === 'calendar' && !useFullDayRange;
-        document.body.classList.toggle('calendar-fit-no-scroll', fitDesktop);
-        calendar.setOption('expandRows', fitDesktop);
-        // На телефоне обычный свайп должен скроллить шкалу, а не начинать drag.
-        const pressDelay = mobile ? 650 : 300;
-        calendar.setOption('longPressDelay', pressDelay);
-        calendar.setOption('eventLongPressDelay', pressDelay);
-        calendar.setOption('selectLongPressDelay', pressDelay);
-        if (fitDesktop) {
-            calendar.updateSize();
-            // Windows: сначала прячем скроллбар (он съедает высоту), потом пересчитываем слоты.
-            lockCalendarScrollers();
-            calendar.updateSize();
-            lockCalendarScrollers();
-        } else {
-            unlockCalendarScrollers();
-            calendar.updateSize();
-            if (mobile) {
-                enableMobileCalendarScrollers();
-            }
-            if (useFullDayRange && !mobile) {
-                // После переключения на сутки показать рабочий диапазон, дальше можно скроллить.
-                calendar.scrollToTime('08:00:00');
-            }
-        }
+        document.body.classList.remove('calendar-fit-no-scroll');
+        calendar.setOption('expandRows', !mobile && !useFullDayRange);
+        calendar.setOption('longPressDelay', mobile ? 650 : 300);
+        calendar.setOption('eventLongPressDelay', mobile ? 650 : 300);
+        calendar.setOption('selectLongPressDelay', mobile ? 650 : 300);
     }
 
     function initCalendar() {
         const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
         const slotMinTime = useFullDayRange ? '00:00:00' : '07:00:00';
         const slotMaxTime = useFullDayRange ? '24:00:00' : '23:00:00';
+        const mobile = isCalendarMobileLayout();
         // #region agent log
         _agentDebugLog('run1', 'H1', 'script.js:initCalendar:start', 'init_calendar_start', {
             step,
@@ -2128,10 +2078,10 @@ document.addEventListener('DOMContentLoaded', () => {
             eventResizableFromStart: true,
             forceEventDuration: true,
             defaultTimedEventDuration: '01:00:00',
-            expandRows: !isCalendarMobileLayout() && !useFullDayRange,
-            longPressDelay: isCalendarMobileLayout() ? 650 : 300,
-            eventLongPressDelay: isCalendarMobileLayout() ? 650 : 300,
-            selectLongPressDelay: isCalendarMobileLayout() ? 650 : 300,
+            expandRows: !mobile && !useFullDayRange,
+            longPressDelay: mobile ? 650 : 300,
+            eventLongPressDelay: mobile ? 650 : 300,
+            selectLongPressDelay: mobile ? 650 : 300,
             nowIndicator: true,
             snapDuration: step,
             slotDuration: step,
@@ -2244,10 +2194,12 @@ document.addEventListener('DOMContentLoaded', () => {
             dayMaxEvents: 4,
         });
         calendar.render();
-        applyCalendarFitOptions();
+        applyCalendarLayoutMode();
 
         window.addEventListener('resize', () => {
-            applyCalendarFitOptions();
+            if (!calendar) return;
+            applyCalendarLayoutMode();
+            calendar.updateSize();
         });
     }
 
@@ -2269,7 +2221,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!calendar) return;
         calendar.setOption('slotMinTime', useFullDayRange ? '00:00:00' : '07:00:00');
         calendar.setOption('slotMaxTime', useFullDayRange ? '24:00:00' : '23:00:00');
-        applyCalendarFitOptions();
+        applyCalendarLayoutMode();
+        calendar.updateSize();
+        if (useFullDayRange) {
+            calendar.scrollToTime('08:00:00');
+        }
     }
 
     function openEditFromCalendar(event) {
@@ -2656,7 +2612,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const step = useQuarterHourStep ? '00:15:00' : '00:30:00';
             calendar.setOption('snapDuration', step);
             calendar.setOption('slotDuration', step);
-            applyCalendarFitOptions();
+            calendar.updateSize();
         });
     }
 

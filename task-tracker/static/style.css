@@ -648,26 +648,8 @@ select.filter-control {
     font-size: 11px;
 }
 
-/* Высота слота и скролл шкалы на мобильных */
+/* Мобильные: шкала скроллится (слоты не растягиваем через expandRows в JS) */
 @media (max-width: 720px) {
-    #calendar-container {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        overflow: hidden;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    #calendar-container .fc {
-        flex: 1;
-        min-height: 0;
-        height: 100% !important;
-    }
-
-    #calendar-container .fc .fc-timegrid-slot {
-        height: 1.05em !important;
-    }
-
     #calendar-container .fc .fc-scroller,
     #calendar-container .fc .fc-scroller-liquid,
     #calendar-container .fc .fc-scroller-liquid-absolute {
@@ -676,60 +658,6 @@ select.filter-control {
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
         touch-action: pan-x pan-y;
-    }
-}
-
-/* Десктоп: календарь занимает оставшуюся высоту окна */
-@media (min-width: 721px) {
-    body.calendar-fit-no-scroll {
-        overflow: hidden;
-    }
-
-    #task-list-section.view-calendar {
-        /* dvh точнее на Windows (панели браузера / масштаб) */
-        height: calc(100dvh - 170px);
-        max-height: calc(100dvh - 170px);
-    }
-
-    #calendar-container {
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    #calendar-container .fc {
-        flex: 1;
-        min-height: 0;
-        height: 100% !important;
-    }
-
-    /* «Рабочий день»: вся шкала без вертикального скролла */
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-view-harness,
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-view-harness-active,
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller,
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller-liquid,
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller-liquid-absolute {
-        overflow: hidden !important;
-        overflow-x: hidden !important;
-        overflow-y: hidden !important;
-    }
-
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller {
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-
-    body.calendar-fit-no-scroll #calendar-container .fc .fc-scroller::-webkit-scrollbar {
-        width: 0 !important;
-        height: 0 !important;
-        display: none !important;
-    }
-
-    /* «Сутки»: разрешаем вертикальный скролл шкалы */
-    body:not(.calendar-fit-no-scroll) #calendar-container .fc .fc-scroller,
-    body:not(.calendar-fit-no-scroll) #calendar-container .fc .fc-scroller-liquid,
-    body:not(.calendar-fit-no-scroll) #calendar-container .fc .fc-scroller-liquid-absolute {
-        overflow-y: auto !important;
     }
 }
 
@@ -758,7 +686,7 @@ select.filter-control {
 
 /* Не раздувать блок выше длительности на таймлайне (min-height в опциях убран) */
 #calendar-container .fc-timegrid-event .fc-event-main {
-    padding: 1px 4px 1px;
+    padding: 2px 4px 3px;
     font-size: 11px;
     line-height: 1.2;
 }
@@ -769,15 +697,13 @@ select.filter-control {
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 3;
     word-break: break-word;
 }
 
 #calendar-container .fc-timegrid-event .fc-event-time {
     font-size: 11px;
     opacity: 0.95;
-    line-height: 1.2;
-    white-space: nowrap;
 }
 
 .fc-event.fc-event-series {
