@@ -17,8 +17,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'MiSpring: новое сообщение';
   const options = {
     body: payload.body || 'Откройте чат, чтобы прочитать',
-    icon: '/static/apple-touch-icon.png',
-    badge: '/static/apple-touch-icon.png',
+    icon: '/static/icon-192-light.png',
+    badge: '/static/icon-192-light.png',
     tag: payload.tag || 'mispring-chat',
     renotify: true,
     data: {

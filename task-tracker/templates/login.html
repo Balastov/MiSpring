@@ -2,7 +2,18 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>EngSpring — Вход</title>
+    <link rel="manifest" id="app-manifest" href="{{ url_for('static', filename='manifest-light.json') }}">
+    <link rel="icon" type="image/png" media="(prefers-color-scheme: light)" href="{{ url_for('static', filename='favicon-light.png') }}">
+    <link rel="icon" type="image/png" media="(prefers-color-scheme: dark)" href="{{ url_for('static', filename='favicon-dark.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-light.png') }}">
+    <link rel="apple-touch-icon" id="app-apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon-light.png') }}">
+    <link rel="apple-touch-icon" media="(prefers-color-scheme: light)" href="{{ url_for('static', filename='apple-touch-icon-light.png') }}">
+    <link rel="apple-touch-icon" media="(prefers-color-scheme: dark)" href="{{ url_for('static', filename='apple-touch-icon-dark.png') }}">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1A515F">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1c20">
+    <script src="{{ url_for('static', filename='theme_icons.js') }}"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
