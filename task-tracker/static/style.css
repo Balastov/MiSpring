@@ -1337,6 +1337,23 @@ select.filter-control {
     background-color: var(--color-bg-subtle);
 }
 
+.btn-home-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-home-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.btn-home-icon svg {
+    display: block;
+}
+
 /* Settings button inherits .btn-topbar styles from top bar */
 
 /* ========== Settings Modal ========== */
