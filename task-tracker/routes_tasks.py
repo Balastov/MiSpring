@@ -108,26 +108,14 @@ def _find_next_homework_id(student_id, from_homework_id=None):
     if from_homework_id:
         return _next_after_homework_id(from_homework_id)
 
-    lesson_type = TaskType.query.filter_by(name='Урок').first()
-    conducted = TaskStatus.query.filter_by(name='Проведён').first()
-    if lesson_type and conducted:
-        q = Task.query.filter_by(
-            student_id=student_id,
-            task_type_id=lesson_type.id,
-            status_id=conducted.id,
-        ).order_by(Task.start_date.desc(), Task.id.desc()).all()
-        for t in q:
-            if getattr(t, 'homework_unique', False):
-                continue
-            seq = _task_homework_ids(t.id) or ([t.homework_id] if t.homework_id else [])
-            seq = [int(x) for x in seq if x and int(x) in ordered_hw_ids]
-            if not seq:
-                continue
-            last_hw = seq[-1]
-            next_hw_id, next_reason = _next_after_homework_id(last_hw)
-            if next_reason == 'next_after_from':
-                return next_hw_id, 'next_after_last_conducted'
-            return None, next_reason
+    # Якорь цепочки: последнее плановое ДЗ на прошедших уроках (не только «Проведён»).
+    # Важно при двух старых сериях на разные дни недели — иначе обе стартуют с одного ДЗ.
+    latest_past = _latest_past_plan_homework_id(student_id, ordered_hw_ids)
+    if latest_past is not None:
+        next_hw_id, next_reason = _next_after_homework_id(latest_past)
+        if next_reason == 'next_after_from':
+            return next_hw_id, 'next_after_last_past_lesson'
+        return None, next_reason
 
     if up and up.next_step_id and step_ids and up.next_step_id in step_ids:
         for hw_id in ordered_hw_ids:
@@ -135,6 +123,44 @@ def _find_next_homework_id(student_id, from_homework_id=None):
             if hw and hw.plan_step_id == up.next_step_id:
                 return hw.id, 'from_userplan_next_step'
     return ordered_hw_ids[0], 'from_first_homework_in_plan'
+
+
+def _latest_past_plan_homework_id(student_id, ordered_hw_ids):
+    """
+    Последнее плановое ДЗ среди уроков ученика со start_date < now.
+    Пропускает отмену/неявку и уникальные ДЗ.
+    """
+    if not student_id or not ordered_hw_ids:
+        return None
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type:
+        return None
+    catalog_set = set(int(x) for x in ordered_hw_ids)
+    now = datetime.now()
+    tasks = Task.query.filter_by(
+        student_id=student_id,
+        task_type_id=lesson_type.id,
+    ).filter(
+        Task.start_date.isnot(None),
+        Task.start_date < now,
+    ).order_by(Task.start_date.desc(), Task.id.desc()).all()
+    if not tasks:
+        return None
+    status_ids = {t.status_id for t in tasks if t.status_id}
+    status_map = {}
+    if status_ids:
+        status_map = {s.id: s for s in TaskStatus.query.filter(TaskStatus.id.in_(status_ids)).all()}
+    for t in tasks:
+        st = status_map.get(t.status_id) if t.status_id else None
+        if _is_skipped_lesson_status(st):
+            continue
+        if getattr(t, 'homework_unique', False):
+            continue
+        seq = _task_homework_ids(t.id) or ([t.homework_id] if t.homework_id else [])
+        seq = [int(x) for x in seq if x and int(x) in catalog_set]
+        if seq:
+            return seq[-1]
+    return None
 
 
 def _normalize_homework_ids(payload):
@@ -525,11 +551,15 @@ def _task_chain_homework_ids(task, hw_by_task, catalog_set):
 
 def _recalculate_future_homework_for_student(student_id, from_task_id=None):
     """
-    Назначает ДЗ по цепочке справочника на будущие уроки ученика (тип «Урок»),
+    Назначает ДЗ по цепочке справочника на все будущие уроки ученика (тип «Урок»),
     независимо от серии. На каждый урок — ровно одно следующее ДЗ по плану.
 
-    Проведённые / отменённые / неявки и (при from_task_id) уроки до якоря включительно
-    не перезаписываются и задают старт цепочки.
+    Это критично при двух старых сериях (уроки 2 раза в неделю до WEEKLY_MULTI):
+    цепочка одна на ученика, а не на каждую серию отдельно.
+
+    from_task_id сохранён для совместимости API и больше не «замораживает»
+    будущие уроки до якоря (иначе дубли ДЗ между сериями не исправлялись).
+    Проведённые / отменённые / неявки и просто прошедшие уроки задают старт цепочки.
     Возвращает число обновлённых задач.
     """
     if not student_id:
@@ -554,10 +584,6 @@ def _recalculate_future_homework_for_student(student_id, from_task_id=None):
     if not tasks:
         return 0
 
-    anchor = None
-    if from_task_id:
-        anchor = next((t for t in tasks if t.id == int(from_task_id)), None)
-
     status_ids = {t.status_id for t in tasks if t.status_id}
     status_map = {}
     if status_ids:
@@ -574,24 +600,19 @@ def _recalculate_future_homework_for_student(student_id, from_task_id=None):
     chain_prev = None
     updated = 0
 
-    def _at_or_before_anchor(task):
-        if not anchor or not anchor.start_date or not task.start_date:
-            return bool(anchor and task.id == anchor.id)
-        return (task.start_date, task.id) <= (anchor.start_date, anchor.id)
-
     for t in tasks:
         st = status_map.get(t.status_id) if t.status_id else None
         terminal = _task_status_terminal(st)
         is_future = t.start_date >= now
-        freeze = (not is_future) or terminal or _at_or_before_anchor(t)
+        # Только прошлое / терминальные статусы — якорь. Все будущие уроки всех серий пересчитываются.
+        freeze = (not is_future) or terminal
 
         if freeze:
             if not getattr(t, 'homework_unique', False):
-                # Якорь цепочки: проведённые, прошлые «в работе», и урок-from_task_id.
                 take_chain = False
                 if terminal and st and st.name == 'Проведён':
                     take_chain = True
-                elif not terminal and (not is_future or _at_or_before_anchor(t)):
+                elif not terminal and not is_future:
                     take_chain = True
                 if take_chain:
                     chain = _task_chain_homework_ids(t, hw_by_task, catalog_set)
@@ -623,9 +644,10 @@ def _recalculate_future_homework_for_student(student_id, from_task_id=None):
             continue
 
         if t.homework_required:
-            # Один урок — одно следующее ДЗ по плану (не пачка existing_count).
+            # Один урок — одно следующее ДЗ по плану (общая цепочка ученика).
             if chain_prev is not None:
-                nh, _reason = _find_next_homework_id(student_id, from_homework_id=chain_prev)
+                nxt = _take_next_homework_ids(ordered_hw_ids, chain_prev, count=1)
+                nh = nxt[0] if nxt else None
             else:
                 nh, _reason = _find_next_homework_id(student_id, None)
             if nh is None:
@@ -1745,7 +1767,8 @@ def recalc_series_homework_from(series_id, task_id):
     if task.series_id != series.id:
         return jsonify({'error': 'Урок не принадлежит указанной серии'}), 400
 
-    updated = _recalculate_future_homework_for_student(task.student_id, from_task_id=task.id)
+    # Полный пересчёт будущих уроков ученика (все серии). from_task_id — только проверка прав/принадлежности.
+    updated = _recalculate_future_homework_for_student(task.student_id)
     return jsonify({'updated': updated, 'missing': 0})
 
 

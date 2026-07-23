@@ -40,12 +40,20 @@ class HomeworkChainTests(unittest.TestCase):
             current = batch[-1]
         self.assertEqual(buggy, [3, 5])  # «перепрыгивание через одно»
 
-    def test_multi_slot_lesson_does_not_skip_for_followers_when_count_is_one(self):
-        ordered = [1, 2, 3, 4]
-        # Урок-якорь с двумя ДЗ задаёт prev=2; следующие уроки по одному
-        prev = 2
-        self.assertEqual(_take_next_homework_ids(ordered, prev, 1), [3])
-        self.assertEqual(_take_next_homework_ids(ordered, 3, 1), [4])
+    def test_interleaved_two_series_get_unique_sequence(self):
+        """Две weekly-серии (пн/ср) должны получать разные ДЗ по общей хронологии."""
+        ordered = [1, 2, 3, 4, 5, 6]
+        # После прошлого урока с ДЗ=1 будущие пн/ср/пн/ср…
+        prev = 1
+        assigned = []
+        for _ in range(4):
+            nxt = _take_next_homework_ids(ordered, prev, count=1)
+            self.assertEqual(len(nxt), 1)
+            assigned.append(nxt[0])
+            prev = nxt[0]
+        self.assertEqual(assigned, [2, 3, 4, 5])
+        # Регрессия старого поведения «каждая серия с начала»: [2,2,3,3]
+        self.assertNotEqual(assigned, [2, 2, 3, 3])
 
 
 if __name__ == '__main__':
