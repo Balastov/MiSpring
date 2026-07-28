@@ -5,6 +5,9 @@ import sqlite3
 from sqlalchemy import text
 
 from dotenv import load_dotenv
+from werkzeug.exceptions import RequestEntityTooLarge
+
+from upload_limits import HOMEWORK_FILES_TOTAL_LIMIT, HOMEWORK_FILES_TOTAL_LIMIT_MB
 load_dotenv()
 
 from extensions import db, login_manager
@@ -18,11 +21,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
+app.config['MAX_CONTENT_LENGTH'] = HOMEWORK_FILES_TOTAL_LIMIT
 
 db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_request_entity_too_large(_error):
+    return jsonify({
+        'error': f'Файл слишком большой (макс. {HOMEWORK_FILES_TOTAL_LIMIT_MB} МБ за один запрос)',
+    }), 413
 
 from models import User, UserRole, Role, TaskType, TaskStatus, StudentPayment, StudentLessonPrice, Setting, PlanTemplate, PlanStep, UserPlan, Task, Homework, HomeworkCatalog, HomeworkEvidence, LessonSeries, LessonHomework, ChatDialog, ChatMessage, ChatPushSubscription
 

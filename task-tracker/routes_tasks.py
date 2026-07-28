@@ -12,9 +12,9 @@ from sqlalchemy.sql.expression import false as sa_false
 import calendar
 from uuid import uuid4
 
-tasks_bp = Blueprint('tasks', __name__)
+from upload_limits import HOMEWORK_FILES_TOTAL_LIMIT, HOMEWORK_FILES_TOTAL_LIMIT_MB
 
-HOMEWORK_FILES_TOTAL_LIMIT = 5 * 1024 * 1024
+tasks_bp = Blueprint('tasks', __name__)
 ALLOWED_HOMEWORK_FILE_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.gif',
     '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar',
@@ -2736,7 +2736,7 @@ def upload_task_evidence(task_id):
             return jsonify({'error': f'Недопустимый формат файла: {ext or "без расширения"}'}), 400
         uploaded_total += size
         if existing_total + uploaded_total > HOMEWORK_FILES_TOTAL_LIMIT:
-            return jsonify({'error': 'Превышен суммарный лимит 5 МБ на это задание'}), 400
+            return jsonify({'error': f'Превышен суммарный лимит {HOMEWORK_FILES_TOTAL_LIMIT_MB} МБ на это задание'}), 400
 
         stored = f'{uuid4().hex}{ext}'
         relative_path = f'uploads/homework_evidence/{stored}'

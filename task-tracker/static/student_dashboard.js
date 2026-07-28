@@ -304,13 +304,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 studentFiles: data.student_files || data.files || [],
                 teacherFiles: data.teacher_files || [],
                 studentTotalSize: data.student_total_size_bytes || 0,
-                limit: data.limit_bytes || (5 * 1024 * 1024),
+                limit: data.limit_bytes || (30 * 1024 * 1024),
             }))
             .catch(() => ({
                 studentFiles: [],
                 teacherFiles: [],
                 studentTotalSize: 0,
-                limit: 5 * 1024 * 1024,
+                limit: 30 * 1024 * 1024,
             }));
     }
 
