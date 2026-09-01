@@ -14,31 +14,96 @@ from lesson_price_service import (
 payments_bp = Blueprint('payments', __name__)
 
 
-def sync_prepaid_marks(student):
+def _prepaid_snapshot(student):
+    """Return the canonical prepayment state without changing the database."""
+    payments = StudentPayment.query.filter_by(student_id=student.id).order_by(
+        StudentPayment.payment_date.asc(),
+        StudentPayment.id.asc(),
+    ).all()
+    total_paid = sum(p.lessons_count for p in payments)
+    prepaid_since = payments[0].payment_date if payments else None
+
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
+    if not lesson_type or not prepaid_since:
+        return {
+            'payments': payments,
+            'total_paid': total_paid,
+            'prepaid_since': prepaid_since,
+            'lessons': [],
+            'skipped_ids': set(),
+            'conducted_ids': set(),
+            'conducted': 0,
+            'remaining': total_paid,
+        }
+
+    statuses = TaskStatus.query.all()
+    skipped_ids = {
+        s.id for s in statuses
+        if s.name in ('Отменён', 'Неявка')
+        or (s.group or '').strip().lower() in ('cancelled', 'no_show')
+    }
+    conducted_ids = {
+        s.id for s in statuses
+        if s.name == 'Проведён'
+        or (s.group or '').strip().lower() in ('done', 'completed')
+    }
+
+    lessons = Task.query.filter(
+        Task.student_id == student.id,
+        Task.task_type_id == lesson_type.id,
+        Task.start_date >= prepaid_since,
+    ).order_by(Task.start_date.asc(), Task.id.asc()).all()
+    active_lessons = [
+        lesson for lesson in lessons
+        if not lesson.status_id or lesson.status_id not in skipped_ids
+    ]
+    conducted = sum(
+        1 for lesson in active_lessons
+        if lesson.status_id and lesson.status_id in conducted_ids
+    )
+
+    return {
+        'payments': payments,
+        'total_paid': total_paid,
+        'prepaid_since': prepaid_since,
+        'lessons': active_lessons,
+        'skipped_ids': skipped_ids,
+        'conducted_ids': conducted_ids,
+        'conducted': conducted,
+        'remaining': total_paid - conducted,
+    }
+
+
+def sync_prepaid_marks(student, commit=True):
     """
     Пересчитывает флаг is_paid на уроках ученика в периоде предоплаты.
 
     Логика:
     - Всего оплачено N уроков (сумма всех StudentPayment).
-    - Берём все уроки ученика с start_date >= prepaid_since (кроме отменённых),
+    - Начало периода — самый ранний платёж; оно не сдвигается при новом авансе.
+    - Берём все уроки ученика от начала периода (кроме отменённых),
       сортируем по дате.
-    - Первые N уроков без ручной отметки помечаем is_paid=True.
+    - Ручные оплаченные уроки резервируют слоты аванса; остальные слоты
+      распределяем по первым урокам без ручной отметки.
     - Уроки с is_paid_manual=True сохраняют ручной статус оплаты.
     - Отменённые и неявки не входят в очередь и не тратят предоплату.
-    - Обновляем кеш prepaid_lessons = N − кол-во проведённых среди оплаченных.
+    - Обновляем кеш prepaid_lessons = N − кол-во проведённых уроков.
     """
     if not student:
         return
 
+    snapshot = _prepaid_snapshot(student)
     lesson_type = TaskType.query.filter_by(name='Урок').first()
     if not lesson_type:
+        student.prepaid_since = snapshot['prepaid_since']
+        student.prepaid_lessons = max(0, snapshot['remaining'])
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
         return
 
-    skipped_statuses = TaskStatus.query.filter(
-        (TaskStatus.name.in_(['Отменён', 'Неявка']))
-        | (TaskStatus.group.in_(['cancelled', 'no_show']))
-    ).all()
-    skipped_ids = {s.id for s in skipped_statuses}
+    skipped_ids = snapshot['skipped_ids']
 
     # Отменённые / неявки никогда не считаются оплаченными
     skipped_lessons = Task.query.filter(
@@ -50,74 +115,62 @@ def sync_prepaid_marks(student):
         t.is_paid = False
         t.is_paid_manual = False
 
-    if not student.prepaid_since:
-        db.session.commit()
-        return
+    student.prepaid_since = snapshot['prepaid_since']
+    total_paid = snapshot['total_paid']
+    active = snapshot['lessons']
 
-    conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
-    conducted_id = conducted_status.id if conducted_status else None
-
-    payments = StudentPayment.query.filter_by(student_id=student.id).all()
-    total_paid = sum(p.lessons_count for p in payments)
-
-    # Все уроки в периоде предоплаты, кроме отменённых/неявок, по дате
-    all_lessons = Task.query.filter(
+    # Уроки вне актуального периода (например, после удаления самого раннего
+    # платежа или всех платежей) не должны сохранять старую автоотметку.
+    active_ids = {lesson.id for lesson in active}
+    auto_managed_lessons = Task.query.filter(
         Task.student_id == student.id,
         Task.task_type_id == lesson_type.id,
-        Task.start_date >= student.prepaid_since,
-    ).order_by(Task.start_date.asc(), Task.id.asc()).all()
+        Task.is_paid_manual == False,
+    ).all()
+    for lesson in auto_managed_lessons:
+        if lesson.id not in active_ids:
+            lesson.is_paid = False
 
-    active = [
-        t for t in all_lessons
-        if not t.status_id or t.status_id not in skipped_ids
-    ]
-
-    conducted_in_paid = 0
+    # Ручные "оплачено" сохраняются, но не должны расширять число
+    # уроков, отмеченных авансом. Поэтому они сразу занимают слоты.
+    manual_paid = sum(
+        1 for lesson in active
+        if getattr(lesson, 'is_paid_manual', False) and lesson.is_paid
+    )
+    automatic_slots = max(0, total_paid - manual_paid)
     auto_slots_used = 0
     for t in active:
         if getattr(t, 'is_paid_manual', False):
-            if t.is_paid and conducted_id and t.status_id == conducted_id:
-                conducted_in_paid += 1
             continue
 
-        paid = auto_slots_used < total_paid
+        paid = auto_slots_used < automatic_slots
         t.is_paid = paid
         if paid:
             auto_slots_used += 1
-            if conducted_id and t.status_id == conducted_id:
-                conducted_in_paid += 1
 
-    remaining = max(0, total_paid - conducted_in_paid)
-    student.prepaid_lessons = remaining
+    student.prepaid_lessons = max(0, snapshot['remaining'])
 
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
 
 
 def _get_balance(student):
     """Вычисляет текущий баланс ученика."""
-    payments = StudentPayment.query.filter_by(student_id=student.id).order_by(StudentPayment.payment_date).all()
-    total_paid = sum(p.lessons_count for p in payments)
-
-    conducted_count = 0
-    if student.prepaid_since:
-        lesson_type = TaskType.query.filter_by(name='Урок').first()
-        conducted_status = TaskStatus.query.filter_by(name='Проведён').first()
-        if lesson_type and conducted_status:
-            conducted_count = Task.query.filter(
-                Task.student_id == student.id,
-                Task.task_type_id == lesson_type.id,
-                Task.status_id == conducted_status.id,
-                Task.start_date >= student.prepaid_since
-            ).count()
-
-    remaining = total_paid - conducted_count
+    snapshot = _prepaid_snapshot(student)
+    payments = snapshot['payments']
+    total_paid = snapshot['total_paid']
+    conducted_count = snapshot['conducted']
+    remaining = snapshot['remaining']
+    prepaid_since = snapshot['prepaid_since']
     history = lesson_price_history(student.id)
     return {
         'total_paid': total_paid,
         'conducted': conducted_count,
         'remaining': remaining,
-        'prepaid_since': student.prepaid_since.strftime('%d.%m.%Y') if student.prepaid_since else None,
-        'prepaid_since_iso': student.prepaid_since.strftime('%Y-%m-%d') if student.prepaid_since else None,
+        'prepaid_since': prepaid_since.strftime('%d.%m.%Y') if prepaid_since else None,
+        'prepaid_since_iso': prepaid_since.strftime('%Y-%m-%d') if prepaid_since else None,
         'lesson_price': student.lesson_price,
         'lesson_price_history': [h.to_dict() for h in history],
         'requires_price_effective_date': bool(history)
@@ -133,8 +186,7 @@ def get_balance(student_id):
         return jsonify({'error': 'Недостаточно прав'}), 403
 
     student = db.get_or_404(User, student_id)
-    if student.prepaid_since:
-        sync_prepaid_marks(student)
+    sync_prepaid_marks(student)
     return jsonify(_get_balance(student))
 
 
@@ -180,14 +232,7 @@ def add_payment(student_id):
     )
     db.session.add(payment)
 
-    # Если баланс был 0 — обновляем дату начала отсчёта
-    current_remaining = (student.prepaid_lessons or 0)
-    if current_remaining == 0:
-        student.prepaid_since = payment_date
-
-    student.prepaid_lessons = current_remaining + lessons_count
-    db.session.commit()
-
+    db.session.flush()
     sync_prepaid_marks(student)
 
     return jsonify({'ok': True, 'balance': _get_balance(student)}), 201
@@ -204,11 +249,8 @@ def delete_payment(student_id, payment_id):
         return jsonify({'error': 'Не найдено'}), 404
 
     student = db.get_or_404(User, student_id)
-    student.prepaid_lessons = max(0, (student.prepaid_lessons or 0) - payment.lessons_count)
-
     db.session.delete(payment)
-    db.session.commit()
-
+    db.session.flush()
     sync_prepaid_marks(student)
 
     return jsonify({'ok': True, 'balance': _get_balance(student)})

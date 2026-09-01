@@ -466,6 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isListVisible = true;
     let editingTaskId = null;
     let originalStudentId = null; // Store original student when editing
+    let prepaidAutofillActive = false;
     let currentSeriesId = null;
     let currentView = 'calendar';
     let useQuarterHourStep = false;
@@ -1367,7 +1368,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function checkAndApplyPrepaid() {
         const studentId = formStudentId.value;
+        // При редактировании сохраняем загруженные реквизиты оплаты. Сервер сам
+        // пересчитает аванс после сохранения и отличит реальное ручное изменение.
+        if (editingTaskId) {
+            prepaidAutofillActive = false;
+            formIsPaid.disabled = false;
+            return;
+        }
         if (!studentId) {
+            prepaidAutofillActive = false;
             formIsPaid.disabled = false;
             return;
         }
@@ -1375,6 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (data.remaining > 0) {
+                    prepaidAutofillActive = true;
                     formIsPaid.checked = true;
                     formIsPaid.disabled = true;
                     if (data.prepaid_since_iso) {
@@ -1385,10 +1395,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             .toISOString().slice(0, 16);
                     }
                 } else {
+                    prepaidAutofillActive = false;
                     formIsPaid.disabled = false;
                 }
             })
-            .catch(() => { formIsPaid.disabled = false; });
+            .catch(() => {
+                prepaidAutofillActive = false;
+                formIsPaid.disabled = false;
+            });
     }
 
     formHomeworkRequired.addEventListener('change', () => {
@@ -1439,6 +1453,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addTaskBtn.addEventListener('click', () => {
         editingTaskId = null;
         originalStudentId = null;
+        prepaidAutofillActive = false;
         currentSeriesId = null;
         taskModalTitle.textContent = 'Создание задачи';
         taskSubmitBtn.textContent = 'Подтвердить и создать';
@@ -1552,6 +1567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         taskForm.reset();
         formIsPaid.disabled = false;
         editingTaskId = null;
+        prepaidAutofillActive = false;
         currentSeriesId = null;
         syncTaskDeleteButtonVisibility();
         if (taskSeriesBadge) taskSeriesBadge.classList.add('hidden');
@@ -1835,6 +1851,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-fill payment date when "is paid" checkbox changes
     formIsPaid.addEventListener('change', () => {
+        prepaidAutofillActive = false;
         if (formIsPaid.checked) {
             const now = new Date();
             formPaymentDate.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -2792,6 +2809,7 @@ document.addEventListener('DOMContentLoaded', () => {
             duration: formDuration.value ? parseInt(formDuration.value) : null,
             student_id: formStudentId.value ? parseInt(formStudentId.value) : null,
             is_paid: formIsPaid.checked,
+            is_paid_manual: !editingTaskId && formIsPaid.checked && !prepaidAutofillActive,
             payment_date: formPaymentDate.value || null,
             homework_id: formHomeworkId.value ? parseInt(formHomeworkId.value) : null,
             homework_ids: collectHomeworkIdsFromForm(),
@@ -2866,6 +2884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 start_date: taskData.start_date,
                 duration: taskData.duration,
                 is_paid: taskData.is_paid,
+                is_paid_manual: taskData.is_paid_manual,
                 payment_date: taskData.payment_date,
                 homework_id: taskData.homework_id,
                 homework_ids: taskData.homework_ids,

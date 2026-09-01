@@ -21,6 +21,30 @@ ALLOWED_HOMEWORK_FILE_EXTENSIONS = {
 }
 
 
+def _apply_task_payment_update(task, data):
+    """Apply payment fields and mark an override only after a real user change."""
+    old_paid = bool(task.is_paid)
+    old_payment_date = task.payment_date
+    new_paid = bool(data['is_paid']) if 'is_paid' in data else old_paid
+    new_payment_date = (
+        parse_datetime(data['payment_date'])
+        if 'payment_date' in data else old_payment_date
+    )
+
+    if 'is_paid' in data:
+        task.is_paid = new_paid
+    if 'payment_date' in data:
+        task.payment_date = new_payment_date
+
+    paid_changed = 'is_paid' in data and new_paid != old_paid
+    payment_date_changed = (
+        'payment_date' in data
+        and new_payment_date != old_payment_date
+    )
+    if paid_changed or (new_paid and payment_date_changed):
+        task.is_paid_manual = True
+
+
 def _get_student_plan_template_and_steps(student_id):
     from models import UserPlan, PlanTemplate, PlanStep
 
@@ -1235,6 +1259,7 @@ def bulk_update_tasks():
 
     tasks = Task.query.filter(Task.id.in_(ids)).all()
     skipped_status_ids = _skipped_lesson_status_ids()
+    lesson_type = TaskType.query.filter_by(name='Урок').first()
     students_to_sync = set()
     updated = 0
 
@@ -1243,6 +1268,9 @@ def bulk_update_tasks():
             continue
 
         old_status_id = task.status_id
+        old_student_id = task.student_id
+        old_task_type_id = task.task_type_id
+        old_payment_date = task.payment_date
 
         if 'student_id' in changes:
             sid = changes['student_id']
@@ -1275,6 +1303,13 @@ def bulk_update_tasks():
                 parsed = parse_datetime(val) if val not in (None, '', '__empty__') else None
                 setattr(task, date_key, parsed)
 
+        if (
+            'payment_date' in changes
+            and task.is_paid
+            and task.payment_date != old_payment_date
+        ):
+            task.is_paid_manual = True
+
         for text_key in ('comment', 'description'):
             if text_key in changes:
                 val = changes[text_key]
@@ -1297,6 +1332,12 @@ def bulk_update_tasks():
         if old_status_id != new_status_id and task.student_id:
             students_to_sync.add(task.student_id)
 
+        if lesson_type:
+            if old_student_id and old_task_type_id == lesson_type.id:
+                students_to_sync.add(old_student_id)
+            if task.student_id and task.task_type_id == lesson_type.id:
+                students_to_sync.add(task.student_id)
+
         if any(k in changes for k in ('start_date', 'end_date', 'duration')):
             _sync_task_start_end_duration(task)
 
@@ -1312,7 +1353,8 @@ def bulk_update_tasks():
         for sid in students_to_sync:
             student = db.session.get(User, sid)
             if student:
-                sync_prepaid_marks(student)
+                sync_prepaid_marks(student, commit=False)
+        db.session.commit()
 
     return jsonify({'updated': updated})
 
@@ -1398,6 +1440,7 @@ def add_task():
         user_id=current_user.id,
         student_id=data.get('student_id'),
         is_paid=bool(data.get('is_paid', False)),
+        is_paid_manual=bool(data.get('is_paid_manual', False)),
         payment_date=parse_datetime(data.get('payment_date')),
         homework_id=(homework_ids[0] if homework_ids else None),
         homework_required=homework_required,
@@ -1442,6 +1485,7 @@ def create_lesson_series():
     start_date_raw = data.get('start_date')
     duration = data.get('duration')
     is_paid = bool(data.get('is_paid', False))
+    is_paid_manual = bool(data.get('is_paid_manual', False))
     payment_date_raw = data.get('payment_date')
     homework_id = data.get('homework_id')
     homework_required = bool(data.get('homework_required', True))
@@ -1555,6 +1599,7 @@ def create_lesson_series():
                 user_id=current_user.id,
                 student_id=student_id,
                 is_paid=is_paid,
+                is_paid_manual=is_paid_manual,
                 payment_date=payment_date,
                 homework_id=((homework_ids[0] if homework_ids else None) if (idx == 0 and homework_required) else None),
                 homework_required=homework_required if idx == 0 else homework_required,
@@ -1632,6 +1677,7 @@ def _clone_series_task(template_task, series, start_dt, duration):
         user_id=template_task.user_id,
         student_id=template_task.student_id,
         is_paid=False,
+        is_paid_manual=False,
         payment_date=None,
         homework_id=None,
         homework_required=hw_required,
@@ -1806,6 +1852,10 @@ def delete_lesson_series(series_id):
 
     db.session.commit()
     _recalculate_future_homework_for_student(student_id_for_recalc)
+    student_obj = db.session.get(User, student_id_for_recalc)
+    if student_obj:
+        from routes_payments import sync_prepaid_marks
+        sync_prepaid_marks(student_obj)
     return jsonify({'deleted_tasks': removed})
 
 
@@ -1842,14 +1892,7 @@ def update_task(task_id):
             task.end_date = parse_datetime(data['end_date'])
         if 'student_id' in data:
             task.student_id = data['student_id']
-        if 'is_paid' in data:
-            new_paid = bool(data['is_paid'])
-            old_paid = bool(task.is_paid)
-            task.is_paid = new_paid
-            if new_paid != old_paid or (new_paid and 'payment_date' in data):
-                task.is_paid_manual = True
-        if 'payment_date' in data:
-            task.payment_date = parse_datetime(data['payment_date'])
+        _apply_task_payment_update(task, data)
         if 'homework_unique' in data:
             task.homework_unique = bool(data['homework_unique'])
             if not task.homework_unique:
@@ -1977,6 +2020,7 @@ def update_task(task_id):
                     user_id=task.user_id,
                     student_id=task.student_id,
                     is_paid=task.is_paid,
+                    is_paid_manual=bool(task.is_paid_manual),
                     payment_date=task.payment_date,
                     homework_id=None,
                     homework_required=False,
@@ -2050,6 +2094,7 @@ def update_task(task_id):
         _sync_task_start_end_duration(task)
 
         db.session.commit()
+        prepaid_synced_ids = set()
 
         # Проверяем, стал ли статус "Проведён"
         new_status_id = task.status_id
@@ -2071,6 +2116,7 @@ def update_task(task_id):
                 student = db.session.get(User, task.student_id)
                 if student:
                     sync_prepaid_marks(student)
+                    prepaid_synced_ids.add(student.id)
 
             if (conducted_status and conducted_status.id == new_status_id
                     and lesson_type and task.task_type_id == lesson_type.id
@@ -2080,6 +2126,7 @@ def update_task(task_id):
                     # Пересчитать разметку предоплаты (баланс, is_paid на будущих)
                     from routes_payments import sync_prepaid_marks
                     sync_prepaid_marks(student)
+                    prepaid_synced_ids.add(student.id)
                     if (student.prepaid_lessons or 0) == 1:
                         _send_prepay_warning(student)
 
@@ -2149,6 +2196,20 @@ def update_task(task_id):
                 and ('start_date' in data or new_status_id != old_status_id)
             ):
                 _refresh_lesson_homework_due_dates_for_student(task.student_id)
+
+            # Любое редактирование урока может изменить очередь аванса. При смене
+            # ученика или типа задачи обязательно пересчитываем обе стороны.
+            prepaid_student_ids = set()
+            if old_student_id and old_task_type_id == lesson_type_row.id:
+                prepaid_student_ids.add(old_student_id)
+            if task.student_id and task.task_type_id == lesson_type_row.id:
+                prepaid_student_ids.add(task.student_id)
+            if prepaid_student_ids - prepaid_synced_ids:
+                from routes_payments import sync_prepaid_marks
+                for student_id in prepaid_student_ids - prepaid_synced_ids:
+                    student = db.session.get(User, student_id)
+                    if student:
+                        sync_prepaid_marks(student)
 
         return jsonify(task.to_dict())
     except Exception as e:
@@ -2360,7 +2421,8 @@ def get_tasks_calendar():
         from routes_payments import sync_prepaid_marks
         students = User.query.filter(User.id.in_(student_ids)).all()
         for student in students:
-            sync_prepaid_marks(student)
+            sync_prepaid_marks(student, commit=False)
+        db.session.commit()
 
     tasks = db.session.execute(query).scalars().all()
 
@@ -3246,4 +3308,3 @@ def get_my_homework():
         reverse=True,
     )
     return jsonify({'homework': result})
-
